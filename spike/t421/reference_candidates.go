@@ -13,12 +13,14 @@ import (
 )
 
 type executionReferenceCandidates struct {
-	mu     sync.Mutex
-	parent productionRoot
-	root   productionRoot
-	paths  [5]string
-	infos  [5]os.FileInfo
-	closed bool
+	mu               sync.Mutex
+	parent           productionRoot
+	root             productionRoot
+	paths            [5]string
+	infos            [5]os.FileInfo
+	cleanupUncertain bool
+	closed           bool
+	closeErr         error
 }
 
 func executionReferenceCandidateRoles() [5]string {
@@ -56,6 +58,14 @@ func prepareExecutionReferenceCandidatesV3(ctx context.Context, inputs *Executio
 		return candidates, ErrExecutionGoBuildCustody
 	}
 	candidates.root.path = directory
+	root, err := openProductionRoot(directory)
+	if err != nil {
+		return candidates, ErrExecutionGoBuildCustody
+	}
+	candidates.root = root
+	if candidates.checkRoots() != nil {
+		return candidates, ErrExecutionGoBuildCustody
+	}
 	for _, name := range []string{"home", "tmp", "cache"} {
 		if err := os.Mkdir(filepath.Join(directory, name), 0o700); err != nil {
 			return candidates, ErrExecutionGoBuildCustody
@@ -78,7 +88,7 @@ func prepareExecutionReferenceCandidatesV3(ctx context.Context, inputs *Executio
 	)
 	roles := executionReferenceCandidateRoles()
 	for index, role := range roles {
-		if inputs.check(ctx) != nil || !executionGitPrivateDirectory(directory) {
+		if inputs.check(ctx) != nil || candidates.checkRoots() != nil {
 			return candidates, ErrExecutionGoBuildCustody
 		}
 		packagePath, _, _, _, _, err := referenceToolRole(role)
@@ -91,8 +101,17 @@ func prepareExecutionReferenceCandidatesV3(ctx context.Context, inputs *Executio
 		if err != nil {
 			return candidates, ErrExecutionGoBuildCustody
 		}
-		if _, err := runReferenceGo(ctx, buildRoot, filepath.Join(request.GoRoot, "bin", "go"), environment, 64<<10, args...); err != nil ||
-			inputs.check(ctx) != nil || checkOverlay() != nil {
+		if candidates.checkRoots() != nil {
+			return candidates, ErrExecutionGoBuildCustody
+		}
+		// A generic command failure does not establish an empty private session.
+		// Retain scratch unless the supervised command proves complete success.
+		candidates.cleanupUncertain = true
+		if _, err := runReferenceGo(ctx, buildRoot, filepath.Join(request.GoRoot, "bin", "go"), environment, 64<<10, args...); err != nil {
+			return candidates, ErrExecutionGoBuildCustody
+		}
+		candidates.cleanupUncertain = false
+		if inputs.check(ctx) != nil || candidates.checkRoots() != nil || checkOverlay() != nil {
 			return candidates, ErrExecutionGoBuildCustody
 		}
 		info, err := os.Lstat(output)
@@ -102,8 +121,7 @@ func prepareExecutionReferenceCandidatesV3(ctx context.Context, inputs *Executio
 		}
 		candidates.paths[index], candidates.infos[index] = output, info
 	}
-	candidates.root, err = openProductionRoot(directory)
-	if err != nil || candidates.root.volume != candidates.parent.volume || inputs.check(ctx) != nil {
+	if candidates.checkRoots() != nil || inputs.check(ctx) != nil {
 		return candidates, ErrExecutionGoBuildCustody
 	}
 	return candidates, nil
@@ -115,15 +133,7 @@ func (candidates *executionReferenceCandidates) Path(ctx context.Context, role s
 	}
 	candidates.mu.Lock()
 	defer candidates.mu.Unlock()
-	if ctx == nil || ctx.Err() != nil || candidates.closed || candidates.root.file == nil || candidates.parent.file == nil {
-		return "", ErrExecutionGoBuildCustody
-	}
-	parent, parentErr := os.Lstat(candidates.parent.path)
-	root, rootErr := os.Lstat(candidates.root.path)
-	held, heldErr := candidates.root.file.Stat()
-	if parentErr != nil || !os.SameFile(parent, candidates.parent.info) || !executionGitPrivateDirectory(candidates.parent.path) ||
-		rootErr != nil || heldErr != nil ||
-		!inputCustodySame(root, held) || candidates.root.volume != candidates.parent.volume {
+	if ctx == nil || ctx.Err() != nil || candidates.closed || candidates.cleanupUncertain || candidates.checkRoots() != nil {
 		return "", ErrExecutionGoBuildCustody
 	}
 	for index, candidateRole := range executionReferenceCandidateRoles() {
@@ -139,6 +149,15 @@ func (candidates *executionReferenceCandidates) Path(ctx context.Context, role s
 	return "", ErrExecutionGoBuildCustody
 }
 
+func (candidates *executionReferenceCandidates) checkRoots() error {
+	if candidates.root.info == nil || candidates.parent.info == nil ||
+		filepath.Dir(candidates.root.path) != candidates.parent.path || candidates.root.volume != candidates.parent.volume ||
+		pressureRootsUnchanged(candidates.parent, candidates.root) != nil {
+		return ErrExecutionGoBuildCustody
+	}
+	return nil
+}
+
 // Close removes only this helper's fresh joined build scratch. Protected tool
 // copies are owned by their existing ExecutionToolCustody values.
 func (candidates *executionReferenceCandidates) Close() error {
@@ -148,34 +167,30 @@ func (candidates *executionReferenceCandidates) Close() error {
 	candidates.mu.Lock()
 	defer candidates.mu.Unlock()
 	if candidates.closed {
-		return nil
+		return candidates.closeErr
 	}
 	candidates.closed = true
 	var result error
-	if candidates.root.file != nil {
-		root, rootErr := os.Lstat(candidates.root.path)
-		held, heldErr := candidates.root.file.Stat()
-		if rootErr != nil || heldErr != nil || !os.SameFile(root, held) {
-			result = ErrExecutionGoBuildCustody
-		}
-		result = errors.Join(result, candidates.root.file.Close())
-	} else if candidates.root.path != "" && filepath.Dir(candidates.root.path) != candidates.parent.path {
+	if candidates.cleanupUncertain {
 		result = ErrExecutionGoBuildCustody
 	}
-	if candidates.parent.file != nil {
-		parent, parentErr := os.Lstat(candidates.parent.path)
-		if parentErr != nil || !os.SameFile(parent, candidates.parent.info) || !executionGitPrivateDirectory(candidates.parent.path) {
-			result = ErrExecutionGoBuildCustody
+	if candidates.root.path != "" {
+		result = errors.Join(result, candidates.checkRoots())
+	} else if candidates.parent.file != nil {
+		result = errors.Join(result, pressureRootsUnchanged(candidates.parent))
+	}
+	for _, file := range []*os.File{candidates.root.file, candidates.parent.file} {
+		if file != nil {
+			result = errors.Join(result, file.Close())
 		}
-		result = errors.Join(result, candidates.parent.file.Close())
 	}
 	if result == nil && candidates.root.path != "" {
 		result = os.RemoveAll(candidates.root.path)
 	}
 	if result != nil {
-		return ErrExecutionGoBuildCustody
+		candidates.closeErr = ErrExecutionGoBuildCustody
 	}
-	return nil
+	return candidates.closeErr
 }
 
 // bindCheckout issues the private checkout/build proof only from the retained

@@ -3228,3 +3228,22 @@ in [docs/ROADMAP.md](./docs/ROADMAP.md).
   retained observations through those pointers. No native read, I/O, child,
   retry, new lock or ordinary-runtime work is added. The existing detached
   snapshot regression now mutates both returned workspace values.
+
+- **2026-09-13 — T42.2n reference-candidate cleanup correction.** Hold the
+  fresh build directory immediately after creation and refuse recursive removal
+  if its original identity was never established or its path was replaced.
+  Reuse the existing root checks before and after each of the five supervised
+  build attempts. Mark scratch unreleasable before an attempt; only a successful
+  supervised return clears that flag. A generic command failure does not prove
+  an empty child session, so it retains scratch and a sticky cleanup error while
+  closing both owned root descriptors. No retry or parent removal follows.
+  The root descriptor is held earlier during the existing twenty-minute build
+  lifetime. Construction makes at most seventeen paired parent/root checks;
+  each `Path` and first `Close` makes one more. Each pair performs two held
+  stats, two pathname stats, two volume observations and two private-path
+  symlink resolutions under existing custody locks. These are metadata checks,
+  not corpus scans. Failed-session scratch usage remains unproven when the
+  child session is unproven. No extra build, hash pass, ordinary request/query,
+  sync, startup, publication or persistent cache is introduced. Modeled
+  partial-construction/replacement and uncertain-session tests exercise the
+  actual removal and descriptor-close guards without launching builds.
