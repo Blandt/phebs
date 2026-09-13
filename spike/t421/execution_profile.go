@@ -85,10 +85,13 @@ type ExecutionConfigProfile struct {
 }
 
 type ExecutionRuntimeProfile struct {
-	Schema                         string `json:"schema"`
-	StoreRunnerConcurrencyPerKind  uint64 `json:"store_runner_concurrency_per_kind"`
-	StoreRunnerMaxAttempts         uint64 `json:"store_runner_max_attempts"`
-	GenerationMaxAttempts          uint64 `json:"generation_max_attempts"`
+	Schema                        string `json:"schema"`
+	StoreRunnerConcurrencyPerKind uint64 `json:"store_runner_concurrency_per_kind"`
+	StoreRunnerMaxAttempts        uint64 `json:"store_runner_max_attempts"`
+	// Retained V1/V2 names remain byte-exact. V3 names selected admission
+	// limits explicitly; native capacities remain protected runtime facts.
+	GenerationMaxAttempts          uint64 `json:"generation_max_attempts,omitempty"`
+	SelectedChunkAcceptedAttempts  uint64 `json:"selected_chunk_accepted_attempts,omitempty"`
 	ObservationIOConcurrency       uint64 `json:"observation_io_concurrency"`
 	ObservationCPUConcurrency      uint64 `json:"observation_cpu_concurrency"`
 	RelationshipConcurrency        uint64 `json:"relationship_concurrency"`
@@ -98,7 +101,9 @@ type ExecutionRuntimeProfile struct {
 	ExtractionRepositoryTokens     uint64 `json:"extraction_repository_tokens"`
 	MaximumStoreRowsPerTransaction uint64 `json:"maximum_store_rows_per_transaction"`
 	MaximumLifecycleDeletesPerTurn uint64 `json:"maximum_lifecycle_deletes_per_turn"`
-	MaximumAggregatePartitions     uint64 `json:"maximum_aggregate_partitions"`
+	// MaximumAggregatePartitions is retained V1/V2 wire vocabulary.
+	MaximumAggregatePartitions        uint64 `json:"maximum_aggregate_partitions,omitempty"`
+	AdmittedTargetAggregatePartitions uint64 `json:"admitted_target_aggregate_partitions,omitempty"`
 }
 
 type ExecutionRootProfile struct {
@@ -420,7 +425,7 @@ func executionConfigProjectionSHA256(value ExecutionConfigProfile) (string, erro
 }
 
 func frozenExecutionRuntime(plan Plan) ExecutionRuntimeProfile {
-	return ExecutionRuntimeProfile{
+	value := ExecutionRuntimeProfile{
 		Schema:                        "t422-production-runtime-constants-v1",
 		StoreRunnerConcurrencyPerKind: 1, StoreRunnerMaxAttempts: 3, GenerationMaxAttempts: 5,
 		ObservationIOConcurrency: 1, ObservationCPUConcurrency: 2,
@@ -430,6 +435,14 @@ func frozenExecutionRuntime(plan Plan) ExecutionRuntimeProfile {
 		MaximumLifecycleDeletesPerTurn: plan.WorkEnvelope.MaximumLifecycleDeletesPerTurn,
 		MaximumAggregatePartitions:     plan.WorkEnvelope.MaximumAggregatePartitions,
 	}
+	if plan.Schema == PlanV3Schema {
+		value.Schema = "t422-production-runtime-constants-v2"
+		value.SelectedChunkAcceptedAttempts = value.GenerationMaxAttempts
+		value.GenerationMaxAttempts = 0
+		value.AdmittedTargetAggregatePartitions = value.MaximumAggregatePartitions
+		value.MaximumAggregatePartitions = 0
+	}
+	return value
 }
 
 func frozenExecutionRoots(host ExecutionHost, bindingSHA256 string) ExecutionRootProfile {

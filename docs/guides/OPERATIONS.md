@@ -7474,3 +7474,9 @@ dependency deferral, not a reason to widen work limits or rebuild against mixed
 inputs. Corrupt or missing installed controls remain errors. A successful
 phase response alone does not prove its work budget: joined-output validation
 can still refuse the epoch, as the retained `22c0268b` run did at checkpoint.
+
+Prospective V3 freeze review must keep two runtime records distinct. The
+execution profile admits the selected five chunk attempts and 56 target
+aggregate partitions; protected runtime facts separately report native
+capacities eight and 131,072. A cross-substitution is a refusal, not permission
+to raise a bound. Historical V1/V2 profile bytes are unchanged.

@@ -1,6 +1,8 @@
 package t421
 
 import (
+	"bytes"
+	"encoding/json"
 	"reflect"
 	"slices"
 	"testing"
@@ -219,6 +221,85 @@ func TestExecutionProfileAssemblyDoesNotIssueAdmission(t *testing.T) {
 				if _, err := expectedExecutionProfile(plan, tools, host, bad); err == nil {
 					t.Fatal("factoring dropped a verified binding comparison")
 				}
+			}
+		})
+	}
+}
+
+func TestExecutionRuntimeProfileVersioning(t *testing.T) {
+	for _, plan := range lifecyclePolicyPlans(t) {
+		t.Run(plan.Schema, func(t *testing.T) {
+			value := frozenExecutionRuntime(plan)
+			raw, err := json.Marshal(value)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if plan.Schema != PlanV3Schema {
+				if value.Schema != "t422-production-runtime-constants-v1" ||
+					value.GenerationMaxAttempts != 5 || value.MaximumAggregatePartitions != 56 ||
+					value.SelectedChunkAcceptedAttempts != 0 || value.AdmittedTargetAggregatePartitions != 0 ||
+					bytes.Contains(raw, []byte("selected_chunk_accepted_attempts")) ||
+					bytes.Contains(raw, []byte("admitted_target_aggregate_partitions")) ||
+					SHA256(raw) != "sha256:d97c1695a37ee9d6d982059c9cbe3ba44711bbef7c06de81a327e88600e54ff9" {
+					t.Fatal("retained runtime profile bytes changed", string(raw))
+				}
+				return
+			}
+			if value.Schema != "t422-production-runtime-constants-v2" ||
+				value.GenerationMaxAttempts != 0 || value.MaximumAggregatePartitions != 0 ||
+				value.SelectedChunkAcceptedAttempts != 5 || value.AdmittedTargetAggregatePartitions != 56 ||
+				bytes.Contains(raw, []byte(`"generation_max_attempts"`)) ||
+				bytes.Contains(raw, []byte(`"maximum_aggregate_partitions"`)) ||
+				!bytes.Contains(raw, []byte(`"selected_chunk_accepted_attempts":5`)) ||
+				!bytes.Contains(raw, []byte(`"admitted_target_aggregate_partitions":56`)) {
+				t.Fatal("V3 runtime profile did not separate selected limits", string(raw))
+			}
+		})
+	}
+}
+
+func TestExecutionRuntimeProfileRejectsCrossFieldMutation(t *testing.T) {
+	plan := accountingTestPlan(t)
+	tools, host := executionFreezeTestTools(plan, executionFreezeTestCommits()), executionFreezeTestHost()
+	admission := executionProfileTestAdmission(t, plan, tools, host)
+	profile, err := expectedExecutionProfile(plan, tools, host, admission)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, test := range []struct {
+		name   string
+		mutate func(*ExecutionRuntimeProfile)
+	}{
+		{name: "legacy_attempt_field", mutate: func(value *ExecutionRuntimeProfile) {
+			value.GenerationMaxAttempts, value.SelectedChunkAcceptedAttempts = value.SelectedChunkAcceptedAttempts, 0
+		}},
+		{name: "native_attempt_capacity", mutate: func(value *ExecutionRuntimeProfile) {
+			value.SelectedChunkAcceptedAttempts = 8
+		}},
+		{name: "legacy_partition_field", mutate: func(value *ExecutionRuntimeProfile) {
+			value.MaximumAggregatePartitions, value.AdmittedTargetAggregatePartitions = value.AdmittedTargetAggregatePartitions, 0
+		}},
+		{name: "native_partition_capacity", mutate: func(value *ExecutionRuntimeProfile) {
+			value.AdmittedTargetAggregatePartitions = 131072
+		}},
+		{name: "legacy_schema", mutate: func(value *ExecutionRuntimeProfile) {
+			value.Schema = "t422-production-runtime-constants-v1"
+		}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			changed, binding := profile, admission
+			test.mutate(&changed.Runtime)
+			changed.InvocationSHA256, err = executionInvocationSHA256(changed, tools)
+			if err != nil {
+				t.Fatal(err)
+			}
+			binding.invocationSHA256 = changed.InvocationSHA256
+			binding.profileSHA256, err = canonicalSHA256(changed)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if validateExecutionProfile(changed, plan, tools, host, binding) == nil {
+				t.Fatal("mutated V3 runtime profile self-admitted")
 			}
 		})
 	}

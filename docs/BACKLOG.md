@@ -8741,6 +8741,23 @@ manifest is `871f1b5f6ad24e93a0f75ca33db5ecac389c5714a49f4f8b75abcbebef3a875f`.
 Neither a cold logical metric nor native phase completion or whole-work receipt
 is established.
 
+The prospective V3 runtime profile now separates selected execution facts from
+larger native capacities instead of publishing one ambiguous pair of names.
+V3 records selected accepted chunk attempts as five and the admitted target's
+aggregate partitions as 56; the independently protected runtime-facts record
+continues to carry native store generation capacity eight and native sparse
+aggregate capacity 131,072. No value or admission bound changes. V1/V2 runtime
+JSON remains byte-exact. Independent review of the three-file patch reported
+critical/high/medium/low zero and traced every consumer of the retained names;
+the exact-profile and compact-attempt selectors passed normally in 0.699s and
+under the race detector in 2.344s. Pinned static, repository compilation,
+documentation, glossary and whitespace checks pass. A broad package run
+reproduced `TestStoreBoundEvidenceGroupingOracle` and
+`TestLogicalStoreWorkSAProjection` unchanged at exact base `00381485`, then
+reached its 30-minute bound while constructing the unrelated production-derived
+ordinary-pass fixture. Complete package acceptance remains part of the combined
+T42.2l exact-tree gate; this bounded vocabulary slice adds no unreviewed failure.
+
 The output audit keeps scopes separate. Epoch four plus backup/restore has a
 46,642,240-byte compact subtotal; epoch five separately has 15,149,846 bytes
 of compact records and its own WB stream. The later five WB positions add

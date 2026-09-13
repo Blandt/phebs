@@ -29,6 +29,10 @@ func observeCompactAttempt(line []byte, plan Plan, producer uint32, input string
 	}
 	depth := uint64(line[3] - '0')
 	runtime := frozenExecutionRuntime(plan)
+	generationMaxAttempts := runtime.GenerationMaxAttempts
+	if plan.Schema == PlanV3Schema {
+		generationMaxAttempts = runtime.SelectedChunkAcceptedAttempts
+	}
 	var starts, retries uint64
 	switch line[2] {
 	case 'j':
@@ -37,7 +41,7 @@ func observeCompactAttempt(line []byte, plan Plan, producer uint32, input string
 		}
 		starts = 1
 	case 'c':
-		if depth >= runtime.GenerationMaxAttempts {
+		if depth >= generationMaxAttempts {
 			return true, errExecutionAttempts
 		}
 		starts = 1
@@ -47,7 +51,7 @@ func observeCompactAttempt(line []byte, plan Plan, producer uint32, input string
 		}
 		retries = 1
 	case 't':
-		if depth < 1 || depth >= runtime.GenerationMaxAttempts {
+		if depth < 1 || depth >= generationMaxAttempts {
 			return true, errExecutionAttempts
 		}
 		retries = 1
