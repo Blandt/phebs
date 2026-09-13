@@ -4458,6 +4458,73 @@ owns the design and dependency order. Execution remains excluded.
   retained V1/V2 unchanged, exact invocation and custody/expiry handoff; no
   ceremony execution, Epic closure, release or scale claim.
 
+**T42.2l/m reviewed component checkpoints (2026-09-13).** The current
+`codex/t42.2l-logical-measurement` stack continues from `adc0f887`; prior
+implementation subjects are not acceptance receipts. Ben requested review,
+bounded commits and status reconciliation, without integration or execution.
+Independent review rejected the draft whole-receipt activation: partial metric
+families omitted required disk/preflight/teardown observations; pressure values
+were derived from minimum limits rather than actual samples; and one archived
+database component was copied into independent before/archive/after inventory
+fields. The added launcher also discarded stopped evidence and successful
+package bytes. Its changes and the five new composer files were preserved in a
+local recovery copy outside the package, and the existing post-AuthorA
+`errExecutionAuthorityPending` boundary is retained. No complete executor or
+returned-evidence transport is established.
+
+The caller-publication draft is likewise deferred: namespace record cardinality
+does not separately measure declaration rows or generated descriptors, and
+aggregate abstentions do not establish zero unresolved postings. Native
+observations for these quantities remain required; no count is inferred from
+expected zero or copied into a different quantity. The prior command/inspection
+response remains unchanged.
+
+The independent components eligible for bounded checkpoints are the in-memory
+signed package builder, detached accepted native transition snapshots, and
+controller observation ordinals/runtime bindings. Review corrected a malformed
+tar-header panic, rejection of normal bounded signer stderr, and mutable
+transition snapshots escaping through repeated `Wait` calls. Controller event
+times mark acceptance of observations, including composite responses; they do
+not claim native callback occurrence times or durations. The retained archive
+manifest remains archive-only evidence. Each checkpoint owns its tests and
+PLAN cost record.
+
+The three implementation checkpoints are independently source/docs/cost reviewed
+with critical/high/medium/low `0/0/0/0` for each exact commit:
+
+| Commit | Component validation |
+| --- | --- |
+| `27c740c8f8ae4366d2ad9430c86155ddb0f16ead` | Malformed-header, signer-key and claim/collision normal selector passed in 0.948s. Complete native package validation remains separately recorded below. |
+| `ae61782fde206ec63f9d6f60682dd3bc29591550` | Capture-only source applied independently over `adc0f887` passed detached-observation and existing inspection snapshot tests: normal 0.639s, race 1.829s. |
+| `aaad49ddc713d43ac23f91fa4fd7689f8a4aad3a` | Sixteen selected event/runtime, health, native-wire, retention, pressure and teardown tests passed: normal 1.086s, race 7.420s. |
+
+Go 1.26.5 compilation of both affected packages, scoped vet, formatting,
+whitespace, docs-check and glossary verification pass. Repository-pinned
+golangci-lint 2.12.2 remains red with ten inherited package findings: one
+unchecked authorization-close result, one boolean simplification and eight
+unused unactivated sequence/event declarations. An isolated clean `adc0f887`
+reproduces all of them plus one additional then-unused event helper; the new
+package lint issues were corrected. No lint waiver or full static pass is
+claimed.
+
+The first isolated signer/package normal command used an insufficient
+ten-minute package allowance and timed out during the existing native resolver
+fixture, before package construction (662.602s total). Its original diagnostic
+lineage is retained and its test/database processes exited. This failed attempt
+is not a signer failure or a pass. The exact signer commit's serial race
+confirmation uses the existing fixture's longer sixty-minute package allowance;
+its result must be recorded before claiming that component's native package
+acceptance.
+
+Remaining work is explicit: native caller counters; separately observed
+pressure and archive identities; complete phase-one/teardown and disk metric
+owners with coverage enforcement; both successful and stopped receipt
+composition; bounded package delivery through the outer firewall; then T42.2n
+exact-source acceptance/independent review and T42.2o integration, seal and
+exact-main freeze. Historical full-package failures/timeouts remain retained.
+No full package, rehearsal, T42.2l/m/n/o closure, merge, push or ceremony is
+established by these component reviews.
+
 **T42.2l measurement track — phase-bound attempt reports (2026-09-07).**
 Replace selected job/chunk report writes with genuine producer/input/phase-bound
 envelopes, preserving ordinary/T40 behavior. Consume only joined native output,

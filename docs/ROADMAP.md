@@ -64,6 +64,18 @@ sequence.
 
 ## Now
 
+**T42.2l/m review checkpoints, 2026-09-13:** the current topic contains
+executor/launcher component work beyond the older status rows below, but full
+acceptance remains open. Review rejected the unobserved caller counters,
+pressure/archive identities and incomplete success/stopped receipt wiring.
+Those drafts are preserved outside the compiled checkpoint; the existing
+post-AuthorA pending-authority stop remains. Bounded commits cover signed
+in-memory packaging, detached native observations and controller acceptance
+ordinals. Their checks do not establish returned-package delivery or a full
+ceremony. The owning [backlog record](./BACKLOG.md) lists the remaining native
+evidence, receipt and transport work before T42.2n acceptance and T42.2o
+reviewed integration into `main`, sealing and exact-main freeze.
+
 **T42.2 V3 capacity correction approved, 2026-09-11:** Ben approved the
 128-GiB sampled per-linked-path allocation ceiling and derived nominal margin,
 with the physical pressure volume still 96 GiB and all other limits unchanged.
