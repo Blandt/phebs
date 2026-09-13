@@ -158,6 +158,14 @@ func TestExecutionGoBuildCustodyRealOfflineReference(t *testing.T) {
 	if validateExecutionTools([]ExecutionToolIdentity{goIdentity}, policy, fixture.source) != nil {
 		t.Fatal("observed Go identity differs from the existing role contract")
 	}
+	commits, checkout, err := inputs.bindCheckout(t.Context(), policy, []ExecutionToolIdentity{goIdentity})
+	if err != nil || commits != inputs.commits || !checkout.verified || checkout.commits != commits {
+		t.Fatal("retained checkout/build custody did not issue its exact binding", err)
+	}
+	toolsSHA256, err := canonicalSHA256([]ExecutionToolIdentity{goIdentity})
+	if err != nil || checkout.toolsSHA256 != toolsSHA256 {
+		t.Fatal("checkout binding did not retain the exact tool inventory", err)
+	}
 	// Exercise bindProfileExecutor itself with actual protected Go/source/module
 	// custody and an actual independently rebuilt t422-execute image. Only the
 	// private launcher-to-process linkage is modeled here; the native outer-prep
