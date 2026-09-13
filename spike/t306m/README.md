@@ -257,6 +257,15 @@ Run the retained gate with:
 go test ./spike/t306m -count=1
 ```
 
+The retained receipt and its 52-component fair-share arithmetic are historical
+authority. Later collectors extend the production registry and recalculate its
+current per-component shares; they do not rewrite T30.6m's receipt or the exact
+T30.6p/q/r allocation proofs. The gate therefore proves the retained arithmetic
+from T30.6m's own constants, then separately requires the live registry to keep
+the stable 4,096 aggregate allocation, add one sentinel per current component,
+and have at least 52 components. API tests separately verify current component
+membership and allocation fairness.
+
 This is a neutral capacity and ownership decision record. It establishes no
 public-corpus accuracy, completeness, runtime-use, migration-completion,
 decommission-safety, physical-database-byte, or bounded-retention claim.

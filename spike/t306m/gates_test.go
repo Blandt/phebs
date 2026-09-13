@@ -240,8 +240,8 @@ func TestT306MFollowupSplit(t *testing.T) {
 	}
 	allocationTotals := func(names ...string) (reported int, scanned int) {
 		componentIndex := 0
-		base := api.RetentionStatusAggregateReportedIdentityAllocation / api.RetentionStatusComponentCount
-		remainder := api.RetentionStatusAggregateReportedIdentityAllocation % api.RetentionStatusComponentCount
+		base := StatusAggregateReportedIdentityAllocation / StatusComponentCount
+		remainder := StatusAggregateReportedIdentityAllocation % StatusComponentCount
 		for _, owner := range results.Owners {
 			selected := slices.Contains(names, owner.Name)
 			for range owner.Components {
@@ -357,12 +357,15 @@ func TestT306MStatusBoundAndWarning(t *testing.T) {
 	contract := loadResults(t).Status
 	if StatusReportedIdentityLimit != api.RetentionStatusReportedIdentityLimit ||
 		StatusScanIdentityLimit != api.RetentionStatusScanIdentityLimit ||
-		StatusComponentCount != api.RetentionStatusComponentCount ||
 		StatusAggregateReportedIdentityAllocation != api.RetentionStatusAggregateReportedIdentityAllocation ||
-		StatusAggregateScanIdentityAllocation != api.RetentionStatusAggregateScanIdentityAllocation ||
 		StatusResponseByteLimit != api.RetentionStatusResponseByteLimit ||
 		WarningCode != api.RetentionStatusWarningCode {
-		t.Fatalf("retained and production status budgets disagree")
+		t.Fatalf("stable retained and production status limits disagree")
+	}
+	if api.RetentionStatusComponentCount < StatusComponentCount ||
+		api.RetentionStatusAggregateScanIdentityAllocation !=
+			api.RetentionStatusAggregateReportedIdentityAllocation+api.RetentionStatusComponentCount {
+		t.Fatalf("production registry does not extend the historical allocation safely")
 	}
 	if contract.ReportedIdentityLimitPerSummary != StatusReportedIdentityLimit ||
 		contract.ScanIdentityLimitPerSummary != StatusScanIdentityLimit ||

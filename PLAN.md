@@ -3169,3 +3169,10 @@ in [docs/ROADMAP.md](./docs/ROADMAP.md).
   canonical digest. Later production glossary surfaces remain governed by
   `internal/glossary` and its drift checks. The added historical input is
   test-only; production bytes, validation, costs and authority are unchanged.
+
+- **2026-09-13 — T42.2n prerequisite test preservation, T30.6m.** Port the
+  bounded test correction from `bfca7c17` without importing its branch lineage.
+  Compute retained 52-component shares from retained constants; separately
+  check stable live budgets, one sentinel per component and nonshrinking
+  component count. API tests own exact live membership/fairness. Retained
+  receipt bytes, production behavior and steady-state costs remain unchanged.
