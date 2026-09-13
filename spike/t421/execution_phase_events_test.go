@@ -31,8 +31,14 @@ func TestExecutionPhaseEventRecorder(t *testing.T) {
 			if phase == "teardown" {
 				outcome = "clean"
 			}
-			if err := recorder.beginAt(phase, started); err != nil ||
-				recorder.finishAt(phase, outcome, started.Add(1500*time.Microsecond)) != nil {
+			if err := recorder.beginAt(phase, started); err != nil {
+				t.Fatalf("phase %q was not started", phase)
+			}
+			inner, err := recorder.event(phase)
+			if err != nil || inner == 0 {
+				t.Fatalf("phase %q inner event was not recorded", phase)
+			}
+			if recorder.finishAt(phase, outcome, started.Add(1500*time.Microsecond)) != nil {
 				t.Fatalf("phase %q was not recorded", phase)
 			}
 		}

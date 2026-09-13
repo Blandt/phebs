@@ -81,6 +81,25 @@ func (recorder *executionPhaseEventRecorder) finish(phase, outcome string) error
 	return recorder.finishAt(phase, outcome, time.Now())
 }
 
+func (recorder *executionPhaseEventRecorder) event(phase string) (uint64, error) {
+	if recorder == nil {
+		return 0, ErrExecutionEpochOne
+	}
+	recorder.mu.Lock()
+	defer recorder.mu.Unlock()
+	if recorder.failed || recorder.active < 0 || recorder.active >= len(recorder.phases) ||
+		recorder.phases[recorder.active] != phase {
+		recorder.failed = true
+		return 0, ErrExecutionEpochOne
+	}
+	ordinal, err := recorder.ordinals.next()
+	if err != nil || ordinal <= recorder.slots[recorder.active].value.StartEventOrdinal {
+		recorder.failed = true
+		return 0, ErrExecutionEpochOne
+	}
+	return ordinal, nil
+}
+
 func (recorder *executionPhaseEventRecorder) finishAt(phase, outcome string, finished time.Time) error {
 	if recorder == nil {
 		return ErrExecutionEpochOne
@@ -171,6 +190,16 @@ func (flow *ExecutionEpochOne) finishExecutionPhase(phase, outcome string) error
 	recorder := flow.executionPhaseEvents
 	flow.mu.Unlock()
 	return recorder.finish(phase, outcome)
+}
+
+func (flow *ExecutionEpochOne) recordExecutionEvent(phase string) (uint64, error) {
+	if flow == nil {
+		return 0, ErrExecutionEpochOne
+	}
+	flow.mu.Lock()
+	recorder := flow.executionPhaseEvents
+	flow.mu.Unlock()
+	return recorder.event(phase)
 }
 
 func (flow *ExecutionEpochOne) executionPhaseEventEvidence() ([]PhaseMeasurement, error) {
