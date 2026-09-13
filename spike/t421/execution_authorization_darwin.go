@@ -10,11 +10,9 @@ import (
 	"net"
 	"os"
 	"path/filepath"
-	"strings"
 	"sync"
 	"syscall"
 	"time"
-	"unicode/utf8"
 
 	"golang.org/x/sys/unix"
 )
@@ -351,9 +349,4 @@ func sendExecutionAuthorization(ctx context.Context, path string, raw []byte, de
 		return errExecutionAuthorization
 	}
 	return nil
-}
-
-func validExecutionAuthorizationSocketPath(path string) bool {
-	return filepath.IsAbs(path) && filepath.Clean(path) == path && utf8.ValidString(path) &&
-		!strings.ContainsRune(path, 0) && len([]byte(path)) <= 103
 }

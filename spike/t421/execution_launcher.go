@@ -17,6 +17,7 @@ import (
 const (
 	executionOuterMode              = "run-t422-outer"
 	executionInnerMode              = "run-t422-inner"
+	executionAuthorizationMode      = "authorize-t422"
 	executionLivenessEnvironment    = "PHEBS_T422_PARENT_LIVENESS_V1"
 	executionSelectionSchema        = "t422-execution-selection-v1"
 	executionParentLivenessSchema   = "t422-parent-liveness-binding-v1"
@@ -73,17 +74,49 @@ type executionParentLivenessV1 struct {
 // independently reconstructs its protected custodies.
 func RunExecutionCommand(ctx context.Context, args, environment []string) error {
 	entered := time.Now()
-	if ctx == nil || entered.UnixNano() <= 0 || len(args) != 4 || args[2] != "--selection-base64url" {
+	if ctx == nil || entered.UnixNano() <= 0 || len(args) < 2 {
 		return ErrExecutionLauncher
 	}
 	switch args[1] {
 	case executionOuterMode:
+		if len(args) != 4 || args[2] != "--selection-base64url" {
+			return ErrExecutionLauncher
+		}
 		return runExecutionOuter(ctx, entered, args[0], args[3], environment)
 	case executionInnerMode:
+		if len(args) != 4 || args[2] != "--selection-base64url" {
+			return ErrExecutionLauncher
+		}
 		return runExecutionInner(ctx, entered, args[0], args[3], environment)
+	case executionAuthorizationMode:
+		return runExecutionAuthorizationClient(ctx, entered, args)
 	default:
 		return ErrExecutionLauncher
 	}
+}
+
+func runExecutionAuthorizationClient(ctx context.Context, entered time.Time, args []string) error {
+	if len(args) != 6 || args[2] != "--socket" || args[4] != "--payload-base64url" ||
+		!validExecutionAuthorizationSocketPath(args[3]) || len(args[5]) == 0 || len(args[5]) > base64.RawURLEncoding.EncodedLen(maxExecutionAuthorizationBytes) {
+		return ErrExecutionLauncher
+	}
+	raw, err := base64.RawURLEncoding.Strict().DecodeString(args[5])
+	if err != nil || base64.RawURLEncoding.EncodeToString(raw) != args[5] {
+		return ErrExecutionLauncher
+	}
+	value, err := decodeExecutionAuthorization(raw)
+	canonical, canonicalErr := canonicalExecutionAuthorization(value)
+	if err != nil || canonicalErr != nil || !bytes.Equal(raw, canonical) {
+		return ErrExecutionLauncher
+	}
+	deadline := entered.Add(20 * time.Minute)
+	if selected, ok := ctx.Deadline(); ok && selected.Before(deadline) {
+		deadline = selected
+	}
+	if sendExecutionAuthorization(ctx, args[3], raw, deadline) != nil {
+		return ErrExecutionLauncher
+	}
+	return nil
 }
 
 func executionSelection(encoded string) (executionSelectionV1, error) {

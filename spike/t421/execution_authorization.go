@@ -5,6 +5,9 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"path/filepath"
+	"strings"
+	"unicode/utf8"
 )
 
 const (
@@ -65,4 +68,9 @@ func decodeExecutionAuthorization(raw []byte) (executionAuthorizationV1, error) 
 		return executionAuthorizationV1{}, errExecutionAuthorization
 	}
 	return value, nil
+}
+
+func validExecutionAuthorizationSocketPath(path string) bool {
+	return filepath.IsAbs(path) && filepath.Clean(path) == path && utf8.ValidString(path) &&
+		!strings.ContainsRune(path, 0) && len([]byte(path)) <= maxExecutionAuthSocketPathBytes
 }
