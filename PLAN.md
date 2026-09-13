@@ -3156,3 +3156,9 @@ in [docs/ROADMAP.md](./docs/ROADMAP.md).
   approved cleanup reserves and separately requires zero observed work, wire
   reservation and closure; the corrected numeric expectation allocates no
   bytes and changes no production limit.
+
+- **2026-09-13 — T42.2n sequence refusal review correction.** Initialize the
+  existing phase recorder in invalid-input tests and require its preflight
+  snapshot to remain unchanged. A missing recorder can no longer mask an
+  attempted cold-phase transition. This adds bounded test-only setup and
+  comparisons; production behavior, costs and readiness status are unchanged.

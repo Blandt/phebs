@@ -27,6 +27,23 @@ func TestExecutionEpochSequenceRefusesUnavailableInputs(t *testing.T) {
 		{"missing_volume", t.Context(), &ExecutionEpochOne{}, nil},
 	} {
 		t.Run(test.name, func(t *testing.T) {
+			var before []PhaseMeasurement
+			if test.flow != nil {
+				admitted, _, err := newExecutionEventOrdinals().consumeFinalAdmission()
+				if err != nil {
+					t.Fatal(err)
+				}
+				now := time.Now()
+				recorder, err := newExecutionPhaseEventRecorder(admitted, frozenPhaseOrder(), now, now.Add(time.Hour))
+				if err != nil || recorder.beginAt("preflight", now) != nil || recorder.finish("preflight", "passed") != nil {
+					t.Fatal("could not prepare the unit-test event prefix", err)
+				}
+				test.flow.executionPhaseEvents = recorder
+				before, err = test.flow.executionPhaseEventEvidence()
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
 			if _, err := test.flow.authorAAdmitted(test.ctx, time.Time{}, ExecutionFreezeBinding{}, nil); !errors.Is(err, ErrExecutionEpochOne) {
 				t.Fatal("unavailable admission was accepted", err)
 			}
@@ -36,6 +53,12 @@ func TestExecutionEpochSequenceRefusesUnavailableInputs(t *testing.T) {
 			}
 			if test.flow != nil && (test.flow.used || test.flow.authored) {
 				t.Fatal("invalid input consumed the flow")
+			}
+			if test.flow != nil {
+				after, err := test.flow.executionPhaseEventEvidence()
+				if err != nil || !reflect.DeepEqual(after, before) {
+					t.Fatal("invalid input advanced the phase recorder", after, err)
+				}
 			}
 		})
 	}
