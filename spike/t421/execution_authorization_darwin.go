@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"io"
 	"net"
 	"os"
 	"path/filepath"
@@ -341,6 +342,12 @@ func sendExecutionAuthorization(ctx context.Context, path string, raw []byte, de
 		frame = frame[written:]
 	}
 	if unixConnection.CloseWrite() != nil {
+		return errExecutionAuthorization
+	}
+	// The server sends no response. Waiting for its EOF keeps Darwin peer
+	// metadata live through the server's mandatory credential observation.
+	var response [1]byte
+	if n, err := unixConnection.Read(response[:]); n != 0 || !errors.Is(err, io.EOF) {
 		return errExecutionAuthorization
 	}
 	return nil

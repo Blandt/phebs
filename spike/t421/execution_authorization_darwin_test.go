@@ -71,12 +71,12 @@ func TestExecutionAuthorizationSocketSuccess(t *testing.T) {
 		peer, err := wait.consume(context.Background(), value)
 		result <- outcome{peer: peer, err: err}
 	}()
-	connection := executionAuthorizationRawClient(t, wait.path, deadline)
-	if _, err := connection.Write(append(raw, '\n')); err != nil || connection.CloseWrite() != nil {
+	sent := make(chan error, 1)
+	go func() { sent <- sendExecutionAuthorization(context.Background(), wait.path, raw, deadline) }()
+	got := <-result
+	if err := <-sent; err != nil {
 		t.Fatal(err)
 	}
-	got := <-result
-	_ = connection.Close()
 	if got.err != nil || got.peer.pid != os.Getpid() || got.peer.uid != uint32(os.Geteuid()) ||
 		!got.peer.listenerCloseOnExec || !got.peer.connectionCloseOnExec {
 		t.Fatalf("peer evidence = %+v, %v", got.peer, got.err)
