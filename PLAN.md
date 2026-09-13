@@ -413,13 +413,28 @@ unchanged. This plan is orchestration, not evidence that any later gate passed.
   four commit/tree IDs and three authority flags, eleven fixed tools, fifteen
   host fields, the actual profile/admission and derived pressure geometry, one
   at-most-64-KiB canonical freeze encode plus source-fragment scan, and one
-  returned byte clone. Transient memory is bounded by the existing
-  at-most-262,144-byte plan, at-most-64-KiB freeze and fixed profile/tool
-  slices. A later private raw-byte recheck separately pays full plan validation,
+  returned byte clone. A later private raw-byte recheck separately pays full
+  plan validation,
   one bounded decode and canonical re-encode, the same shared field validation
-  and source scan. There is no lock, I/O, file or source walk, child, timer,
-  retry, cache, persistent state, request/query, sync tick, startup/restart,
-  publication transition or steady-state work. Exhaustive mutation tests call
+  and source scan. Each full V3 validation also reconstructs the uncached
+  frozen generators described in the returned-package checkpoint: the
+  31,600-file overlay, 10,000-service catalog controls and logical generations,
+  authored/independent oracles, legacy and Go-only A/B identities, four complete
+  roughly-two-million-record structural traversals, two combined-additions
+  inventories and two short reader probes. Structural records stream without
+  disk authoring; overlay, catalog, membership and tree-frame allocations exceed
+  the plan/freeze wire caps. These generator APIs receive no caller context,
+  and authored projection uses `context.Background()`, so cancellation cannot
+  interrupt reconstruction. Live assembly retains the capability-state,
+  volume, flow, author and epoch locks. Signer raw revalidation retains key,
+  claim and signer locks, acquiring the namespace lock afterward; token checks
+  briefly acquire that namespace mutex. The next context-aware custody check
+  refuses cancellation. Live candidate preparation also performs three full
+  existing Go-inventory metadata scans under its profile locks (two tool
+  observations and checkout binding), beyond initial issue and final consume.
+  The pure helpers add no disk authoring, operational child, request/query,
+  sync tick, ordinary startup/restart or publication work. Exhaustive mutation
+  tests call
   shared post-plan primitives only after one validated baseline;
   representative schema, commit, tool, host, profile/admission and signer cases
   still exercise the complete assembler, and canonical/drift cases exercise
@@ -3195,3 +3210,12 @@ in [docs/ROADMAP.md](./docs/ROADMAP.md).
   the actual request half-close, with both a held peer and later EOF. This
   closes a component cancellation defect; launcher/readiness acceptance stays
   open.
+
+- **2026-09-13 — T42.2n signer validation cost correction.** Keep one exact
+  public-key/allowlist presence, metadata and byte check in the existing locked
+  validator. Remove the duplicate check's two reads/seeks, four stats, four
+  descriptor-flag calls and allowlist allocation from each post-seal check.
+  The original private candidate cost paragraph now records uncached generator
+  allocations, traversal and cancellation limits, actual caller-held locks and
+  three repeated Go-inventory metadata scans. No authority predicate, native
+  admission bound, persistent cache or ordinary-runtime behavior changes.

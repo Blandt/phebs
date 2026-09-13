@@ -345,22 +345,6 @@ func checkExecutionSignerKeyLocked(ctx context.Context, key *executionSignerKeyC
 				return err
 			}
 		}
-		canonicalRaw, canonicalErr := readExecutionSignerHeldFile(key.canonicalFile)
-		allowlistRaw, allowlistErr := readExecutionSignerHeldFile(key.allowlist)
-		if canonicalErr != nil || allowlistErr != nil || !bytes.Equal(canonicalRaw, key.canonicalPublic) ||
-			!bytes.Equal(allowlistRaw, executionSignerAllowlist(key.canonicalPublic)) {
-			return ErrExecutionEpochOne
-		}
-	}
-	if key.canonicalFile == nil != (key.allowlist == nil) {
-		return ErrExecutionEpochOne
-	}
-	if key.canonicalFile != nil {
-		for _, held := range []*executionSignerHeldFile{key.canonicalFile, key.allowlist} {
-			if err := checkExecutionSignerHeldFile(ctx, held); err != nil {
-				return err
-			}
-		}
 		canonicalRaw, err := readExecutionSignerHeldFile(key.canonicalFile)
 		if err != nil || !bytes.Equal(canonicalRaw, key.canonicalPublic) {
 			return ErrExecutionEpochOne
