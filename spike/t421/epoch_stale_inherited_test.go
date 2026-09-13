@@ -99,6 +99,15 @@ func testEpochInheritedStaleObservation(t *testing.T, ctx context.Context, run *
 	defer server.Close()
 	run.epoch.Listen, run.epoch.APIKey, run.epoch.Repository = strings.TrimPrefix(server.URL, "http://"), "private-key", "example.com/mono"
 	run.flow.plan, run.inspection = reader.plan, reader
+	// Earlier phase authorities are explicit source-free scaffolding, not
+	// claims that this inherited child executed those predecessor phases.
+	// The operation below must append only its actually decoded stale F.
+	for _, phase := range []string{"cold", "warm_noop", "physical_delta_b", "logical_delta_b", "return_a"} {
+		value := cloneExecutionAuthorityResult(reader.returnAuthority)
+		value.Phase = phase
+		run.flow.authorities = append(run.flow.authorities, value)
+	}
+	priorAuthorities := run.flow.acceptedAuthorityPrefix()
 	run.stop, run.returnDone = make(chan struct{}), make(chan struct{})
 	close(run.returnDone)
 	run.returnUsed, run.staleAllowed, run.warm = true, true, true
@@ -107,6 +116,12 @@ func testEpochInheritedStaleObservation(t *testing.T, ctx context.Context, run *
 	defer run.stopPhaseDeadline()
 	if err := run.StaleLease(ctx); err != nil {
 		t.Fatal("actual inherited stale parent choreography", err, reader.err, calls.Load())
+	}
+	acceptedAuthorities := run.flow.acceptedAuthorityPrefix()
+	if len(acceptedAuthorities) != len(priorAuthorities)+1 ||
+		!reflect.DeepEqual(acceptedAuthorities[:len(priorAuthorities)], priorAuthorities) ||
+		!reflect.DeepEqual(acceptedAuthorities[len(priorAuthorities)], reader.finalAuthority) {
+		t.Fatal("stale operation did not retain exactly its detailed F after the unchanged modeled prefix")
 	}
 	prior := reader.returnAuthority
 	prior.Phase = "stale_lease"
@@ -121,5 +136,8 @@ func testEpochInheritedStaleObservation(t *testing.T, ctx context.Context, run *
 	}
 	if run.StaleLease(ctx) == nil || calls.Load() != 6 {
 		t.Fatal("stale operation replayed")
+	}
+	if !reflect.DeepEqual(run.flow.acceptedAuthorityPrefix(), acceptedAuthorities) {
+		t.Fatal("stale replay refusal changed the accepted authority prefix")
 	}
 }

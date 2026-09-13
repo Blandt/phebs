@@ -2,7 +2,12 @@
 
 package t421
 
-import "context"
+import (
+	"context"
+	"errors"
+	"slices"
+	"time"
+)
 
 // executionEpochSequenceResult retains every joined server/archive prefix
 // needed by the later receipt composer. current always names the owner that a
@@ -193,4 +198,70 @@ func (result *executionEpochSequenceResult) stop(ctx context.Context) (Execution
 		return ExecutionEpochOneResult{}, ErrExecutionEpochOne
 	}
 	return result.current.Stop(ctx)
+}
+
+func (recorder *executionPhaseEventRecorder) begin(phase string) error {
+	return recorder.beginAt(phase, time.Now())
+}
+
+func (recorder *executionPhaseEventRecorder) finish(phase, outcome string) error {
+	return recorder.finishAt(phase, outcome, time.Now())
+}
+
+func cloneExecutionPhaseEvents(values []PhaseMeasurement) []PhaseMeasurement {
+	return slices.Clone(values)
+}
+
+func (flow *ExecutionEpochOne) beginExecutionPhase(phase string) error {
+	if flow == nil {
+		return ErrExecutionEpochOne
+	}
+	flow.mu.Lock()
+	recorder := flow.executionPhaseEvents
+	flow.mu.Unlock()
+	return recorder.begin(phase)
+}
+
+func (flow *ExecutionEpochOne) finishExecutionPhase(phase, outcome string) error {
+	if flow == nil {
+		return ErrExecutionEpochOne
+	}
+	flow.mu.Lock()
+	recorder := flow.executionPhaseEvents
+	flow.mu.Unlock()
+	return recorder.finish(phase, outcome)
+}
+
+func (flow *ExecutionEpochOne) executionPhaseEventEvidence() ([]PhaseMeasurement, error) {
+	if flow == nil {
+		return nil, ErrExecutionEpochOne
+	}
+	flow.mu.Lock()
+	recorder := flow.executionPhaseEvents
+	flow.mu.Unlock()
+	return recorder.snapshot()
+}
+
+func runExecutionPhase(flow *ExecutionEpochOne, phase string, operation func() error) error {
+	if operation == nil || flow.beginExecutionPhase(phase) != nil {
+		return ErrExecutionEpochOne
+	}
+	err := operation()
+	outcome := "passed"
+	if err != nil {
+		outcome = "stopped"
+	}
+	if phase == "teardown" {
+		outcome = "clean"
+		if err != nil {
+			outcome = "failed"
+		}
+	}
+	if finishErr := flow.finishExecutionPhase(phase, outcome); finishErr != nil {
+		err = errors.Join(err, finishErr)
+	}
+	if err != nil {
+		return errors.Join(ErrExecutionEpochOne, err)
+	}
+	return nil
 }

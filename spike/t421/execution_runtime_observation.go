@@ -140,30 +140,6 @@ func validateExecutionRuntimeFacts(facts executionConfiguredRuntimeFacts, plan P
 	return nil
 }
 
-func validateObservedExecutionRuntime(observed *executionRuntimeObservation, plan Plan, profile ExecutionProfile, tools []ExecutionToolIdentity, path, directory string) error {
-	index := slices.IndexFunc(tools, func(tool ExecutionToolIdentity) bool { return tool.Role == "phebs" })
-	if observed == nil || index < 0 || observed.Identity != tools[index] || observed.Path != path || observed.Directory != directory ||
-		!observed.RootStarted || !observed.RootJoined || !observed.SessionEmpty || !observed.Observed || !observed.Complete ||
-		observed.PID <= 0 || observed.err != nil || observed.waited == nil || observed.stdout == nil || observed.stderr == nil ||
-		observed.stdout.err != nil || observed.stderr.err != nil || observed.stderr.buffer.Len() != 0 ||
-		observed.Deadline.IsZero() || !time.Now().Before(observed.Deadline) {
-		return ErrExecutionEpochOne
-	}
-	raw, err := json.Marshal(observed.Facts)
-	if err != nil {
-		return ErrExecutionEpochOne
-	}
-	raw = append(raw, '\n')
-	decoded, err := decodeExecutionRuntimeFacts(raw)
-	commandSHA256, commandErr := executionRuntimeCommandSHA256(path, directory)
-	if err != nil || commandErr != nil || !reflect.DeepEqual(decoded, observed.Facts) ||
-		!bytes.Equal(raw, observed.stdout.buffer.Bytes()) || SHA256(raw) != observed.RawSHA256 ||
-		commandSHA256 != observed.CommandSHA256 || validateExecutionRuntimeFacts(observed.Facts, plan, profile) != nil {
-		return ErrExecutionEpochOne
-	}
-	return nil
-}
-
 // Private owned prefix. Output pumps belong to the sole Wait; if it cannot
 // join by Deadline, waited/stdout/stderr remain retained and must not be read.
 // A later exit does not silently promote this failed attempt to completion.

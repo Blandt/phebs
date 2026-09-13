@@ -1,7 +1,6 @@
 package t421
 
 import (
-	"errors"
 	"slices"
 	"sync"
 	"time"
@@ -43,10 +42,6 @@ func newExecutionPhaseEventRecorder(
 	}, nil
 }
 
-func (recorder *executionPhaseEventRecorder) begin(phase string) error {
-	return recorder.beginAt(phase, time.Now())
-}
-
 func (recorder *executionPhaseEventRecorder) beginAt(phase string, started time.Time) error {
 	if recorder == nil {
 		return ErrExecutionEpochOne
@@ -75,10 +70,6 @@ func (recorder *executionPhaseEventRecorder) beginAt(phase string, started time.
 		started: started,
 	}
 	return nil
-}
-
-func (recorder *executionPhaseEventRecorder) finish(phase, outcome string) error {
-	return recorder.finishAt(phase, outcome, time.Now())
 }
 
 func (recorder *executionPhaseEventRecorder) event(phase string) (uint64, error) {
@@ -159,20 +150,6 @@ func (recorder *executionPhaseEventRecorder) snapshot() ([]PhaseMeasurement, err
 	return result, nil
 }
 
-func cloneExecutionPhaseEvents(values []PhaseMeasurement) []PhaseMeasurement {
-	return slices.Clone(values)
-}
-
-func (flow *ExecutionEpochOne) beginExecutionPhase(phase string) error {
-	if flow == nil {
-		return ErrExecutionEpochOne
-	}
-	flow.mu.Lock()
-	recorder := flow.executionPhaseEvents
-	flow.mu.Unlock()
-	return recorder.begin(phase)
-}
-
 func (flow *ExecutionEpochOne) hasExecutionPhaseEvents() bool {
 	if flow == nil {
 		return false
@@ -180,16 +157,6 @@ func (flow *ExecutionEpochOne) hasExecutionPhaseEvents() bool {
 	flow.mu.Lock()
 	defer flow.mu.Unlock()
 	return flow.executionPhaseEvents != nil
-}
-
-func (flow *ExecutionEpochOne) finishExecutionPhase(phase, outcome string) error {
-	if flow == nil {
-		return ErrExecutionEpochOne
-	}
-	flow.mu.Lock()
-	recorder := flow.executionPhaseEvents
-	flow.mu.Unlock()
-	return recorder.finish(phase, outcome)
 }
 
 func (flow *ExecutionEpochOne) recordExecutionEvent(phase string) (uint64, error) {
@@ -254,38 +221,4 @@ func (flow *ExecutionEpochOne) executionNamedEventTimes() map[string]time.Time {
 		result[name] = observed
 	}
 	return result
-}
-
-func (flow *ExecutionEpochOne) executionPhaseEventEvidence() ([]PhaseMeasurement, error) {
-	if flow == nil {
-		return nil, ErrExecutionEpochOne
-	}
-	flow.mu.Lock()
-	recorder := flow.executionPhaseEvents
-	flow.mu.Unlock()
-	return recorder.snapshot()
-}
-
-func runExecutionPhase(flow *ExecutionEpochOne, phase string, operation func() error) error {
-	if operation == nil || flow.beginExecutionPhase(phase) != nil {
-		return ErrExecutionEpochOne
-	}
-	err := operation()
-	outcome := "passed"
-	if err != nil {
-		outcome = "stopped"
-	}
-	if phase == "teardown" {
-		outcome = "clean"
-		if err != nil {
-			outcome = "failed"
-		}
-	}
-	if finishErr := flow.finishExecutionPhase(phase, outcome); finishErr != nil {
-		err = errors.Join(err, finishErr)
-	}
-	if err != nil {
-		return errors.Join(ErrExecutionEpochOne, err)
-	}
-	return nil
 }

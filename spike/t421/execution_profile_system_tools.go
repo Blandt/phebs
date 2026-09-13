@@ -1,3 +1,5 @@
+//go:build darwin
+
 package t421
 
 import "context"

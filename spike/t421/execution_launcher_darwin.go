@@ -3,6 +3,8 @@
 package t421
 
 import (
+	"bytes"
+
 	"context"
 	"encoding/base64"
 	"encoding/json"
@@ -632,3 +634,48 @@ func closeExecutionFile(file *os.File) error {
 	}
 	return file.Close()
 }
+
+type executionParentLivenessV1 struct {
+	Schema                string `json:"schema"`
+	OuterPID              int    `json:"outer_pid"`
+	OuterStartToken       string `json:"outer_start_token"`
+	OuterStartedUnixNano  int64  `json:"outer_started_unix_nano"`
+	OuterDeadlineUnixNano int64  `json:"outer_deadline_unix_nano"`
+	ReadFD                int    `json:"read_fd"`
+	ReadDevice            int64  `json:"read_st_dev"`
+	ReadInode             uint64 `json:"read_st_ino"`
+	ReadMode              uint32 `json:"read_st_mode"`
+	WriteDevice           int64  `json:"write_st_dev"`
+	WriteInode            uint64 `json:"write_st_ino"`
+	WriteMode             uint32 `json:"write_st_mode"`
+	ExecutePathSHA256     string `json:"t422_execute_canonical_path_sha256"`
+	ExecuteDevice         int64  `json:"t422_execute_st_dev"`
+	ExecuteInode          uint64 `json:"t422_execute_st_ino"`
+	ExecuteMode           uint32 `json:"t422_execute_st_mode"`
+	ExecuteSize           int64  `json:"t422_execute_size"`
+	ExecuteCTimeUnixNano  int64  `json:"t422_execute_ctime_unix_nano"`
+	ExecuteImageSHA256    string `json:"t422_execute_image_sha256"`
+}
+
+func decodeExecutionLiveness(encoded string) (executionParentLivenessV1, error) {
+	if len(encoded) == 0 || len(encoded) > base64.RawURLEncoding.EncodedLen(maxExecutionLivenessBytes) {
+		return executionParentLivenessV1{}, ErrExecutionLauncher
+	}
+	raw, err := base64.RawURLEncoding.Strict().DecodeString(encoded)
+	if err != nil || len(raw) == 0 || len(raw) > maxExecutionLivenessBytes {
+		return executionParentLivenessV1{}, ErrExecutionLauncher
+	}
+	var value executionParentLivenessV1
+	decoder := json.NewDecoder(bytes.NewReader(raw))
+	decoder.DisallowUnknownFields()
+	if decoder.Decode(&value) != nil || !executionJSONEOF(decoder) {
+		return executionParentLivenessV1{}, ErrExecutionLauncher
+	}
+	canonical, err := json.Marshal(value)
+	if err != nil || !bytes.Equal(raw, canonical) || base64.RawURLEncoding.EncodeToString(canonical) != encoded {
+		return executionParentLivenessV1{}, ErrExecutionLauncher
+	}
+	return value, nil
+}
+
+var errExecutionAuthorityPending = errors.New("T42.2 execution authority is not implemented")

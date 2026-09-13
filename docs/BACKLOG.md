@@ -4541,6 +4541,72 @@ exact-main freeze. Historical full-package failures/timeouts remain retained.
 No complete package test suite, rehearsal, T42.2l/m/n/o closure, merge, push or
 ceremony is established by these component reviews.
 
+**T42.2n machine-check checkpoint for Ben's review (2026-09-13).** Ben
+requested stopping this step for a break and committing the completed work.
+This supersedes the earlier ten-finding lint posture, not the remaining
+T42.2l/m readiness requirements or independent acceptance review. T42.2n stays
+open. The post-AuthorA pending-authority boundary remains in place.
+
+The correction preserves authorization-close errors, rejects nil admission
+contexts before reading deadlines, and simplifies the equivalent readiness
+predicate. Darwin-only private helpers and fields now compile with their
+native callers; portable parsing and the public unsupported-platform refusal
+remain available. Three meaningful sequence tests replace unused-declaration
+findings without activating the unfinished launcher. Stale modeled-authority,
+held-descriptor and allowance test expectations are corrected; baseline failures
+and original logs remain retained. No production ceiling or retained plan byte
+changes. PLAN records the unchanged ordinary-runtime costs and bounded test work.
+
+Immutable validation source `0a453caf24d35ffe09b7ca121e63272f786719c0`
+contains the final implementation/test bytes. Earlier clean validation sources
+retain their own attribution; source, fixture and exercised-input comparisons
+support preservation, not an assertion that their linked binaries or commands
+were identical to the final candidate.
+
+| Completed gate | Exact source and result |
+| --- | --- |
+| Native full static, compilation, vet and pinned lint | `93cd03fc`: `make ci-static` passed in 71.320s; docs/glossary passed in 1.220s. |
+| Linux full pinned lint | `93cd03fc`: passed in 57.648s, zero issues. |
+| Latest changed-package vet/lint | `0a453caf`: Darwin vet 3.155s/lint 7.324s; Linux vet 11.070s/lint 13.154s; all passed. |
+| Linux build/vet, modules and tools | `576701db`: build 11.641s, vet 13.980s, module verification 2.876s; Go 1.26.5, pinned lint 2.12.2 and SurrealDB 3.2.0 verified. Later test changes received the scoped checks above. |
+| T42.1 routine normal group | `93cd03fc`: all 596 selected top-level tests passed in 300.270s. |
+| T42.1 V3 projection group | `0a453caf`: all 21 selected top-level tests passed, normal 28.236s/race 120.101s; no skips. |
+| T42.1 V1/V2 contract groups | `576701db`: all 36/9 selected top-level tests passed normally in 441.677s/25.598s. |
+| Downstream lightweight packages | `576701db`: normal 7.406s; author/execute race 43.442s; recorded no-test packages remain no-test results. |
+| Selected native restore components | `0a453caf`: all three replay/accounting probes passed, normal 10.298s/race 14.074s, no skips; not complete Restore or launcher readiness. |
+| Retained V1/V2 plans | Byte-identical to the base; no regenerated or replaced retained evidence. |
+
+The original repository-wide normal command at `a884612e` was interrupted at
+Ben's request after 107 package passes and 48 no-test package results. Three
+failed historical packages (`spike/t211`, `spike/t306m`, `spike/t324`) reproduce
+unchanged at clean base `25ed9621`; they concern glossary evolution, the
+retention allocation inventory, and a retained receipt binding. Its T42.1
+package also recorded the now-corrected stale fixture failures and was still
+running when stopped. The full command is not a pass. Its complete normal
+`internal/store` result passed in 1085.952s and retains its original attribution.
+Completed native V2/V3 constructor and candidate-replay tests remain named
+historical component evidence with modeled measurements/search leaves, not
+readiness or a complete package pass.
+
+The `93cd03fc` internal race command was interrupted after 22 completed package
+passes, while `internal/store` was running; store-accounting and sync had not
+started. The `0a453caf` routine race group was interrupted after 518 top-level
+passes out of 596. Neither incomplete command recorded a test failure before
+the requested stop, and neither is promoted to a pass. Native/diagnostic skips
+remain explicit. Owned test drivers, test binaries and their remaining native
+child were stopped; a post-stop census found no survivors. Interrupted scratch
+and all validation worktrees/logs are retained, not represented as a successful
+rehearsal teardown.
+
+Next: finish the remaining normal command/T42.1 selectors and complete the
+interrupted or unstarted race groups, including store/store-accounting/sync,
+command, T40.13 and the remaining T42.1 inventory. Preserve only completed
+results with their exact source/input proof, and keep baseline failures
+separate. Ben's independent review of this checkpoint remains pending. Native
+caller counters, independent pressure/archive observations, complete success
+and stopped receipt composition, package delivery and real T42.2l/m readiness
+still precede T42.2n closure and T42.2o integration/seal/exact-main freeze.
+
 **T42.2l measurement track — phase-bound attempt reports (2026-09-07).**
 Replace selected job/chunk report writes with genuine producer/input/phase-bound
 envelopes, preserving ordinary/T40 behavior. Consume only joined native output,

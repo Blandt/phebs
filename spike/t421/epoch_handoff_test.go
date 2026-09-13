@@ -13,6 +13,7 @@ import (
 	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"reflect"
 	"runtime"
 	"slices"
 	"strconv"
@@ -851,6 +852,12 @@ func testEpochInheritedWarmObservation(t *testing.T, ctx context.Context, run *E
 	}
 	inspection.cold, inspection.finalUsed, inspection.next = cold, true, 4
 	inspection.run = run
+	// Model the already accepted cold F, just as the HTTP bodies below are
+	// modeled. The inherited child proves this warm operation's IPC, not a
+	// native cold authority publication or a complete ceremony history.
+	run.flow.plan = inspection.plan
+	run.flow.authorities = []AuthorityPhaseResult{cloneExecutionAuthorityResult(cold)}
+	priorAuthorities := run.flow.acceptedAuthorityPrefix()
 	tail := inspection.tail
 	tail.Schema, tail.SelectedRuntimeSHA256 = "t421-tail-readiness-source-free-v1", testDigest("warm-selected-runtime")
 	var requests atomic.Int32
@@ -911,10 +918,14 @@ func testEpochInheritedWarmObservation(t *testing.T, ctx context.Context, run *E
 	run.inspection, run.warm, run.warmAllowed = inspection, true, true
 	run.phaseDeadline = time.Now().Add(10 * time.Second)
 	err = run.ObserveWarm(ctx)
+	acceptedAuthorities := run.flow.acceptedAuthorityPrefix()
 	if len(inspection.evidence.rows) != 1 || inspection.evidence.rows[0].SelectorAccepted != (mode == "warm") {
 		t.Fatal("selector acceptance differs from joined choreography", inspection.evidence.rows)
 	}
 	if mode != "warm" {
+		if !reflect.DeepEqual(acceptedAuthorities, priorAuthorities) {
+			t.Fatal("refused warm observation changed the prior authority prefix")
+		}
 		want := int32(1)
 		if mode == "warm_pending_t" {
 			want = 2
@@ -941,6 +952,11 @@ func testEpochInheritedWarmObservation(t *testing.T, ctx context.Context, run *E
 	if err != nil {
 		t.Fatalf("actual inherited-control warm observation: %v", err)
 	}
+	if len(acceptedAuthorities) != len(priorAuthorities)+1 ||
+		!reflect.DeepEqual(acceptedAuthorities[:len(priorAuthorities)], priorAuthorities) ||
+		!reflect.DeepEqual(acceptedAuthorities[len(priorAuthorities)], inspection.finalAuthority) {
+		t.Fatal("warm observation did not retain exactly its detailed F after the unchanged modeled prefix")
+	}
 	if requests.Load() != 3 || inspection.reports != 3 || inspection.next != 7 || !run.warmUsed || run.control.RequestToken() != "" {
 		t.Fatal("warm observation lost one-shot X/T/F or final request fence")
 	}
@@ -950,8 +966,11 @@ func testEpochInheritedWarmObservation(t *testing.T, ctx context.Context, run *E
 	}
 	// With a genuinely acknowledged fence, independently test each final
 	// acceptance guard. These are guard models, not native cleanup failures.
-	for _, guard := range []string{"canceled", "reader_failed", "run_failed", "duplicate"} {
+	for _, guard := range []string{"canceled", "reader_failed", "run_failed", "duplicate", "missing_prior"} {
 		guardCtx, guardCancel := context.WithCancel(ctx)
+		// Restore a valid prior prefix so duplicate-phase rejection cannot
+		// hide a missing context, reader, run or prior-authority guard.
+		run.flow.authorities = cloneExecutionAuthorityResults(priorAuthorities)
 		inspection.evidence.rows[0].SelectorAccepted = guard == "duplicate"
 		switch guard {
 		case "canceled":
@@ -960,13 +979,20 @@ func testEpochInheritedWarmObservation(t *testing.T, ctx context.Context, run *E
 			inspection.err = errEpochInspection
 		case "run_failed":
 			run.err = ErrExecutionEpochOne
+		case "missing_prior":
+			run.flow.authorities = nil
 		}
+		before := run.flow.acceptedAuthorityPrefix()
 		if inspection.acceptInspectionPhase(guardCtx) == nil {
 			t.Fatal("fenced acceptance guard omitted", guard)
+		}
+		if !reflect.DeepEqual(run.flow.acceptedAuthorityPrefix(), before) {
+			t.Fatal("refused acceptance changed the authority prefix", guard)
 		}
 		guardCancel()
 		inspection.err, run.err = nil, nil
 	}
+	run.flow.authorities = acceptedAuthorities
 	inspection.evidence.rows[0].SelectorAccepted = true
 	select {
 	case <-run.warmDone:

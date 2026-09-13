@@ -64,7 +64,7 @@ sequence.
 
 ## Now
 
-**T42.2l/m review checkpoints, 2026-09-13:** the current topic contains
+**T42.2l/m checkpoints and T42.2n review candidate, 2026-09-13:** the current topic contains
 executor/launcher component work beyond the older status rows below, but full
 acceptance remains open. Review rejected the unobserved caller counters,
 pressure/archive identities and incomplete success/stopped receipt wiring.
@@ -72,8 +72,14 @@ Those drafts are preserved outside the compiled checkpoint; the existing
 post-AuthorA pending-authority stop remains. Bounded commits cover signed
 in-memory packaging, detached native observations and controller acceptance
 ordinals. Scoped normal/race checks and the native signed-package fixture pass;
-package lint retains ten inherited findings. These checks do not establish
-returned-package delivery or a full ceremony. The owning
+the subsequent T42.2n correction clears the inherited lint findings and Linux
+platform boundaries. Static checks, selected normal/race groups and the bounded
+native restore components pass. At Ben's request the remaining long commands
+were stopped for a break; the full normal/race matrix is incomplete, and three
+historical repository failures reproduce at the base. Test processes are
+stopped and the logs, scratch and validation lineages are retained. The
+checkpoint is committed for Ben's independent review; T42.2n remains open.
+These checks do not establish returned-package delivery or a full ceremony. The owning
 [backlog record](./BACKLOG.md) lists the remaining native
 evidence, receipt and transport work before T42.2n acceptance and T42.2o
 reviewed integration into `main`, sealing and exact-main freeze.

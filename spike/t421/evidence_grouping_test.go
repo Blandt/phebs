@@ -91,9 +91,25 @@ func TestStoreBoundEvidenceGroupingOracle(t *testing.T) {
 		t.Fatal("V3 omitted the prospective grouping oracle")
 	}
 	legacy := frozenWorkEnvelope(plan.Profile)
+	if len(plan.WorkEnvelope.Phases) != len(legacy.Phases) {
+		t.Fatal("grouping changed the phase inventory")
+	}
 	for index, phase := range plan.WorkEnvelope.Phases {
-		if phase.StoreTransactions != legacy.Phases[index].StoreTransactions || phase.StoreRows != legacy.Phases[index].StoreRows {
-			t.Fatal("grouping changed phase admission bounds")
+		prior := legacy.Phases[index]
+		if phase.Phase != prior.Phase {
+			t.Fatal("grouping changed the phase order")
+		}
+		// Normalize only the separately approved selected-cleanup reserve,
+		// using independent arithmetic rather than the production helper.
+		// Grouping leaves every minimum and all other phase ceilings exact.
+		switch phase.Phase {
+		case "pressure_80", "pressure_75", "lifecycle_collection":
+			prior.StoreTransactions.Maximum += 4096 * (2 + 65)
+			prior.StoreRows.Maximum += 4096 * (2 + 512)
+		}
+		if phase.StoreTransactions != prior.StoreTransactions || phase.StoreRows != prior.StoreRows {
+			t.Fatalf("%s: grouping changed phase admission bounds: transactions=%+v want=%+v rows=%+v want=%+v",
+				phase.Phase, phase.StoreTransactions, prior.StoreTransactions, phase.StoreRows, prior.StoreRows)
 		}
 		if phase.Phase == "cold" || phase.Phase == "physical_delta_b" || phase.Phase == "return_a" {
 			// Append-only component, not admission of all pipeline work or retries.
@@ -105,7 +121,7 @@ func TestStoreBoundEvidenceGroupingOracle(t *testing.T) {
 	if plan.WorkEnvelope.MaximumStoreRowsPerTransaction != 512 || 3*169+3 != 510 {
 		t.Fatal("submitted operand ceiling changed")
 	}
-	for _, mode := range []string{"old_oracle", "changed_byte", "changed_policy"} {
+	for _, mode := range []string{"old_oracle", "changed_byte", "changed_policy", "expanded_transaction_ceiling", "removed_cleanup_row_reserve"} {
 		t.Run(mode, func(t *testing.T) {
 			mutated := accountingTestPlan(t)
 			switch mode {
@@ -115,6 +131,18 @@ func TestStoreBoundEvidenceGroupingOracle(t *testing.T) {
 				mutated.Profile.Pipeline.ExtractionDomains[0].Partitions[0].Expected.CanonicalBytes++
 			case "changed_policy":
 				mutated.Correction.EvidenceGroupingPolicy = "unversioned-169"
+			case "expanded_transaction_ceiling":
+				for index := range mutated.WorkEnvelope.Phases {
+					if mutated.WorkEnvelope.Phases[index].Phase == "cold" {
+						mutated.WorkEnvelope.Phases[index].StoreTransactions.Maximum++
+					}
+				}
+			case "removed_cleanup_row_reserve":
+				for index := range mutated.WorkEnvelope.Phases {
+					if mutated.WorkEnvelope.Phases[index].Phase == "pressure_80" {
+						mutated.WorkEnvelope.Phases[index].StoreRows.Maximum -= 4096 * (2 + 512)
+					}
+				}
 			}
 			if err := validatePlan(mutated, &mutated.Revisions); err == nil {
 				t.Fatal("mutated V3 grouping contract accepted")

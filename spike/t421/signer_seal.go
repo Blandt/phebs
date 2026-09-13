@@ -1,3 +1,5 @@
+//go:build darwin
+
 package t421
 
 import (
@@ -11,8 +13,16 @@ import (
 const (
 	executionSignerIdentity           = "phebs-t422-ceremony"
 	executionFreezeSignatureNamespace = "phebs-t422-freeze"
-	maxExecutionSignerSignatureBytes  = 4 << 10
 )
+
+type executionFreezeCandidatePreparation struct {
+	raw              []byte
+	commits          ExecutionCommits
+	checkout         CheckoutAdmissionBinding
+	profile          ExecutionProfile
+	profileAdmission ExecutionProfileAdmissionBinding
+	namespace        executionSignerNamespaceBinding
+}
 
 // executionSignerSealCustody retains the exact candidate and promoted
 // signatures. It is not a launcher capability, checkout handoff, or receipt

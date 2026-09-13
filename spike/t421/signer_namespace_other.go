@@ -7,10 +7,12 @@ import (
 	"os"
 )
 
-func openExecutionSignerNamespace(string) (*os.File, error) {
-	return nil, ErrExecutionEpochOne
-}
-
 func observeExecutionSignerNamespace(context.Context, *os.File, string) (executionSignerNamespaceIdentity, error) {
 	return executionSignerNamespaceIdentity{}, ErrExecutionEpochOne
+}
+
+type executionSignerNamespaceIdentity struct {
+	device int64
+	inode  uint64
+	mode   uint32
 }

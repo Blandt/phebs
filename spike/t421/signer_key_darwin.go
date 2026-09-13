@@ -423,3 +423,124 @@ func closeExecutionSignerKey(key *executionSignerKeyCustody) error {
 	}
 	return nil
 }
+
+type executionSignerFingerprintClaimV1 struct {
+	Schema                string `json:"schema"`
+	SignerNamespaceSHA256 string `json:"signer_namespace_sha256"`
+	CeremonyID            string `json:"ceremony_id"`
+	CanonicalPublicKey    string `json:"canonical_public_key"`
+	SignerFingerprint     string `json:"signer_fingerprint"`
+}
+
+type executionSignerHeldFile struct {
+	file     *os.File
+	path     string
+	name     string
+	identity executionSignerFileIdentity
+}
+
+// executionSignerKeyCustody owns one generated Ed25519 pair plus the retained
+// fingerprint claim. It carries no candidate, signature, authorization,
+// checkout, ordinal, or handoff authority.
+type executionSignerKeyCustody struct {
+	mu               sync.Mutex
+	claim            *executionSignerCeremonyClaimCustody
+	namespace        executionSignerNamespaceBinding
+	signer           *ExecutionSystemToolCustody
+	signerIdentity   ExecutionToolIdentity
+	signerPath       string
+	temporaryPrivate *executionSignerHeldFile
+	temporaryPublic  *executionSignerHeldFile
+	privateKey       *executionSignerHeldFile
+	generatedPublic  *executionSignerHeldFile
+	fingerprintClaim *executionSignerHeldFile
+	canonicalFile    *executionSignerHeldFile
+	allowlist        *executionSignerHeldFile
+	fingerprintRaw   []byte
+	canonicalPublic  []byte
+	publicSHA256     string
+	fingerprint      string
+	cleanupUncertain bool
+	sealUsed         bool
+	closed           bool
+}
+
+// prepareExecutionSignerKey spends the claim's sole key-preparation attempt
+// before running either signer child. Failures after this point remain bound
+// to the already durable ceremony claim and cannot retry the ID.
+func prepareExecutionSignerKey(
+	ctx context.Context,
+	claim *executionSignerCeremonyClaimCustody,
+	signer *ExecutionSystemToolCustody,
+) (*executionSignerKeyCustody, error) {
+	if claim == nil || signer == nil {
+		return nil, ErrExecutionEpochOne
+	}
+	claim.mu.Lock()
+	defer claim.mu.Unlock()
+	if ctx == nil || claim.closed || claim.file == nil || claim.keyUsed {
+		return nil, ErrExecutionEpochOne
+	}
+	claim.keyUsed = true
+	if ctx.Err() != nil || checkExecutionSignerCeremonyClaim(ctx, claim) != nil {
+		return nil, ErrExecutionEpochOne
+	}
+	namespace, err := claim.namespace.recheck(ctx)
+	if err != nil {
+		return nil, ErrExecutionEpochOne
+	}
+	key := &executionSignerKeyCustody{claim: claim, namespace: namespace, signer: signer}
+	if err := generateExecutionSignerKey(ctx, key); err != nil {
+		return key, err
+	}
+	return key, nil
+}
+
+func executionSignerGeneratedPublic(canonical []byte) []byte {
+	if len(canonical) == 0 || canonical[len(canonical)-1] != '\n' {
+		return nil
+	}
+	value := make([]byte, 0, len(canonical)+1)
+	value = append(value, canonical[:len(canonical)-1]...)
+	value = append(value, ' ', '\n')
+	return value
+}
+
+func executionSignerAllowlist(canonical []byte) []byte {
+	if len(canonical) == 0 || canonical[len(canonical)-1] != '\n' {
+		return nil
+	}
+	value := make([]byte, 0, len(executionSignerIdentity)+1+len(canonical))
+	value = append(value, executionSignerIdentity...)
+	value = append(value, ' ')
+	value = append(value, canonical...)
+	return value
+}
+
+func (key *executionSignerKeyCustody) check(ctx context.Context) error {
+	if key == nil || ctx == nil || ctx.Err() != nil {
+		return ErrExecutionEpochOne
+	}
+	key.mu.Lock()
+	defer key.mu.Unlock()
+	if key.closed {
+		return ErrExecutionEpochOne
+	}
+	return checkExecutionSignerKey(ctx, key)
+}
+
+func (key *executionSignerKeyCustody) Close() error {
+	if key == nil {
+		return nil
+	}
+	key.mu.Lock()
+	defer key.mu.Unlock()
+	if key.closed {
+		return nil
+	}
+	if err := closeExecutionSignerKey(key); err != nil {
+		return err
+	}
+	key.closed = true
+	return nil
+}

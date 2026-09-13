@@ -1,3 +1,5 @@
+//go:build darwin
+
 package t421
 
 import (
@@ -16,7 +18,6 @@ const (
 	executionSignerCeremonyClaimSchema = "t422-signer-ceremony-id-claim-v1"
 	maxExecutionSignerClaimBytes       = 1 << 10
 	maxExecutionSignerPathBytes        = 1023
-	maxExecutionAuthSocketPathBytes    = 103
 	maxExecutionSignerNameBytes        = 255
 )
 

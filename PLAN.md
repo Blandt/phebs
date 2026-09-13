@@ -3114,3 +3114,45 @@ in [docs/ROADMAP.md](./docs/ROADMAP.md).
   Ordinary production query/request, sync, startup/restart, retry/no-op and
   publication costs remain unchanged; selected harness calls with no admitted
   recorder return without allocating event maps.
+
+- **2026-09-13 — T42.2n machine acceptance preparation.** Preserve an
+  authorization socket cleanup failure in `authorizeAndAuthorA`'s returned
+  error, alongside any earlier failure and the actual authored prefix. The
+  existing deferred close still runs under the preparation mutex before
+  unlock; joining an error may allocate, while a clean successful return adds
+  no error allocation. The equivalent author-readiness predicate and direct
+  dormant-sequence refusal, detached-prefix and canceled-stop tests close the
+  inherited static findings without enabling the pending launcher. No new
+  close attempt, lock, read/hash pass, store operation, timer, child or retry is
+  introduced. Ordinary query/request, sync, startup/restart, publication and
+  cache behavior are unchanged. Machine results belong to the exact tested
+  candidate; Ben's independent review and the missing T42.2l/m native receipt
+  and delivery readiness remain separate acceptance requirements.
+  Darwin-only private profile, admission and signing helpers now compile with
+  their native callers; orphan unsupported private stubs are removed. Portable
+  plan, receipt, package and key parsers and the unsupported public command
+  refusal remain available. Native flow fields move into one embedded value,
+  with no interface or pointer allocation: `ExecutionEpochOne` remains 54,408
+  bytes on Darwin/arm64. Relocated function bodies are unchanged except that
+  `authorAAdmitted` now refuses a nil context before reading its deadline. The
+  required-namespace presence test now supplies that modeled holder only after
+  proving executor custody alone remains incomplete; it issues no admission.
+  These platform boundaries add no request, tick, startup, retry/no-op,
+  publication, lock, cache, corpus traversal, disk or child-process work.
+  The evidence-grouping regression separately accounts for the already
+  approved selected-cleanup reserve in its three owning phases, while keeping
+  every minimum and other phase ceiling exact. It rejects both an extra cold
+  transaction and a removed cleanup-row reserve; no runtime admission bound or
+  retained artifact changes.
+  Warm, stale and restored-query IPC tests now provide explicitly modeled prior
+  authority, require one actually decoded final authority append, and preserve
+  prior rows on refusal or replay. They establish no predecessor execution or
+  complete receipt. The held-image comparison test holds a real descriptor and
+  checks refusal before acquisition and after release. Test cleanup recognizes
+  a completed native `Wait` separately from a successful exit; killed helpers
+  still fail the clean-exit and accounting checks. These are fixture and
+  assertion corrections with no production work or custody relaxation.
+  The logical store/wire allowance test independently includes the same three
+  approved cleanup reserves and separately requires zero observed work, wire
+  reservation and closure; the corrected numeric expectation allocates no
+  bytes and changes no production limit.

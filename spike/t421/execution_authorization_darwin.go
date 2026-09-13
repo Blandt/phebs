@@ -350,3 +350,12 @@ func sendExecutionAuthorization(ctx context.Context, path string, raw []byte, de
 	}
 	return nil
 }
+
+// executionAuthorizationPeer is private connection evidence only. In
+// particular, its PID is not an executable-image or descendant claim.
+type executionAuthorizationPeer struct {
+	pid                   int
+	uid                   uint32
+	listenerCloseOnExec   bool
+	connectionCloseOnExec bool
+}

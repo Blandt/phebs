@@ -54,15 +54,6 @@ type executionOperationalHandoffCapabilityState struct {
 	admission ExecutionProfileAdmissionBinding
 }
 
-type executionFreezeCandidatePreparation struct {
-	raw              []byte
-	commits          ExecutionCommits
-	checkout         CheckoutAdmissionBinding
-	profile          ExecutionProfile
-	profileAdmission ExecutionProfileAdmissionBinding
-	namespace        executionSignerNamespaceBinding
-}
-
 // bindProfileExecutor retains the independently reference-admitted executor
 // only when it is the exact image held by the live protected launcher.
 func (flow *ExecutionEpochOne) bindProfileExecutor(ctx context.Context, launcher *executionParentLiveness) error {

@@ -297,3 +297,13 @@ func TestExecutionEpochConfigProtectedStagingAndClose(t *testing.T) {
 		t.Fatal("partial test setup became authority")
 	}
 }
+
+func epochConfigBytes(plan Plan, epoch ExecutionEpochConfig, source string) ([]byte, error) {
+	raw, _, err := epochConfigBytesParsed(plan, epoch, source)
+	return raw, err
+}
+
+func validateEpochConfigBytes(plan Plan, epoch ExecutionEpochConfig, source string, raw []byte) error {
+	_, err := parseEpochConfigBytes(plan, epoch, source, raw)
+	return err
+}

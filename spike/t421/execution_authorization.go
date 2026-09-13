@@ -11,6 +11,7 @@ import (
 )
 
 const (
+	maxExecutionAuthSocketPathBytes       = 103
 	executionAuthorizationSchema          = "t422-execution-authorization-v1"
 	executionAuthorizationSocketName      = "auth.sock"
 	maxExecutionAuthorizationBytes        = 256
@@ -26,15 +27,6 @@ type executionAuthorizationV1 struct {
 	Schema               string `json:"schema"`
 	FreezeSHA256         string `json:"freeze_sha256"`
 	SessionBindingSHA256 string `json:"session_binding_sha256"`
-}
-
-// executionAuthorizationPeer is private connection evidence only. In
-// particular, its PID is not an executable-image or descendant claim.
-type executionAuthorizationPeer struct {
-	pid                   int
-	uid                   uint32
-	listenerCloseOnExec   bool
-	connectionCloseOnExec bool
 }
 
 func canonicalExecutionAuthorization(value executionAuthorizationV1) ([]byte, error) {

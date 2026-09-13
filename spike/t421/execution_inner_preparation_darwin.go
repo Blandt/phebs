@@ -207,7 +207,7 @@ func prepareExecutionInnerPreparation(
 // authorizeAndAuthorA performs the sole live signed handoff. It emits one
 // bounded operator command, spends the first connection regardless of its
 // validity, and transfers only an exact post-authorization binding to AuthorA.
-func (prepared *executionInnerPreparation) authorizeAndAuthorA(ctx context.Context, output io.Writer) (ExecutionAuthorResult, error) {
+func (prepared *executionInnerPreparation) authorizeAndAuthorA(ctx context.Context, output io.Writer) (result ExecutionAuthorResult, retErr error) {
 	if prepared == nil {
 		return ExecutionAuthorResult{}, ErrExecutionLauncher
 	}
@@ -240,7 +240,7 @@ func (prepared *executionInnerPreparation) authorizeAndAuthorA(ctx context.Conte
 	if err != nil {
 		return ExecutionAuthorResult{}, ErrExecutionLauncher
 	}
-	defer prepared.authorization.close()
+	defer func() { retErr = errors.Join(retErr, prepared.authorization.close()) }()
 	freezeSHA256, err := receiptSHA256(prepared.seal.freeze)
 	freezeSHA256 = strings.TrimPrefix(freezeSHA256, "sha256:")
 	if err != nil || !validExecutionHexSHA256(freezeSHA256) {

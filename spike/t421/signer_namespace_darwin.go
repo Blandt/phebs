@@ -62,3 +62,34 @@ func signerNamespaceSyscallStat(info os.FileInfo) (*syscall.Stat_t, bool) {
 	stat, ok := info.Sys().(*syscall.Stat_t)
 	return stat, ok && stat != nil
 }
+
+type executionSignerNamespaceIdentity struct {
+	device int64
+	inode  uint64
+	mode   uint32
+	uid    uint32
+}
+
+func holdExecutionSignerNamespace(ctx context.Context, path string) (*executionSignerNamespaceCustody, error) {
+	if ctx == nil || ctx.Err() != nil || !validExecutionLauncherPath(path) {
+		return nil, ErrExecutionEpochOne
+	}
+	file, err := openExecutionSignerNamespace(path)
+	if err != nil {
+		return nil, ErrExecutionEpochOne
+	}
+	token := byte(1)
+	custody := &executionSignerNamespaceCustody{file: file, path: path, token: &token}
+	identity, err := observeExecutionSignerNamespace(ctx, file, path)
+	if err != nil {
+		_ = file.Close()
+		return nil, ErrExecutionEpochOne
+	}
+	digest, err := executionSignerNamespaceSHA256(path, identity)
+	if err != nil {
+		_ = file.Close()
+		return nil, ErrExecutionEpochOne
+	}
+	custody.identity, custody.digest = identity, digest
+	return custody, nil
+}

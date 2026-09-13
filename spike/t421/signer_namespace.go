@@ -21,13 +21,6 @@ type signerNamespaceBindingPreimageV1 struct {
 	SignerControlRootMode   uint32 `json:"signer_control_root_st_mode"`
 }
 
-type executionSignerNamespaceIdentity struct {
-	device int64
-	inode  uint64
-	mode   uint32
-	uid    uint32
-}
-
 // executionSignerNamespaceCustody retains the exact selected registry root.
 // Its digest binds the canonical path and held inode identity without making a
 // machine-, user-, or cross-root uniqueness claim.
@@ -46,30 +39,6 @@ type executionSignerNamespaceBinding struct {
 	owner  *executionSignerNamespaceCustody
 	token  *byte
 	digest string
-}
-
-func holdExecutionSignerNamespace(ctx context.Context, path string) (*executionSignerNamespaceCustody, error) {
-	if ctx == nil || ctx.Err() != nil || !validExecutionLauncherPath(path) {
-		return nil, ErrExecutionEpochOne
-	}
-	file, err := openExecutionSignerNamespace(path)
-	if err != nil {
-		return nil, ErrExecutionEpochOne
-	}
-	token := byte(1)
-	custody := &executionSignerNamespaceCustody{file: file, path: path, token: &token}
-	identity, err := observeExecutionSignerNamespace(ctx, file, path)
-	if err != nil {
-		_ = file.Close()
-		return nil, ErrExecutionEpochOne
-	}
-	digest, err := executionSignerNamespaceSHA256(path, identity)
-	if err != nil {
-		_ = file.Close()
-		return nil, ErrExecutionEpochOne
-	}
-	custody.identity, custody.digest = identity, digest
-	return custody, nil
 }
 
 func (custody *executionSignerNamespaceCustody) check(ctx context.Context) (executionSignerNamespaceBinding, error) {

@@ -193,10 +193,7 @@ func TestExecutionProfileObservationSetRequiresCompleteToolCustody(t *testing.T)
 		profileEnvironmentUsed: true,
 		profileEnvironment:     &executionRuntimeEnvironmentObservation{},
 		profileCommands:        make([]ExecutionCommandProfile, 3),
-		profileHostUsed:        true,
-		profileHost:            &executionHostObservation{},
-		profileSystemUsed:      true,
-		profileSigner:          &ExecutionSystemToolCustody{},
+		executionEpochPlatform: executionEpochPlatform{profileHostUsed: true, profileHost: &executionHostObservation{}, profileSystemUsed: true, profileSigner: &ExecutionSystemToolCustody{}},
 		profileRuntime:         &executionRuntimeObservation{Complete: true},
 	}
 	if profileObservationSetComplete(flow) {
@@ -211,6 +208,10 @@ func TestExecutionProfileObservationSetRequiresCompleteToolCustody(t *testing.T)
 		t.Fatal("scoped preimage custody was not distinguished from complete issuer custody")
 	}
 	flow.profileExecutor = &executionProfileExecutorCustody{}
+	if profileObservationSetComplete(flow) {
+		t.Fatal("profile completed without the signer namespace holder")
+	}
+	flow.profileSignerNamespace = &executionSignerNamespaceCustody{}
 	if !profileObservationSetComplete(flow) {
 		t.Fatal("complete observed profile custody was refused")
 	}
@@ -223,8 +224,8 @@ func TestExecutionProfileMountedInputsExcludeOuterExecutor(t *testing.T) {
 	}
 	flow := &ExecutionEpochOne{
 		epochs: &ExecutionEpochConfigCustody{author: &ExecutionAuthorCustody{request: ExecutionAuthorRequest{Author: values[0]}}},
-		phebs:  values[1], zoekt: values[2], surreal: values[3], profileExecutor: &executionProfileExecutorCustody{},
-		profileTools: [2]*ExecutionToolCustody{values[4], values[5]},
+		phebs:  values[1], zoekt: values[2], surreal: values[3],
+		executionEpochPlatform: executionEpochPlatform{profileExecutor: &executionProfileExecutorCustody{}, profileTools: [2]*ExecutionToolCustody{values[4], values[5]}},
 	}
 	if got := profileMountedInputTools(flow); !slices.Equal(got, values[:6]) {
 		t.Fatal("outer launcher executor was relabeled as a mounted pressure-volume input")
@@ -551,7 +552,7 @@ func TestExecutionWorkspaceCapabilitiesAreOneShot(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 	spent := &executionWorkspaceCustodyCapability{state: &executionWorkspaceCustodyCapabilityState{proof: &executionWorkspaceCustodyProof{}}}
-	flow := &ExecutionEpochOne{profileWorkspace: spent}
+	flow := &ExecutionEpochOne{executionEpochPlatform: executionEpochPlatform{profileWorkspace: spent}}
 	if profile, admission, handoff, err := flow.issueExecutionProfile(ctx); err == nil || !reflect.DeepEqual(profile, ExecutionProfile{}) ||
 		!reflect.DeepEqual(admission, ExecutionProfileAdmissionBinding{}) || handoff != nil {
 		t.Fatal("canceled profile issuance succeeded")
@@ -561,7 +562,7 @@ func TestExecutionWorkspaceCapabilitiesAreOneShot(t *testing.T) {
 		t.Fatal("canceled issuance did not spend workspace custody")
 	}
 	nilSpent := &executionWorkspaceCustodyCapability{state: &executionWorkspaceCustodyCapabilityState{proof: &executionWorkspaceCustodyProof{}}}
-	nilFlow := &ExecutionEpochOne{profileWorkspace: nilSpent}
+	nilFlow := &ExecutionEpochOne{executionEpochPlatform: executionEpochPlatform{profileWorkspace: nilSpent}}
 	//nolint:staticcheck // Deliberately exercise nil-context refusal at the private issuer boundary.
 	if profile, admission, handoff, err := nilFlow.issueExecutionProfile(nil); err == nil || !reflect.DeepEqual(profile, ExecutionProfile{}) ||
 		!reflect.DeepEqual(admission, ExecutionProfileAdmissionBinding{}) || handoff != nil {

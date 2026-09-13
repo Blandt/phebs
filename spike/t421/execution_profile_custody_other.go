@@ -2,8 +2,8 @@
 
 package t421
 
-// V3 mounted workspace custody is Darwin-only. The empty private type keeps
-// the common flow layout buildable without exposing a non-Darwin issuer.
-type executionWorkspaceCustodyCapability struct{}
-type executionProfileLauncherCustody struct{}
-type executionProfileExecutorCustody struct{}
+// Common flow cleanup retains the shared namespace holder; unsupported
+// platforms have no native profile or execution-admission state.
+type executionEpochPlatform struct {
+	profileSignerNamespace *executionSignerNamespaceCustody
+}

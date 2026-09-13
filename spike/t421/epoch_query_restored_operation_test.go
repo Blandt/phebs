@@ -11,6 +11,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"os/exec"
+	"reflect"
 	"slices"
 	"strings"
 	"sync/atomic"
@@ -38,7 +39,7 @@ func TestEpochQueryRestoredModeledOperation(t *testing.T) {
 	if len(inputs) != 3 || json.Unmarshal(inputs[2].raw, &catalog) != nil {
 		t.Fatal("actual generated a-return catalog fixture")
 	}
-	for _, mode := range []string{"success", "changed_F2", "missing_finish_sample", "final_fence_unavailable"} {
+	for _, mode := range []string{"success", "missing_prior", "changed_F2", "missing_finish_sample", "final_fence_unavailable"} {
 		t.Run(mode, func(t *testing.T) {
 			// Catalog construction precedes this bounded helper lifetime. No sleep
 			// or timer elision changes the public operation's original deadline.
@@ -168,6 +169,19 @@ func TestEpochQueryRestoredModeledOperation(t *testing.T) {
 			run.epoch = ExecutionEpochConfig{Epoch: 5, Listen: strings.TrimPrefix(server.URL, "http://"),
 				APIKey: "private-key", Repository: bound.repository, CatalogSHA256: projection.CatalogSource.SHA256}
 			run.inspection, run.flow.plan = reader, plan
+			// Earlier authorities are explicit modeled scaffolding, not claims
+			// that this helper executed the twelve predecessor phases. The
+			// operation must append only its actually decoded product-query F.
+			for _, phase := range []string{"cold", "warm_noop", "physical_delta_b", "logical_delta_b", "return_a", "stale_lease",
+				"process_restart", "pressure_80", "pressure_90", "pressure_75", "archive_restore", "lifecycle_collection"} {
+				prior := cloneExecutionAuthorityResult(reader.collectionAuthority)
+				prior.Phase = phase
+				run.flow.authorities = append(run.flow.authorities, prior)
+			}
+			if mode == "missing_prior" {
+				run.flow.authorities = nil
+			}
+			priorAuthorities := run.flow.acceptedAuthorityPrefix()
 			author := &ExecutionAuthorCustody{borrowedBy: run}
 			run.flow.epochs = &ExecutionEpochConfigCustody{author: author, active: true, released: 5, queryCatalog: &catalog}
 			run.flow.epochs.epochs[4] = run.epoch
@@ -224,7 +238,13 @@ func TestEpochQueryRestoredModeledOperation(t *testing.T) {
 				t.Fatal("completed supplied-byte prefix differs")
 			}
 			last := reader.evidence.rows[len(reader.evidence.rows)-1]
+			acceptedAuthorities := run.flow.acceptedAuthorityPrefix()
 			if wantSuccess {
+				if len(acceptedAuthorities) != len(priorAuthorities)+1 ||
+					!reflect.DeepEqual(acceptedAuthorities[:len(priorAuthorities)], priorAuthorities) ||
+					!reflect.DeepEqual(acceptedAuthorities[len(priorAuthorities)], reader.finalAuthority) {
+					t.Fatal("query operation did not retain exactly its detailed F after the unchanged modeled prefix")
+				}
 				if !last.SelectorAccepted || !reader.restoredSamples.ProductComplete || reader.productQueryEvidence == nil ||
 					run.control.RequestToken() != "" || run.control.ReservedWireBytes()-beforeWire != 5*2*dispatchadmission.FrameBytes {
 					t.Fatal("public success lacks actual final fence, selector or capture")
@@ -238,12 +258,16 @@ func TestEpochQueryRestoredModeledOperation(t *testing.T) {
 						MemberReads: CountMetric(last.Reads.MemberVisits)}, plan); err != nil {
 					t.Fatal("actual captured prefix failed unchanged receipt validator", err)
 				}
-			} else if reader.productQueryEvidence != nil || reader.restoredSamples.ProductComplete || last.SelectorAccepted {
+			} else if reader.productQueryEvidence != nil || reader.restoredSamples.ProductComplete || last.SelectorAccepted ||
+				!reflect.DeepEqual(acceptedAuthorities, priorAuthorities) {
 				t.Fatal("failed public operation manufactured receipt acceptance")
 			}
 			calls, deadline := requests.Load(), run.phaseDeadline
 			if run.QueryRestored(ctx) == nil || requests.Load() != calls || run.phaseDeadline != deadline {
 				t.Fatal("one-shot public operation repeated work or renewed deadline")
+			}
+			if !reflect.DeepEqual(run.flow.acceptedAuthorityPrefix(), acceptedAuthorities) {
+				t.Fatal("repeated operation changed the accepted authority prefix")
 			}
 			join(mode == "final_fence_unavailable")
 			joined = true
@@ -404,7 +428,9 @@ func epochQueryOperationTransport(t *testing.T, ctx context.Context) (*Execution
 		if brokenControl && waitErr == nil {
 			t.Error("lost final fence concealed helper lifetime failure")
 		}
-		if command.ProcessState == nil || !command.ProcessState.Exited() {
+		// A returned Wait with ProcessState proves the child was reaped even
+		// after a signal. The separate waitErr check above enforces clean exit.
+		if command.ProcessState == nil {
 			t.Error("helper sole Wait not complete")
 		}
 		if err := parent.Close(ctx); err != nil && !brokenControl {

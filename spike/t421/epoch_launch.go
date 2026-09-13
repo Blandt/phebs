@@ -11,7 +11,6 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
@@ -31,6 +30,7 @@ var ErrExecutionEpochOne = errors.New("execution epoch-one launch unavailable or
 // slice. Later producer slots remain unused: snapshots are prefixes, never a
 // fifteen-phase completion or a host/profile/ceremony admission.
 type ExecutionEpochOne struct {
+	executionEpochPlatform
 	mu                     sync.Mutex
 	epochs                 *ExecutionEpochConfigCustody
 	plan                   Plan // Privately decoded once by this constructor.
@@ -53,26 +53,12 @@ type ExecutionEpochOne struct {
 	joinedWork             executionJoinedWork    // Fixed producer-local values, never cumulative DA/SA sums; protected by mu.
 	authorities            []AuthorityPhaseResult // Accepted actual F values in operational phase order; protected by mu.
 
-	profileTools           [2]*ExecutionToolCustody // Optional Buf/focused protected copies; no dispatch permission.
 	profileEnvironment     *executionRuntimeEnvironmentObservation
 	profileEnvironmentUsed bool                      // One preparation attempt, never per-dispatch hashing.
 	profileCommands        []ExecutionCommandProfile // Actual normalized argv, separate from parsed YAML.
 
-	profileSigner              *ExecutionSystemToolCustody // Borrowed outer-owned signer; never a mounted input owner.
-	profileSignerImage         executionProfileSystemImage
-	profileSystemUsed          bool
-	profileExecutor            *executionProfileExecutorCustody
-	profileSignerNamespace     *executionSignerNamespaceCustody
-	profileSignerNamespaceUsed bool
-
-	profileHost      *executionHostObservation
-	profileHostUsed  bool
-	profileWorkspace *executionWorkspaceCustodyCapability
-
 	profileRuntime *executionRuntimeObservation // One actual prework process; never an operational producer.
 
-	executionFreezeBinding  *ExecutionFreezeBinding
-	executionEventOrdinals  *admittedExecutionEventOrdinals
 	executionPhaseEvents    *executionPhaseEventRecorder
 	executionEvidenceEvents map[string]uint64
 	executionEvidenceTimes  map[string]time.Time
@@ -139,77 +125,6 @@ func PrepareExecutionEpochOne(ctx context.Context, epochs *ExecutionEpochConfigC
 		return nil, ErrExecutionEpochOne
 	}
 	return flow, nil
-}
-
-// bindProfileTools retains the two already reference-admitted, non-dispatched
-// images before AuthorA. Omitted holders preserve the scoped rehearsal API;
-// this pair alone does not issue a complete profile admission.
-func (flow *ExecutionEpochOne) bindProfileTools(ctx context.Context, buf, focused *ExecutionToolCustody) error {
-	if flow == nil || ctx == nil || ctx.Err() != nil || flow.epochs == nil || flow.epochs.author == nil || buf == nil || focused == nil {
-		return ErrExecutionEpochOne
-	}
-	flow.mu.Lock()
-	defer flow.mu.Unlock()
-	author, epochs := flow.epochs.author, flow.epochs
-	author.mu.Lock()
-	defer author.mu.Unlock()
-	epochs.mu.Lock()
-	defer epochs.mu.Unlock()
-	if flow.plan.Schema != PlanV3Schema || flow.closed || flow.used || flow.authored || !flow.authorStarted.IsZero() ||
-		flow.workspace != nil || flow.profileTools != ([2]*ExecutionToolCustody{}) ||
-		author.closed || author.err != nil || author.active || author.borrowedBy != nil || author.next != 0 ||
-		epochs.closed || epochs.err != nil || epochs.active || epochs.released != 0 || author.request.Builds == nil {
-		return ErrExecutionEpochOne
-	}
-	builds := author.request.Builds
-	if !builds.mu.TryLock() {
-		return ErrExecutionEpochOne
-	}
-	defer builds.mu.Unlock()
-	if builds.closed || builds.err != nil {
-		return ErrExecutionEpochOne
-	}
-	selected := [2]*ExecutionToolCustody{buf, focused}
-	for index, role := range [2]string{"buf", "phebs-focused-index"} {
-		tool := selected[index]
-		if tool.referenceInputs != author.request.Builds || filepath.Dir(tool.Directory()) != author.parent {
-			return ErrExecutionEpochOne
-		}
-		if _, _, err := tool.Check(ctx, role); err != nil {
-			return err
-		}
-	}
-	flow.profileTools = selected
-	return nil
-}
-
-// bindProfileSignerNamespace spends one preparation slot and retains the
-// selected external signer registry root before pressure-workspace binding.
-// It creates no key, claim, signature, socket, checkout, or handoff authority.
-func (flow *ExecutionEpochOne) bindProfileSignerNamespace(ctx context.Context, selection executionSelectionV1) error {
-	if flow == nil || flow.epochs == nil || flow.epochs.author == nil {
-		return ErrExecutionEpochOne
-	}
-	flow.mu.Lock()
-	defer flow.mu.Unlock()
-	author, epochs := flow.epochs.author, flow.epochs
-	author.mu.Lock()
-	defer author.mu.Unlock()
-	epochs.mu.Lock()
-	defer epochs.mu.Unlock()
-	if flow.plan.Schema != PlanV3Schema || flow.closed || flow.used || flow.authored || !flow.authorStarted.IsZero() ||
-		flow.workspace != nil || flow.profileSignerNamespaceUsed || !validExecutionSelection(selection) ||
-		author.closed || author.err != nil || author.active || author.borrowedBy != nil || author.next != 0 ||
-		epochs.closed || epochs.err != nil || epochs.active || epochs.released != 0 {
-		return ErrExecutionEpochOne
-	}
-	flow.profileSignerNamespaceUsed = true
-	custody, err := holdExecutionSignerNamespace(ctx, selection.SignerControlRoot)
-	if err != nil {
-		return ErrExecutionEpochOne
-	}
-	flow.profileSignerNamespace = custody
-	return nil
 }
 
 // prepareProfileEnvironment observes the existing actual epoch-one builder
@@ -280,7 +195,7 @@ func (flow *ExecutionEpochOne) AuthorA(ctx context.Context) (ExecutionAuthorResu
 
 func (flow *ExecutionEpochOne) authorAReadyLocked(ctx context.Context) bool {
 	return ctx != nil && ctx.Err() == nil && flow.epochs != nil && flow.controller != nil && flow.parent != nil &&
-		!flow.closed && !flow.used && !flow.authored && !(flow.workspace != nil && !flow.authorStarted.IsZero()) &&
+		!flow.closed && !flow.used && !flow.authored && (flow.workspace == nil || flow.authorStarted.IsZero()) &&
 		(flow.profileRuntime == nil || flow.profileRuntime.Complete && flow.profileRuntime.releasable() && flow.profileRuntime.err == nil)
 }
 
@@ -317,57 +232,6 @@ func (flow *ExecutionEpochOne) authorALockedAt(ctx context.Context, started time
 		}
 	}
 	return result, err
-}
-
-// authorAAdmitted is the sole V3 transition from verified private authority to
-// operational work. Binding transfer and reserved ordinal one are atomic with
-// entry into the existing direct AuthorA path.
-func (flow *ExecutionEpochOne) authorAAdmitted(
-	ctx context.Context,
-	finalAdmissionDeadline time.Time,
-	binding ExecutionFreezeBinding,
-	ordinals *executionEventOrdinals,
-) (ExecutionAuthorResult, error) {
-	outerDeadline, hasOuterDeadline := ctx.Deadline()
-	if flow == nil || ctx == nil || ctx.Err() != nil || !hasOuterDeadline ||
-		finalAdmissionDeadline.After(outerDeadline) || !time.Now().Before(finalAdmissionDeadline) || ordinals == nil {
-		return ExecutionAuthorResult{}, ErrExecutionEpochOne
-	}
-	flow.mu.Lock()
-	defer flow.mu.Unlock()
-	planRaw, planErr := MarshalCanonical(flow.plan)
-	if !flow.authorAReadyLocked(ctx) || flow.plan.Schema != PlanV3Schema || flow.executionFreezeBinding != nil ||
-		flow.executionEventOrdinals != nil || binding.freeze.Schema != ExecutionFreezeV3Schema ||
-		binding.admissionEventOrdinal != 1 || !validDigest(binding.freezeSHA256) ||
-		planErr != nil || binding.planSHA256 != SHA256(planRaw) || !time.Now().Before(finalAdmissionDeadline) {
-		return ExecutionAuthorResult{}, ErrExecutionEpochOne
-	}
-	admitted, ordinal, err := ordinals.consumeFinalAdmission()
-	if err != nil || ordinal != 1 || admitted == nil {
-		return ExecutionAuthorResult{}, ErrExecutionEpochOne
-	}
-	started := time.Now()
-	recorder, err := newExecutionPhaseEventRecorder(admitted, flow.plan.PhaseOrder, started, outerDeadline)
-	if err != nil || recorder.beginAt(flow.plan.PhaseOrder[0], started) != nil {
-		return ExecutionAuthorResult{}, ErrExecutionEpochOne
-	}
-	retained := binding
-	retained.freeze = cloneExecutionFreezeForBinding(binding.freeze)
-	flow.executionFreezeBinding = &retained
-	flow.executionEventOrdinals = admitted
-	flow.executionPhaseEvents = recorder
-	flow.executionEvidenceEvents = make(map[string]uint64, 48)
-	flow.executionEvidenceTimes = make(map[string]time.Time, 48)
-	result, authorErr := flow.authorALockedAt(ctx, started)
-	outcome := "passed"
-	if authorErr != nil || !result.Completed {
-		outcome = "stopped"
-		if authorErr == nil {
-			authorErr = ErrExecutionEpochOne
-		}
-	}
-	finishErr := recorder.finish(flow.plan.PhaseOrder[0], outcome)
-	return result, errors.Join(authorErr, finishErr)
 }
 
 // Close cancels unused future lifetimes, rather than manufacturing their

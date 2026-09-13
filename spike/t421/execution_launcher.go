@@ -28,9 +28,8 @@ const (
 )
 
 var (
-	ErrExecutionLauncher         = errors.New("T42.2 execution launcher unavailable")
-	errExecutionAuthorityPending = errors.New("T42.2 execution authority is not implemented")
-	executionCeremonyID          = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$`)
+	ErrExecutionLauncher = errors.New("T42.2 execution launcher unavailable")
+	executionCeremonyID  = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$`)
 )
 
 type executionSelectionV1 struct {
@@ -45,28 +44,6 @@ type executionSelectionV1 struct {
 	GitBinary            string `json:"git_binary"`
 	SurrealBinary        string `json:"surreal_binary"`
 	SignerControlRoot    string `json:"signer_control_root"`
-}
-
-type executionParentLivenessV1 struct {
-	Schema                string `json:"schema"`
-	OuterPID              int    `json:"outer_pid"`
-	OuterStartToken       string `json:"outer_start_token"`
-	OuterStartedUnixNano  int64  `json:"outer_started_unix_nano"`
-	OuterDeadlineUnixNano int64  `json:"outer_deadline_unix_nano"`
-	ReadFD                int    `json:"read_fd"`
-	ReadDevice            int64  `json:"read_st_dev"`
-	ReadInode             uint64 `json:"read_st_ino"`
-	ReadMode              uint32 `json:"read_st_mode"`
-	WriteDevice           int64  `json:"write_st_dev"`
-	WriteInode            uint64 `json:"write_st_ino"`
-	WriteMode             uint32 `json:"write_st_mode"`
-	ExecutePathSHA256     string `json:"t422_execute_canonical_path_sha256"`
-	ExecuteDevice         int64  `json:"t422_execute_st_dev"`
-	ExecuteInode          uint64 `json:"t422_execute_st_ino"`
-	ExecuteMode           uint32 `json:"t422_execute_st_mode"`
-	ExecuteSize           int64  `json:"t422_execute_size"`
-	ExecuteCTimeUnixNano  int64  `json:"t422_execute_ctime_unix_nano"`
-	ExecuteImageSHA256    string `json:"t422_execute_image_sha256"`
 }
 
 // RunExecutionCommand is the only t422-execute command entry. Selection is
@@ -203,25 +180,4 @@ func executionPathContains(root, path string) bool {
 func executionJSONEOF(decoder *json.Decoder) bool {
 	var extra any
 	return errors.Is(decoder.Decode(&extra), io.EOF)
-}
-
-func decodeExecutionLiveness(encoded string) (executionParentLivenessV1, error) {
-	if len(encoded) == 0 || len(encoded) > base64.RawURLEncoding.EncodedLen(maxExecutionLivenessBytes) {
-		return executionParentLivenessV1{}, ErrExecutionLauncher
-	}
-	raw, err := base64.RawURLEncoding.Strict().DecodeString(encoded)
-	if err != nil || len(raw) == 0 || len(raw) > maxExecutionLivenessBytes {
-		return executionParentLivenessV1{}, ErrExecutionLauncher
-	}
-	var value executionParentLivenessV1
-	decoder := json.NewDecoder(bytes.NewReader(raw))
-	decoder.DisallowUnknownFields()
-	if decoder.Decode(&value) != nil || !executionJSONEOF(decoder) {
-		return executionParentLivenessV1{}, ErrExecutionLauncher
-	}
-	canonical, err := json.Marshal(value)
-	if err != nil || !bytes.Equal(raw, canonical) || base64.RawURLEncoding.EncodeToString(canonical) != encoded {
-		return executionParentLivenessV1{}, ErrExecutionLauncher
-	}
-	return value, nil
 }

@@ -269,24 +269,6 @@ func (custody *ExecutionGoBuildCustody) CheckGo(ctx context.Context) (ExecutionT
 	return custody.goIdentity, filepath.Join(custody.directory, custody.goImage.path), nil
 }
 
-// bindCheckout issues the private checkout/build proof only from the retained
-// immutable source custody and the complete observed tool inventory.
-func (custody *ExecutionGoBuildCustody) bindCheckout(ctx context.Context, policy ToolPolicy, tools []ExecutionToolIdentity) (ExecutionCommits, CheckoutAdmissionBinding, error) {
-	if custody == nil {
-		return ExecutionCommits{}, CheckoutAdmissionBinding{}, ErrExecutionGoBuildCustody
-	}
-	custody.mu.Lock()
-	defer custody.mu.Unlock()
-	if custody.check(ctx) != nil || validateExecutionTools(tools, policy, custody.commits.T422SourceCommit) != nil {
-		return ExecutionCommits{}, CheckoutAdmissionBinding{}, ErrExecutionGoBuildCustody
-	}
-	toolsSHA256, err := canonicalSHA256(tools)
-	if err != nil {
-		return ExecutionCommits{}, CheckoutAdmissionBinding{}, ErrExecutionGoBuildCustody
-	}
-	return custody.commits, CheckoutAdmissionBinding{commits: custody.commits, toolsSHA256: toolsSHA256, verified: true}, nil
-}
-
 // Close only closes the three retained read-only root descriptors. Protected
 // copies remain, including failures. It neither joins a child nor closes Git.
 func (custody *ExecutionGoBuildCustody) Close() error {

@@ -102,6 +102,7 @@ func TestLogicalStoreWorkSAProjection(t *testing.T) {
 	if err != nil || !reflect.DeepEqual(wire, oldWire) || !reflect.DeepEqual(config.Producers, prior.Producers) {
 		t.Fatal("producer topology or ACK changed", err)
 	}
+	var totalTransactions, totalRows uint64
 	for index, row := range config.Phases {
 		want := prior.Phases[index]
 		if index == 4 {
@@ -110,6 +111,8 @@ func TestLogicalStoreWorkSAProjection(t *testing.T) {
 		if row != want {
 			t.Fatalf("wrong SA phase projection: %+v", row)
 		}
+		totalTransactions += row.Transactions
+		totalRows += row.Rows
 	}
 	controller, err := storeaccounting.New(t.Context(), config)
 	if err != nil {
@@ -125,9 +128,20 @@ func TestLogicalStoreWorkSAProjection(t *testing.T) {
 		}
 	}()
 	snapshot, err := transport.Snapshot()
-	if err != nil || snapshot.MaximumBytes != 79_877_256_704 || snapshot.ReservedBytes != 0 ||
-		snapshot.Store.Transactions != 0 || snapshot.Store.Rows != 0 {
-		t.Fatal("allowance invented work or allocated reservation", err)
+	// Independent closed arithmetic: retained base, logical replacement,
+	// four selector handoffs, then three selected-cleanup phase reserves.
+	const wantTransactions = uint64(507170 + (100000 - 170) + 1254 + 3*4096*(2+65))
+	const wantRows = uint64(259671040 + (100000-170)*512 + 20004 + 3*4096*(2+512))
+	// SA01 Submit/Settle pairs, sixteen phase checkpoints and four controls
+	// for each of seven lifetimes. This is allowance, never measured traffic.
+	const wantWireBytes = (4*wantTransactions + 2*min(wantRows, 512*wantTransactions) + 16 + 4*7) * 2 * storeaccounting.FrameBytes
+	if err != nil || totalTransactions != wantTransactions || totalRows != wantRows || snapshot.MaximumBytes != wantWireBytes {
+		t.Fatalf("wrong closed store/wire allowance: transactions=%d rows=%d bytes=%d: %v",
+			totalTransactions, totalRows, snapshot.MaximumBytes, err)
+	}
+	if snapshot.ReservedBytes != 0 || snapshot.Opened != 0 || snapshot.TerminalEOF != 0 || snapshot.Complete || snapshot.PrefixesClosed ||
+		snapshot.Store.Transactions != 0 || snapshot.Store.Rows != 0 || snapshot.Store.MaximumRows != 0 || snapshot.Store.Complete || snapshot.Store.PrefixesClosed {
+		t.Fatalf("allowance invented work, wire reservation or closure: %+v", snapshot)
 	}
 	t.Logf("prospective global SA wire maximum=%d; no bytes reserved", snapshot.MaximumBytes)
 }

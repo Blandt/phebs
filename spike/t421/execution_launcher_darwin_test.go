@@ -439,6 +439,17 @@ func TestExecutionHeldImageMatchesEveryLivenessField(t *testing.T) {
 		ExecuteMode: image.mode, ExecuteSize: image.size, ExecuteCTimeUnixNano: image.ctimeUnixNano,
 		ExecuteImageSHA256: image.digest,
 	}
+	if image.matchesBinding(baseline) {
+		t.Fatal("unheld image binding accepted")
+	}
+	// The identity fields are modeled; this comparator also requires a held
+	// descriptor. Opening this test file does not issue native image custody.
+	file, err := os.CreateTemp(t.TempDir(), "image")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = file.Close() })
+	image.file = file
 	if !image.matchesBinding(baseline) {
 		t.Fatal("exact image binding refused")
 	}
@@ -457,6 +468,12 @@ func TestExecutionHeldImageMatchesEveryLivenessField(t *testing.T) {
 		if image.matchesBinding(candidate) {
 			t.Fatalf("image-binding mutation %d admitted", index)
 		}
+	}
+	if err := image.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if image.matchesBinding(baseline) {
+		t.Fatal("released image binding accepted")
 	}
 }
 
