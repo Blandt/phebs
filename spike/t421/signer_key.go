@@ -48,11 +48,14 @@ type executionSignerKeyCustody struct {
 	privateKey       *executionSignerHeldFile
 	generatedPublic  *executionSignerHeldFile
 	fingerprintClaim *executionSignerHeldFile
+	canonicalFile    *executionSignerHeldFile
+	allowlist        *executionSignerHeldFile
 	fingerprintRaw   []byte
 	canonicalPublic  []byte
 	publicSHA256     string
 	fingerprint      string
 	cleanupUncertain bool
+	sealUsed         bool
 	closed           bool
 }
 
@@ -136,6 +139,17 @@ func executionSignerGeneratedPublic(canonical []byte) []byte {
 	value := make([]byte, 0, len(canonical)+1)
 	value = append(value, canonical[:len(canonical)-1]...)
 	value = append(value, ' ', '\n')
+	return value
+}
+
+func executionSignerAllowlist(canonical []byte) []byte {
+	if len(canonical) == 0 || canonical[len(canonical)-1] != '\n' {
+		return nil
+	}
+	value := make([]byte, 0, len(executionSignerIdentity)+1+len(canonical))
+	value = append(value, executionSignerIdentity...)
+	value = append(value, ' ')
+	value = append(value, canonical...)
 	return value
 }
 

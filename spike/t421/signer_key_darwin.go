@@ -120,6 +120,17 @@ func runExecutionSignerCommandLocked(
 	inputs []*executionSignerHeldFile,
 	args ...string,
 ) ([]byte, []byte, error) {
+	return runExecutionSignerPayloadCommandLocked(ctx, key, inputs, nil, maxExecutionSignerKeyBytes, args...)
+}
+
+func runExecutionSignerPayloadCommandLocked(
+	ctx context.Context,
+	key *executionSignerKeyCustody,
+	inputs []*executionSignerHeldFile,
+	payload []byte,
+	stdoutMaximum int64,
+	args ...string,
+) ([]byte, []byte, error) {
 	if err := checkExecutionSignerKeyAuthoritiesLocked(ctx, key); err != nil {
 		return nil, nil, err
 	}
@@ -130,7 +141,7 @@ func runExecutionSignerCommandLocked(
 	}
 	commandCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
-	stdout := checkoutCommandOutput{remaining: maxExecutionSignerKeyBytes, cancel: cancel}
+	stdout := checkoutCommandOutput{remaining: stdoutMaximum, cancel: cancel}
 	stderr := checkoutCommandOutput{remaining: 4 << 10, cancel: cancel}
 	command := exec.CommandContext(commandCtx, key.signerPath, args...)
 	command.Dir = key.namespace.owner.path
@@ -138,6 +149,9 @@ func runExecutionSignerCommandLocked(
 		"HOME=" + key.namespace.owner.path, "TMPDIR=" + key.namespace.owner.path,
 		"TMP=" + key.namespace.owner.path, "TEMP=" + key.namespace.owner.path,
 		"PATH=/usr/bin:/bin", "LANG=C", "LC_ALL=C", "TZ=UTC",
+	}
+	if payload != nil {
+		command.Stdin = bytes.NewReader(payload)
 	}
 	command.Stdout, command.Stderr, command.WaitDelay = &stdout, &stderr, time.Second
 	if err := runReferenceCommand(commandCtx, command); err != nil || commandCtx.Err() != nil || stdout.err != nil || stderr.err != nil {
@@ -235,7 +249,7 @@ func promoteExecutionSignerFileLocked(
 	destination string,
 ) error {
 	if err := checkExecutionSignerHeldFile(ctx, held); err != nil || held.identity.device != owner.identity.device {
-		return err
+		return ErrExecutionEpochOne
 	}
 	destinationPath, err := executionSignerJoinedPath(owner.path, destination, maxExecutionSignerPathBytes)
 	if err != nil {
@@ -306,6 +320,9 @@ func checkExecutionSignerKeyLocked(ctx context.Context, key *executionSignerKeyC
 		key.temporaryPrivate != nil || key.temporaryPublic != nil {
 		return ErrExecutionEpochOne
 	}
+	if (key.canonicalFile == nil) != (key.allowlist == nil) {
+		return ErrExecutionEpochOne
+	}
 	if err := checkExecutionSignerKeyAuthoritiesLocked(ctx, key); err != nil {
 		return err
 	}
@@ -321,6 +338,37 @@ func checkExecutionSignerKeyLocked(ctx context.Context, key *executionSignerKeyC
 	fingerprintRaw, err := readExecutionSignerFile(key.fingerprintClaim, maxExecutionSignerFingerprintClaimBytes)
 	if err != nil || !bytes.Equal(fingerprintRaw, key.fingerprintRaw) {
 		return ErrExecutionEpochOne
+	}
+	if key.canonicalFile != nil {
+		for _, held := range []*executionSignerHeldFile{key.canonicalFile, key.allowlist} {
+			if err := checkExecutionSignerHeldFile(ctx, held); err != nil {
+				return err
+			}
+		}
+		canonicalRaw, canonicalErr := readExecutionSignerHeldFile(key.canonicalFile)
+		allowlistRaw, allowlistErr := readExecutionSignerHeldFile(key.allowlist)
+		if canonicalErr != nil || allowlistErr != nil || !bytes.Equal(canonicalRaw, key.canonicalPublic) ||
+			!bytes.Equal(allowlistRaw, executionSignerAllowlist(key.canonicalPublic)) {
+			return ErrExecutionEpochOne
+		}
+	}
+	if key.canonicalFile == nil != (key.allowlist == nil) {
+		return ErrExecutionEpochOne
+	}
+	if key.canonicalFile != nil {
+		for _, held := range []*executionSignerHeldFile{key.canonicalFile, key.allowlist} {
+			if err := checkExecutionSignerHeldFile(ctx, held); err != nil {
+				return err
+			}
+		}
+		canonicalRaw, err := readExecutionSignerHeldFile(key.canonicalFile)
+		if err != nil || !bytes.Equal(canonicalRaw, key.canonicalPublic) {
+			return ErrExecutionEpochOne
+		}
+		allowlistRaw, err := readExecutionSignerHeldFile(key.allowlist)
+		if err != nil || !bytes.Equal(allowlistRaw, executionSignerAllowlist(key.canonicalPublic)) {
+			return ErrExecutionEpochOne
+		}
 	}
 	canonical, fingerprint, publicSHA256, err := deriveExecutionSignerPublic(key.canonicalPublic)
 	if err != nil || !bytes.Equal(canonical, key.canonicalPublic) || fingerprint != key.fingerprint || publicSHA256 != key.publicSHA256 {
@@ -367,6 +415,7 @@ func closeExecutionSignerKey(key *executionSignerKeyCustody) error {
 	}
 	for _, held := range []*executionSignerHeldFile{
 		key.temporaryPrivate, key.temporaryPublic, key.privateKey, key.generatedPublic, key.fingerprintClaim,
+		key.canonicalFile, key.allowlist,
 	} {
 		if held != nil && held.file != nil && held.file.Close() != nil {
 			return ErrExecutionEpochOne
