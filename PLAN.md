@@ -3162,3 +3162,10 @@ in [docs/ROADMAP.md](./docs/ROADMAP.md).
   snapshot to remain unchanged. A missing recorder can no longer mask an
   attempted cold-phase transition. This adds bounded test-only setup and
   comparisons; production behavior, costs and readiness status are unchanged.
+
+- **2026-09-13 — T42.2n prerequisite test preservation, T21.1.** Bind the
+  retained vocabulary tests to the exact glossary blob from
+  `e77421c264f81064f510cbf26c44b3c4ec29e429`, preserving their existing
+  canonical digest. Later production glossary surfaces remain governed by
+  `internal/glossary` and its drift checks. The added historical input is
+  test-only; production bytes, validation, costs and authority are unchanged.

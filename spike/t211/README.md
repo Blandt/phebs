@@ -29,8 +29,14 @@ The sequence is confirmed:
 
 | Input | Canonical digest |
 |---|---|
-| `../../internal/glossary/glossary.json` | `sha256:2fca7ebdb44cda1545bc03432bce23d66d73699b84ab82894768210091888ef1` |
+| `testdata/glossary.json` | `sha256:2fca7ebdb44cda1545bc03432bce23d66d73699b84ab82894768210091888ef1` |
 | `scenarios.json` | `sha256:922034e9f9a3cb40ff0d602b27a0245795a45949b2e012c6f8d7f75f145120f4` |
+
+The retained test fixture is the exact glossary blob from
+`e77421c264f81064f510cbf26c44b3c4ec29e429`, before the promoted production
+glossary gained later relationship surfaces. Its canonical digest above stays
+exact; current glossary projections remain checked by `internal/glossary` and
+`make verify-glossary`. No current term or production validator is changed.
 
 T21.4 promoted `glossary.json` without changing its canonical bytes or digest;
 it now lives under `internal/glossary` as the canonical versioned input for

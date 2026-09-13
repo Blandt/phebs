@@ -394,7 +394,7 @@ func TestScenarioContractRejectsUnsafeOrIncompleteInput(t *testing.T) {
 func readFixture(t *testing.T, name string) []byte {
 	t.Helper()
 	if name == "glossary.json" {
-		name = filepath.Join("..", "..", "internal", "glossary", "glossary.json")
+		name = filepath.Join("testdata", "glossary.json")
 	}
 	content, err := os.ReadFile(name)
 	if err != nil {
