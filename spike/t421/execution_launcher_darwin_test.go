@@ -24,6 +24,24 @@ import (
 func TestMain(m *testing.M) {
 	if len(os.Args) == 4 && os.Args[2] == "--selection-base64url" && os.Args[1] == executionInnerMode {
 		selected, _ := executionSelection(os.Args[3])
+		if selected.CeremonyID == "t422-handoff-test" || selected.CeremonyID == "t422-handoff-extra-test" {
+			liveness, livenessErr := executionLiveness(os.Environ())
+			frame, err := executionLauncherTestHandoff(os.Args[0], liveness.ExecuteImageSHA256, liveness.OuterDeadlineUnixNano)
+			if livenessErr != nil || err != nil {
+				os.Exit(62)
+			}
+			written, writeErr := os.Stdout.Write(frame)
+			if writeErr != nil || written != len(frame) {
+				os.Exit(63)
+			}
+			if selected.CeremonyID == "t422-handoff-extra-test" {
+				_, _ = os.Stdout.Write([]byte("x"))
+			}
+			os.Exit(0)
+		}
+		if selected.CeremonyID == "t422-no-handoff-test" {
+			os.Exit(43)
+		}
 		if selected.CeremonyID == "t422-cancel-test" {
 			liveness, err := executionLiveness(os.Environ())
 			if err != nil {
@@ -89,6 +107,18 @@ func TestMain(m *testing.M) {
 			}()
 		}
 		err := RunExecutionCommand(ctx, os.Args, os.Environ())
+		if selected.CeremonyID == "t422-handoff-test" {
+			if err == nil {
+				os.Exit(0)
+			}
+			os.Exit(64)
+		}
+		if selected.CeremonyID == "t422-handoff-extra-test" {
+			if errors.Is(err, ErrExecutionLauncher) {
+				os.Exit(65)
+			}
+			os.Exit(66)
+		}
 		if selected.CeremonyID == "t422-cancel-test" {
 			rows, observeErr := t4013.ObserveProcessTreeRecords(context.Background(), os.Getpid())
 			var exit *exec.ExitError
@@ -162,8 +192,9 @@ func TestExecutionStartedInnerRequiresExactParentAndSession(t *testing.T) {
 	}
 }
 
-func TestExecutionOuterStartsClosedInnerWithoutStartingAuthority(t *testing.T) {
+func TestExecutionOuterRefusesInnerWithoutHandoff(t *testing.T) {
 	selection, _ := testExecutionSelection(t)
+	selection.CeremonyID = "t422-no-handoff-test"
 	authorityRoot := t.TempDir()
 	selection.RepositoryRoot = filepath.Join(authorityRoot, "repository")
 	selection.GoRoot = filepath.Join(authorityRoot, "goroot")
@@ -187,6 +218,47 @@ func TestExecutionOuterStartsClosedInnerWithoutStartingAuthority(t *testing.T) {
 			t.Fatalf("pending launcher started selected authority at %q: %v", path, err)
 		}
 	}
+}
+
+func TestExecutionOuterForwardsOneCanonicalInheritedHandoff(t *testing.T) {
+	selection, _ := testExecutionSelection(t)
+	selection.CeremonyID = "t422-handoff-test"
+	executable := protectedExecutionTestImage(t)
+	command := exec.Command(executable, executionOuterMode, "--selection-base64url", encodeExecutionSelection(t, selection))
+	command.Env = []string{"AMBIENT_IGNORED=1"}
+	output, err := command.Output()
+	value, decodeErr := decodeExecutionAuthorizationHandoff(output)
+	digest, digestErr := t4013.DigestHostExecutable(t.Context(), executable)
+	if err != nil || decodeErr != nil || digestErr != nil || value.clientArgvPath() != executable || value.T422ExecuteImageSHA256 != digest {
+		t.Fatalf("outer handoff = %d bytes, %v; decode %v, digest %v", len(output), err, decodeErr, digestErr)
+	}
+}
+
+func TestExecutionOuterRefusesBytesAfterInheritedHandoff(t *testing.T) {
+	selection, _ := testExecutionSelection(t)
+	selection.CeremonyID = "t422-handoff-extra-test"
+	executable := protectedExecutionTestImage(t)
+	command := exec.Command(executable, executionOuterMode, "--selection-base64url", encodeExecutionSelection(t, selection))
+	command.Env = []string{"AMBIENT_IGNORED=1"}
+	output, err := command.Output()
+	value, decodeErr := decodeExecutionAuthorizationHandoff(output)
+	if code := exitCode(t, err); code != 65 || decodeErr != nil || value.clientArgvPath() != executable {
+		t.Fatalf("extra-byte refusal = code %d, %d output bytes, decode %v", code, len(output), decodeErr)
+	}
+}
+
+func executionLauncherTestHandoff(executePath, image string, outerDeadline int64) ([]byte, error) {
+	socketPath := "/tmp/t422/auth.sock"
+	projection, err := projectExecutionAuthorizationHandoff(executePath, socketPath, image, outerDeadline)
+	if err != nil {
+		return nil, err
+	}
+	handoff, err := buildExecutionAuthorizationHandoff(executePath, socketPath, image, outerDeadline, outerDeadline-1,
+		strings.Repeat("a", 64), strings.Repeat("b", 64), projection)
+	if err != nil {
+		return nil, err
+	}
+	return handoff.frame, nil
 }
 
 func TestExecutionInnerRefusesWrongParentAndDirectInvocation(t *testing.T) {

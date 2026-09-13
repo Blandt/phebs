@@ -63,6 +63,19 @@ func runExecutionOuter(ctx context.Context, started time.Time, executable, selec
 	if err != nil || reader.Fd() == writer.Fd() {
 		return ErrExecutionLauncher
 	}
+	handoffReader, handoffWriter, err := os.Pipe()
+	if err != nil {
+		return ErrExecutionLauncher
+	}
+	defer func() {
+		retErr = errors.Join(retErr, closeExecutionFile(handoffReader), closeExecutionFile(handoffWriter))
+	}()
+	if _, err := executionPipeRow(handoffReader, unix.O_RDONLY); err != nil {
+		return ErrExecutionLauncher
+	}
+	if _, err := executionPipeRow(handoffWriter, unix.O_WRONLY); err != nil || handoffReader.Fd() == handoffWriter.Fd() {
+		return ErrExecutionLauncher
+	}
 	binding := executionParentLivenessV1{
 		Schema: executionParentLivenessSchema, OuterPID: os.Getpid(), OuterStartToken: rows[0].StartIdentity,
 		OuterStartedUnixNano: startedNano, OuterDeadlineUnixNano: deadlineNano, ReadFD: 3,
@@ -84,7 +97,7 @@ func runExecutionOuter(ctx context.Context, started time.Time, executable, selec
 	defer func() { retErr = errors.Join(retErr, closeExecutionFile(input)) }()
 	command := exec.Command(executable, executionInnerMode, "--selection-base64url", selection)
 	command.Env = []string{executionLivenessEnvironment + "=" + liveness}
-	command.Stdin, command.Stdout, command.Stderr = input, io.Discard, io.Discard
+	command.Stdin, command.Stdout, command.Stderr = input, handoffWriter, io.Discard
 	command.ExtraFiles = []*os.File{reader}
 	command.WaitDelay = 5 * time.Second
 	prepareProductionSession(command)
@@ -94,6 +107,18 @@ func runExecutionOuter(ctx context.Context, started time.Time, executable, selec
 	pid := command.Process.Pid
 	waited := make(chan error, 1)
 	go func() { waited <- command.Wait() }()
+	frames := make(chan executionAuthorizationHandoffFrame, 1)
+	tails := make(chan error, 1)
+	captureDone := make(chan struct{})
+	go func() {
+		defer close(captureDone)
+		captureExecutionAuthorizationHandoff(handoffReader, frames, tails)
+	}()
+	defer func() {
+		_ = closeExecutionFile(handoffReader)
+		handoffReader = nil
+		<-captureDone
+	}()
 	if reader.Close() != nil {
 		reader = nil
 		stoppedWriter := writer
@@ -101,6 +126,13 @@ func runExecutionOuter(ctx context.Context, started time.Time, executable, selec
 		return stopExecutionInner(command, waited, stoppedWriter, time.Unix(0, deadlineNano))
 	}
 	reader = nil
+	if handoffWriter.Close() != nil {
+		handoffWriter = nil
+		stoppedWriter := writer
+		writer = nil
+		return stopExecutionInner(command, waited, stoppedWriter, time.Unix(0, deadlineNano))
+	}
+	handoffWriter = nil
 	if current, err := executionPipeRow(writer, unix.O_WRONLY); err != nil || current != writeRow {
 		stoppedWriter := writer
 		writer = nil
@@ -112,15 +144,56 @@ func runExecutionOuter(ctx context.Context, started time.Time, executable, selec
 		writer = nil
 		return stopExecutionInner(command, waited, stoppedWriter, time.Unix(0, deadlineNano))
 	}
-	var waitErr error
-	joined := false
+	var handoffFrame []byte
 	select {
-	case waitErr = <-waited:
-		joined = true
+	case captured := <-frames:
+		if captured.err != nil || len(captured.raw) == 0 || captured.value.clientArgvPath() != executable ||
+			captured.value.T422ExecuteImageSHA256 != image.digest || captured.value.OuterDeadlineUnixNano != deadlineNano {
+			stoppedWriter := writer
+			writer = nil
+			return stopExecutionInner(command, waited, stoppedWriter, time.Unix(0, deadlineNano))
+		}
+		handoffFrame = captured.raw
 	case <-ctx.Done():
 		stoppedWriter := writer
 		writer = nil
 		return stopExecutionInner(command, waited, stoppedWriter, time.Unix(0, deadlineNano))
+	}
+	if forwardExecutionAuthorizationHandoff(os.Stdout, handoffFrame) != nil {
+		stoppedWriter := writer
+		writer = nil
+		return stopExecutionInner(command, waited, stoppedWriter, time.Unix(0, deadlineNano))
+	}
+	var waitErr error
+	joined := false
+	tailJoined := false
+	var tailErr error
+	waitChannel, tailChannel := (<-chan error)(waited), (<-chan error)(tails)
+	done := ctx.Done()
+	for !joined || !tailJoined {
+		select {
+		case waitErr = <-waitChannel:
+			joined = true
+			waitChannel = nil
+		case tailErr = <-tailChannel:
+			tailJoined = true
+			tailChannel = nil
+			if tailErr != nil && !joined {
+				stoppedWriter := writer
+				writer = nil
+				return stopExecutionInner(command, waited, stoppedWriter, time.Unix(0, deadlineNano))
+			}
+		case <-done:
+			if !joined {
+				stoppedWriter := writer
+				writer = nil
+				return stopExecutionInner(command, waited, stoppedWriter, time.Unix(0, deadlineNano))
+			}
+			tailErr = errors.Join(tailErr, ctx.Err())
+			_ = closeExecutionFile(handoffReader)
+			handoffReader = nil
+			done = nil
+		}
 	}
 	if waitErr != nil {
 		_ = closeExecutionFile(writer)
@@ -128,8 +201,8 @@ func runExecutionOuter(ctx context.Context, started time.Time, executable, selec
 	}
 	stopDeadline := executionFinishDeadline(time.Unix(0, deadlineNano))
 	joined, empty, finishErr := finishExecutionProcessSession(pid, waited, joined, waitErr, stopDeadline)
-	if !joined || !empty || finishErr != nil || ctx.Err() != nil {
-		return errors.Join(ErrExecutionLauncher, finishErr, ctx.Err())
+	if !joined || !tailJoined || tailErr != nil || !empty || finishErr != nil || ctx.Err() != nil {
+		return errors.Join(ErrExecutionLauncher, tailErr, finishErr, ctx.Err())
 	}
 	if startedInner.PID != pid || startedInner.ParentPID != os.Getpid() || startedInner.StartIdentity == "" {
 		return ErrExecutionLauncher
@@ -193,7 +266,8 @@ func runExecutionInner(ctx context.Context, entered time.Time, executable, selec
 	if innerCtx.Err() != nil {
 		return ErrExecutionLauncher
 	}
-	if _, err := executionSelection(selection); err != nil {
+	selected, err := executionSelection(selection)
+	if err != nil {
 		return ErrExecutionLauncher
 	}
 	if err := os.Unsetenv(executionLivenessEnvironment); err != nil {
@@ -202,8 +276,15 @@ func runExecutionInner(ctx context.Context, entered time.Time, executable, selec
 	if innerCtx.Err() != nil || !time.Now().Before(outerDeadline) {
 		return ErrExecutionLauncher
 	}
-	// The launcher is real and fail-closed at the next missing authority: the
-	// later slice supplies protected input custody before any ceremony work.
+	prepared, err := prepareExecutionInnerPreparation(innerCtx, selected, parent, outerDeadline)
+	if err != nil || prepared == nil {
+		return ErrExecutionLauncher
+	}
+	if _, err := prepared.authorizeAndAuthorA(innerCtx, os.Stdout); err != nil {
+		return ErrExecutionLauncher
+	}
+	// The next composition slice consumes the admitted AuthorA result and runs
+	// the complete phase sequence before receipt construction.
 	return errExecutionAuthorityPending
 }
 
