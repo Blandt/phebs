@@ -252,9 +252,11 @@ func (prepared *executionInnerPreparation) Close() error {
 			return errPressureVolume
 		}
 	}
-	prepared.closed = true
 	var result error
-	result = errors.Join(result, prepared.key.Close(), prepared.claim.Close(), prepared.flow.Close(), prepared.epochs.Close(), prepared.author.Close(), prepared.planInput.Close())
+	result = errors.Join(result, prepared.key.Close(), prepared.claim.Close(), prepared.flow.Close(), prepared.epochs.Close(), prepared.author.Close())
+	if prepared.planInput != nil {
+		result = errors.Join(result, prepared.planInput.Close())
+	}
 	if prepared.surreal != nil {
 		result = errors.Join(result, prepared.surreal.Close())
 	}
@@ -264,13 +266,20 @@ func (prepared *executionInnerPreparation) Close() error {
 		}
 	}
 	result = errors.Join(result, prepared.candidates.Close(), prepared.builds.Close(), prepared.git.Close(), prepared.signer.Close(), prepared.volume.Close())
-	if result == nil {
-		result = closeExecutionOperationalRoot(prepared.operational)
+	if result != nil {
+		return result
 	}
-	return result
+	if err := closeExecutionOperationalRoot(prepared.operational); err != nil {
+		return err
+	}
+	prepared.closed = true
+	return nil
 }
 
 func closeExecutionOperationalRoot(root productionRoot) error {
+	if root.file == nil && root.path == "" {
+		return nil
+	}
 	if root.file == nil || root.path == "" || pressureRootsUnchanged(root) != nil || !pressureDirectoryEmpty(root.path) {
 		return ErrExecutionLauncher
 	}

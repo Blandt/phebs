@@ -27,3 +27,10 @@ func TestExecutionOperationalRootIsPrivateShortAndOwned(t *testing.T) {
 		t.Fatal("closed operational root remains", err)
 	}
 }
+
+func TestEmptyExecutionInnerPreparationCloses(t *testing.T) {
+	prepared := &executionInnerPreparation{}
+	if err := prepared.Close(); err != nil || !prepared.closed {
+		t.Fatal("empty preparation did not close", err)
+	}
+}
