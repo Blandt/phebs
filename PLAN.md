@@ -3176,3 +3176,10 @@ in [docs/ROADMAP.md](./docs/ROADMAP.md).
   check stable live budgets, one sentinel per component and nonshrinking
   component count. API tests own exact live membership/fairness. Retained
   receipt bytes, production behavior and steady-state costs remain unchanged.
+
+- **2026-09-13 — T42.2n prerequisite test preservation, T32.4.** Port the
+  bounded test correction from `06775f01` without importing its branch lineage.
+  Pin the receipt's historical T32.3 inputs separately from current preserved
+  pack bytes, and require their unchanged bundle-neutral semantic identity.
+  T32.3 still verifies exact commits, trees and bundle fetchability. No retained
+  evidence, production code, admission limit or steady-state cost changes.

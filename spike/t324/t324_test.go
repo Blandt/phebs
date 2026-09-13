@@ -2,6 +2,7 @@ package t324
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -12,6 +13,8 @@ import (
 
 	"github.com/bmeddeb/phebs/spike/t323"
 )
+
+const t323SemanticReceiptSHA256 = "sha256:846101477d9c088b86058dbd6d8501733741baa45fc68ac150da00c5bce15370"
 
 func TestRetainedReceiptIsClosedAndInputBound(t *testing.T) {
 	root := repositoryRoot(t)
@@ -26,12 +29,42 @@ func TestRetainedReceiptIsClosedAndInputBound(t *testing.T) {
 	if err := ValidateReceipt(receipt); err != nil {
 		t.Fatal(err)
 	}
+	historicalInputs := Inputs{
+		T322ResultsSHA256: "sha256:d1ec7b658eef84d2974c50c66d6dca00160a412fd49154c1ad4e232baae695ad",
+		T323ReceiptSHA256: "sha256:ce94187fd3b9c1ad42b64f131c9234399a5df918a07c5f452b94393873ab8611",
+		T323BundleSHA256:  "sha256:05a1b845a2eaee1c6a2b0beda972aa0ea6ffe9cc636d886014887202728e2194",
+	}
+	if receipt.Inputs != historicalInputs {
+		t.Fatalf("retained input bindings = %+v, want historical %+v", receipt.Inputs, historicalInputs)
+	}
 	inputs, _, err := readInputs(root)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if receipt.Inputs != inputs {
-		t.Fatalf("retained input bindings = %+v, want %+v", receipt.Inputs, inputs)
+	currentPreservedInputs := Inputs{
+		T322ResultsSHA256: "sha256:d1ec7b658eef84d2974c50c66d6dca00160a412fd49154c1ad4e232baae695ad",
+		T323ReceiptSHA256: "sha256:899492dcfe2f768de7e75003ff5d420655cbfeb8c44d9a76505bf6d6b8dededd",
+		T323BundleSHA256:  "sha256:8d70693ee440ff7683f8c3a39cc9b6565dd265cbc546d40e961759f2237617fa",
+	}
+	if inputs != currentPreservedInputs {
+		t.Fatalf("current preserved inputs = %+v, want %+v", inputs, currentPreservedInputs)
+	}
+	t323Bytes, err := os.ReadFile(filepath.Join(root, "spike/t323/receipt.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t323Receipt, err := t323.DecodeStrict[t323.Receipt](t323Bytes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t323Receipt.Bundle.Bytes = 0
+	t323Receipt.Bundle.SHA256 = ""
+	semantic, err := json.Marshal(t323Receipt)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := t323.SHA256(semantic); got != t323SemanticReceiptSHA256 {
+		t.Fatalf("current T32.3 semantic receipt = %s, want %s", got, t323SemanticReceiptSHA256)
 	}
 	for _, forbidden := range []string{"/Users/", "phebs-private", "bootstrap_password", "clone_url"} {
 		if strings.Contains(string(encoded), forbidden) {

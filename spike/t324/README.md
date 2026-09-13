@@ -38,6 +38,20 @@ experiment, and the same all-code/service equality bar.
 - T32.3 Git bundle:
   `sha256:05a1b845a2eaee1c6a2b0beda972aa0ea6ffe9cc636d886014887202728e2194`.
 
+Those are the exact historical inputs used by T32.4 and remain unchanged in
+its retained receipt. The separately preserved current T32.3 receipt and Git
+2.54 bundle are respectively
+`sha256:899492dcfe2f768de7e75003ff5d420655cbfeb8c44d9a76505bf6d6b8dededd`
+and
+`sha256:8d70693ee440ff7683f8c3a39cc9b6565dd265cbc546d40e961759f2237617fa`.
+After clearing only version-sensitive bundle bytes and digest, both T32.3
+receipt generations have semantic identity
+`sha256:846101477d9c088b86058dbd6d8501733741baa45fc68ac150da00c5bce15370`.
+The T32.3 gate separately fetches the current bundle and verifies every exact
+receipt-bound commit and tree. T32.4 therefore checks the historical binding
+and current semantic compatibility independently; it never relabels the old
+measurement as having consumed the new pack bytes.
+
 The T32.3 generator now exposes the exact frozen load-profile bytes to later
 spikes. Tests verify every materialized path, byte count, and digest against
 the already-retained profile inventory; the profile and corpus artifacts did
