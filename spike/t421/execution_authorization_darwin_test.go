@@ -156,7 +156,7 @@ func TestExecutionAuthorizationClientCancellationAfterConnect(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			defer listener.Close()
+			defer func() { _ = listener.Close() }()
 			deadline := time.Now().Add(5 * time.Second)
 			if err := listener.SetDeadline(deadline); err != nil {
 				t.Fatal(err)
@@ -173,7 +173,7 @@ func TestExecutionAuthorizationClientCancellationAfterConnect(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			defer peer.Close()
+			defer func() { _ = peer.Close() }()
 			if err := peer.SetDeadline(deadline); err != nil {
 				t.Fatal(err)
 			}
