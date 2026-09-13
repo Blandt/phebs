@@ -3247,3 +3247,14 @@ in [docs/ROADMAP.md](./docs/ROADMAP.md).
   sync, startup, publication or persistent cache is introduced. Modeled
   partial-construction/replacement and uncertain-session tests exercise the
   actual removal and descriptor-close guards without launching builds.
+
+- **2026-09-13 — T42.2n pressure refusal join correction.** Install the
+  existing cancellation, failed-pressure state and completion-channel cleanup
+  before attempting the first pressure event. A rejected begin now closes the
+  already-published join instead of stranding native finish before shutdown.
+  Successful pressure work, one-shot state, locks, sampling and limits are
+  unchanged; the refused path runs the existing bounded cleanup and adds no
+  pressure command, ballast mutation, child or retry. The optional tiny native
+  ballast fixture includes a modeled run/recorder mismatch to exercise this
+  exact refusal with real volume/inode custody. Its compile-only or skipped
+  result is not a native pass or complete pressure/readiness evidence.

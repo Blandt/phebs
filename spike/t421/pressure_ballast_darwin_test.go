@@ -4,6 +4,7 @@ package t421
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -96,8 +97,9 @@ func TestExecutionPressureBallastRefusals(t *testing.T) {
 	}
 }
 
-// A <=1-MiB native syscall fixture, not pressure evidence or a manufactured
-// phase/run. It never calls nextTarget or changes the frozen geometry.
+// A <=1-MiB native syscall fixture with a modeled run for early-refusal
+// cleanup. It supplies no pressure/readiness evidence, never reaches nextTarget,
+// and does not change the frozen geometry.
 func TestExecutionPressureBallastOptionalNative(t *testing.T) {
 	if os.Getenv("PHEBS_T422_BALLAST_NATIVE_REHEARSAL") != "1" {
 		t.Skip("requires explicitly selected tiny APFS allocation gate")
@@ -167,6 +169,55 @@ func TestExecutionPressureBallastOptionalNative(t *testing.T) {
 		}
 		before = size
 	}
+	t.Run("modeled_phase_begin_refusal_closes_join", func(t *testing.T) {
+		// Only volume/inode custody is native. The run prerequisites, fenced
+		// control peer, and preflight recorder state are modeled; their mismatch
+		// refuses pressure_80 before any pressure command or ballast mutation.
+		admitted, _, err := newExecutionEventOrdinals().consumeFinalAdmission()
+		if err != nil {
+			t.Fatal(err)
+		}
+		now := time.Now()
+		recorder, err := newExecutionPhaseEventRecorder(admitted, frozenPhaseOrder(), now, now.Add(time.Minute))
+		if err != nil {
+			t.Fatal(err)
+		}
+		flow := &ExecutionEpochOne{executionPhaseEvents: recorder}
+		run := &ExecutionEpochOneRun{
+			flow: flow, epoch: ExecutionEpochConfig{Epoch: 4}, pressureAllowed: true, healthy: true, warm: true,
+			checkpointDone: make(chan struct{}), inspection: &executionEpochInspection{},
+			control: modeledQueryReceiptControl(t, false), stop: make(chan struct{}),
+			phaseDeadline: now.Add(time.Minute), lifetimeDeadline: now.Add(time.Minute),
+		}
+		close(run.checkpointDone)
+		run.inspection.pressure.samples.Complete = true
+		v.flow, v.borrowed, v.ballast = flow, true, ballast
+		defer func() { v.flow, v.borrowed, v.ballast = nil, false, nil }()
+		if err := run.Pressure(ctx, v); !errors.Is(err, ErrExecutionEpochOne) {
+			t.Fatal("phase begin did not refuse", err)
+		}
+		if !recorder.failed || !run.pressureUsed || run.pressureCancel == nil || run.pressureDone == nil {
+			t.Fatal("refusal did not reach the event guard after publishing the pressure join")
+		}
+		select {
+		case <-run.pressureDone:
+		default:
+			t.Fatal("early refusal left finish waiting on the published pressure join")
+		}
+		select {
+		case <-run.stop:
+		default:
+			t.Fatal("early refusal did not request stop")
+		}
+		if !errors.Is(run.err, ErrExecutionEpochOne) || run.inspection.pressure.samples.Complete ||
+			!run.inspection.pressure.samples.Unavailable {
+			t.Fatal("early refusal did not retain unavailable pressure state")
+		}
+		current, err := file.Stat()
+		if err != nil || current.Size() != 0 || ballast.next != 0 || ballast.failed || ballast.removed {
+			t.Fatal("early refusal changed the zero ballast", err)
+		}
+	})
 	if file.Close() != nil {
 		t.Fatal("close ballast")
 	}

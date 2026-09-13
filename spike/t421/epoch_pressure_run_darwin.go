@@ -42,9 +42,6 @@ func (run *ExecutionEpochOneRun) Pressure(ctx context.Context, volume *execution
 	run.mu.Unlock()
 	phaseName := "pressure_80"
 	recordPhaseEvents := run.flow.hasExecutionPhaseEvents()
-	if recordPhaseEvents && run.flow.beginExecutionPhase(phaseName) != nil {
-		return ErrExecutionEpochOne
-	}
 	defer func() {
 		cancel()
 		if retErr != nil {
@@ -64,6 +61,9 @@ func (run *ExecutionEpochOneRun) Pressure(ctx context.Context, volume *execution
 		}
 		close(done)
 	}()
+	if recordPhaseEvents && run.flow.beginExecutionPhase(phaseName) != nil {
+		return ErrExecutionEpochOne
+	}
 	for phase := uint32(9); phase <= 11; phase++ {
 		if err := run.pressurePhase(op, ballast, phase); err != nil {
 			return err
