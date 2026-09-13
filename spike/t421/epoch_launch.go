@@ -449,7 +449,8 @@ type ExecutionEpochOneResult struct {
 	ProductFirstFinalOrdinal uint64
 	// An accepted phase14 prefix survives later teardown failure. This does
 	// not imply overall receipt success or completed teardown.
-	QueryResults *QueryEvidence
+	QueryResults           *QueryEvidence
+	transitionObservations executionTransitionObservations
 }
 
 type ExecutionEpochOneRun struct {
@@ -1262,6 +1263,17 @@ func (run *ExecutionEpochOneRun) finish(ctx context.Context, cancel context.Canc
 		result.ProductQueries = slices.Clone(run.inspection.productQueries)
 		result.ProductFirstFinalOrdinal = run.inspection.productFirstFinalOrdinal
 		result.QueryResults = cloneProductQueryEvidence(run.inspection.productQueryEvidence)
+		result.transitionObservations = cloneExecutionTransitionObservations(executionTransitionObservations{
+			physical:      run.physicalResult,
+			activationHit: run.inspection.activationHit, activationRecovered: run.inspection.activationRecovered,
+			markerHit: run.inspection.markerHit, markerRecovered: run.inspection.markerRecovered,
+			staleHit: run.inspection.staleHit, staleRecovered: run.inspection.staleRecovered,
+			stalePreparation:      run.inspection.stalePreparation,
+			checkpointPreparation: run.inspection.checkpointPreparation,
+			checkpointHit:         run.inspection.checkpointHit, checkpointRecovered: run.inspection.checkpointRecovered,
+			pressure: run.inspection.pressure, archiveManifest: run.inspection.archiveManifest,
+			collectionCycle: run.inspection.collectionCycle,
+		})
 		run.inspection.mu.Unlock()
 	}
 	if run.warmWorkspace != nil {
@@ -1429,6 +1441,7 @@ func (run *ExecutionEpochOneRun) Wait(ctx context.Context) (ExecutionEpochOneRes
 		result.Authorities = cloneExecutionAuthorityResults(result.Authorities)
 		result.QueryResults = cloneProductQueryEvidence(result.QueryResults)
 		result.ProductQueries = slices.Clone(result.ProductQueries)
+		result.transitionObservations = cloneExecutionTransitionObservations(result.transitionObservations)
 		return result, run.err
 	case <-ctx.Done():
 		return ExecutionEpochOneResult{RootStarted: true}, ErrExecutionEpochOne

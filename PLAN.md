@@ -3068,3 +3068,17 @@ in [docs/ROADMAP.md](./docs/ROADMAP.md).
   four MiB compressed and expanded, with several bounded in-memory copies.
   Query/request, sync, ordinary startup/restart, retry/no-op, publication,
   cache, corpus/shard reads, store work and production child costs are unchanged.
+
+- **2026-09-13 — T42.2l detached native transition checkpoint.** Retain the
+  already accepted reader, activation, marker, stale/checkpoint, pressure, archive
+  manifest and restored lifecycle observations after their existing owners join.
+  Clone nested owner/component/report slices both into the retained result and
+  on every `Wait`; a consumer cannot mutate later snapshots. Scalar absent
+  fields are incomplete observations, not proof of observed zero or transition
+  success. This does not construct receipt transitions or independently measure
+  before/after archive state. The fixed phase/epoch inventory bounds copies by
+  the existing native observation schemas. The final copy extends the existing
+  inspection mutex hold; each `Wait` copies under the existing result mutex.
+  There are no new locks, source/corpus/shard reads, hashes, HTTP/store/file
+  operations, cache changes, timers, disk writes or children. Ordinary query,
+  sync, startup/restart, retry/no-op and publication work remain unchanged.

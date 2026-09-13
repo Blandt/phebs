@@ -1,0 +1,39 @@
+package t421
+
+import (
+	"slices"
+
+	"github.com/bmeddeb/phebs/internal/extractionpublication"
+	"github.com/bmeddeb/phebs/internal/lifecycle"
+	"github.com/bmeddeb/phebs/internal/recovery"
+)
+
+type executionTransitionObservations struct {
+	physical              epochRetentionObservation
+	activationHit         epochActivationObservation
+	activationRecovered   epochActivationObservation
+	markerHit             epochMarkerObservation
+	markerRecovered       epochMarkerObservation
+	staleHit              extractionpublication.StaleLeaseTransition
+	staleRecovered        extractionpublication.StaleLeaseTransition
+	stalePreparation      epochStalePreparation
+	checkpointPreparation epochStalePreparation
+	checkpointHit         extractionpublication.CheckpointRestartTransition
+	checkpointRecovered   extractionpublication.CheckpointRestartTransition
+	pressure              epochPressureObservations
+	archiveManifest       *recovery.ArchiveTransitionManifest
+	collectionCycle       lifecycle.CycleObservation
+}
+
+func cloneExecutionTransitionObservations(value executionTransitionObservations) executionTransitionObservations {
+	value.pressure.normal.Owners = slices.Clone(value.pressure.normal.Owners)
+	value.pressure.recovery.Owners = slices.Clone(value.pressure.recovery.Owners)
+	value.collectionCycle.Owners = slices.Clone(value.collectionCycle.Owners)
+	if value.archiveManifest != nil {
+		manifest := *value.archiveManifest
+		manifest.Components = slices.Clone(value.archiveManifest.Components)
+		manifest.Reports = slices.Clone(value.archiveManifest.Reports)
+		value.archiveManifest = &manifest
+	}
+	return value
+}
