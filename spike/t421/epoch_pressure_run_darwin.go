@@ -40,9 +40,17 @@ func (run *ExecutionEpochOneRun) Pressure(ctx context.Context, volume *execution
 	done := make(chan struct{})
 	run.pressureUsed, run.pressureCancel, run.pressureDone = true, cancel, done
 	run.mu.Unlock()
+	phaseName := "pressure_80"
+	recordPhaseEvents := run.flow.hasExecutionPhaseEvents()
+	if recordPhaseEvents && run.flow.beginExecutionPhase(phaseName) != nil {
+		return ErrExecutionEpochOne
+	}
 	defer func() {
 		cancel()
 		if retErr != nil {
+			if recordPhaseEvents {
+				_ = run.flow.finishExecutionPhase(phaseName, "stopped")
+			}
 			run.inspection.mu.Lock()
 			run.inspection.pressure.samples.Complete = false
 			if !run.inspection.pressure.samples.LimitExceeded {
@@ -60,13 +68,29 @@ func (run *ExecutionEpochOneRun) Pressure(ctx context.Context, volume *execution
 		if err := run.pressurePhase(op, ballast, phase); err != nil {
 			return err
 		}
-	}
-	run.inspection.mu.Lock()
-	run.inspection.pressure.samples.Complete = run.inspection.pressure.sampleOrdinal == 11
-	complete := run.inspection.pressure.samples.Complete
-	run.inspection.mu.Unlock()
-	if !complete || op.Err() != nil {
-		return ErrExecutionEpochOne
+		if phase == 11 {
+			run.inspection.mu.Lock()
+			run.inspection.pressure.samples.Complete = run.inspection.pressure.sampleOrdinal == 11
+			complete := run.inspection.pressure.samples.Complete
+			run.inspection.mu.Unlock()
+			if !complete || op.Err() != nil {
+				return ErrExecutionEpochOne
+			}
+		}
+		if recordPhaseEvents {
+			if err := run.flow.finishExecutionPhase(phaseName, "passed"); err != nil {
+				return err
+			}
+		}
+		phaseName = ""
+		if phase < 11 {
+			phaseName = []string{"pressure_90", "pressure_75"}[phase-9]
+			if recordPhaseEvents {
+				if err := run.flow.beginExecutionPhase(phaseName); err != nil {
+					return err
+				}
+			}
+		}
 	}
 	return nil
 }

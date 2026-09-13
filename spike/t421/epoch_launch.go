@@ -72,6 +72,7 @@ type ExecutionEpochOne struct {
 
 	executionFreezeBinding *ExecutionFreezeBinding
 	executionEventOrdinals *admittedExecutionEventOrdinals
+	executionPhaseEvents   *executionPhaseEventRecorder
 }
 
 // PrepareExecutionEpochOne starts no child. It rechecks the author's admitted
@@ -281,10 +282,14 @@ func (flow *ExecutionEpochOne) authorAReadyLocked(ctx context.Context) bool {
 }
 
 func (flow *ExecutionEpochOne) authorALocked(ctx context.Context) (ExecutionAuthorResult, error) {
+	return flow.authorALockedAt(ctx, time.Now())
+}
+
+func (flow *ExecutionEpochOne) authorALockedAt(ctx context.Context, started time.Time) (ExecutionAuthorResult, error) {
 	if !flow.authorAReadyLocked(ctx) {
 		return ExecutionAuthorResult{}, ErrExecutionEpochOne
 	}
-	flow.authorStarted = time.Now()
+	flow.authorStarted = started
 	if flow.workspace != nil {
 		if flow.plan.Schema != PlanV3Schema || len(flow.plan.PhaseDeadlines) != 15 ||
 			flow.plan.PhaseDeadlines[1] != frozenPhaseDeadlines()[1] {
@@ -336,11 +341,27 @@ func (flow *ExecutionEpochOne) authorAAdmitted(
 	if err != nil || ordinal != 1 || admitted == nil {
 		return ExecutionAuthorResult{}, ErrExecutionEpochOne
 	}
+	started := time.Now()
+	deadline := started.Add(time.Duration(flow.plan.SafetyEnvelope.MaximumTotalWallMS) * time.Millisecond)
+	recorder, err := newExecutionPhaseEventRecorder(admitted, flow.plan.PhaseOrder, started, deadline)
+	if err != nil || recorder.beginAt(flow.plan.PhaseOrder[0], started) != nil {
+		return ExecutionAuthorResult{}, ErrExecutionEpochOne
+	}
 	retained := binding
 	retained.freeze = cloneExecutionFreezeForBinding(binding.freeze)
 	flow.executionFreezeBinding = &retained
 	flow.executionEventOrdinals = admitted
-	return flow.authorALocked(ctx)
+	flow.executionPhaseEvents = recorder
+	result, authorErr := flow.authorALockedAt(ctx, started)
+	outcome := "passed"
+	if authorErr != nil || !result.Completed {
+		outcome = "stopped"
+		if authorErr == nil {
+			authorErr = ErrExecutionEpochOne
+		}
+	}
+	finishErr := recorder.finish(flow.plan.PhaseOrder[0], outcome)
+	return result, errors.Join(authorErr, finishErr)
 }
 
 // Close cancels unused future lifetimes, rather than manufacturing their
