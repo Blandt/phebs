@@ -50,6 +50,7 @@ type ExecutionEpochOne struct {
 	serverSessions         [5]int                 // Actual successful root Starts; never cleared by Wait or handoff. Protected by mu.
 	archiveSessions        [2]int                 // Backup and restore, in that order; the existing one-shot recipes own these slots.
 	joinedWork             executionJoinedWork    // Fixed producer-local values, never cumulative DA/SA sums; protected by mu.
+	authorities            []AuthorityPhaseResult // Accepted actual F values in operational phase order; protected by mu.
 
 	profileTools           [2]*ExecutionToolCustody // Optional Buf/focused protected copies; no dispatch permission.
 	profileEnvironment     *executionRuntimeEnvironmentObservation
@@ -413,6 +414,7 @@ type ExecutionEpochOneResult struct {
 	IndexOffers              ExecutionIndexObservation
 	ServerProcesses          ExecutionServerProcessObservation // Actual server roots only, not whole ceremony metrics.
 	Inspection               []ExecutionPhaseInspection
+	Authorities              []AuthorityPhaseResult   // Accepted actual operational-phase prefix; never synthesized from compact inspection rows.
 	MidphaseSamples          ExecutionMidphaseSamples // Partial fixed HTTP points, not whole phases.
 	ParentMidphaseSamples    ExecutionMidphaseParentSamples
 	RecoverySamples          ExecutionRecoveryWorkspaceSamples
@@ -1217,6 +1219,7 @@ func (run *ExecutionEpochOneRun) finish(ctx context.Context, cancel context.Canc
 	}
 	result := ExecutionEpochOneResult{RootStarted: true, RootJoined: joined, SessionEmpty: sessionEmpty, ServerProcesses: serverProcesses,
 		BackupWork: run.backupWork, RestoreWork: run.result.RestoreWork, ParentMidphaseSamples: run.midphaseParentPrefix(), RecoverySamples: run.recoveryWorkspacePrefixSnapshot(), MarkerWorkspace: run.markerWorkspaceSnapshot()}
+	result.Authorities = run.flow.acceptedAuthorityPrefix()
 	// The retained installation also belongs to the separate backup session.
 	// A joined server alone cannot release that custody or expose shared output.
 	if run.backupStarted && (!run.backupJoined || !run.backupSessionEmpty) {
@@ -1401,6 +1404,7 @@ func (run *ExecutionEpochOneRun) Wait(ctx context.Context) (ExecutionEpochOneRes
 		result.Store.Store.Producers = slices.Clone(result.Store.Store.Producers)
 		result.ServerProcesses = cloneServerProcessObservation(result.ServerProcesses)
 		result.Inspection = cloneInspectionEvidence(result.Inspection)
+		result.Authorities = cloneExecutionAuthorityResults(result.Authorities)
 		result.QueryResults = cloneProductQueryEvidence(result.QueryResults)
 		result.ProductQueries = slices.Clone(result.ProductQueries)
 		return result, run.err

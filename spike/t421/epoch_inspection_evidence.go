@@ -69,18 +69,68 @@ func (reader *executionEpochInspection) acceptInspectionPhase(ctx context.Contex
 	if row.Phase != reader.projection.Phase || row.Final == nil || row.SelectorAccepted {
 		return errEpochInspection
 	}
+	actual := reader.finalAuthority
+	if actual.Phase != "" && (actual.Phase != row.Phase || actual.Outcome != "passed" || actual.AuthorityState != row.Final.Authority) {
+		return errEpochInspection
+	}
 	reader.run.mu.Lock()
-	defer reader.run.mu.Unlock()
 	if reader.run.stopping || reader.run.err != nil {
+		reader.run.mu.Unlock()
 		return errEpochInspection
 	}
 	changes, err := reader.acceptedLogicalChanges(*row)
+	reader.run.mu.Unlock()
 	if err != nil {
 		return err
+	}
+	// Lower-level guard tests may model the compact F row directly. Production
+	// Final always retains the detailed value; an absent value is never inferred
+	// from the compact row and therefore cannot enter the result projection.
+	if actual.Phase != "" && reader.run.flow.retainAcceptedAuthority(reader.run, actual) != nil {
+		return errEpochInspection
 	}
 	row.LogicalChanges = changes
 	row.SelectorAccepted = true
 	return nil
+}
+
+// retainAcceptedAuthority records only the next actual F accepted by the
+// production phase coordinator. The flow already owns the validated plan; this
+// path performs no I/O, plan rebuild, or authority inference.
+func (flow *ExecutionEpochOne) retainAcceptedAuthority(run *ExecutionEpochOneRun, value AuthorityPhaseResult) error {
+	if flow == nil || run == nil || run.flow != flow {
+		return errEpochInspection
+	}
+	flow.mu.Lock()
+	defer flow.mu.Unlock()
+	run.mu.Lock()
+	defer run.mu.Unlock()
+	phases := flow.plan.PhaseOrder
+	if flow.closed || run.stopping || run.err != nil || flow.plan.Schema != PlanV3Schema ||
+		!slices.Equal(phases, frozenPhaseOrder()) || len(flow.authorities) >= len(phases)-2 ||
+		value.Phase != phases[len(flow.authorities)+1] || value.Outcome != "passed" || !value.Current ||
+		!validDigest(value.ExtractionRootsSHA256) || len(value.ExtractionRoots) != len(flow.plan.ReceiptContract.ExtractionDomains) {
+		return errEpochInspection
+	}
+	flow.authorities = append(flow.authorities, cloneExecutionAuthorityResult(value))
+	return nil
+}
+
+func (flow *ExecutionEpochOne) acceptedAuthorityPrefix() []AuthorityPhaseResult {
+	if flow == nil {
+		return nil
+	}
+	flow.mu.Lock()
+	defer flow.mu.Unlock()
+	return cloneExecutionAuthorityResults(flow.authorities)
+}
+
+func cloneExecutionAuthorityResults(values []AuthorityPhaseResult) []AuthorityPhaseResult {
+	result := slices.Clone(values)
+	for index, value := range values {
+		result[index] = cloneExecutionAuthorityResult(value)
+	}
+	return result
 }
 
 func cloneInspectionEvidence(rows []ExecutionPhaseInspection) []ExecutionPhaseInspection {

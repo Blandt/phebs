@@ -75,6 +75,7 @@ type executionEpochInspection struct {
 	progressReady                      bool
 	tail                               epochTailReadiness
 	finalUsed                          bool
+	finalAuthority                     AuthorityPhaseResult
 	retentionUsed                      bool
 	selectorCleanupPhase               string
 	selectorCleanup                    epochSelectorCleanupObservation
@@ -644,6 +645,7 @@ func (reader *executionEpochInspection) Final(ctx context.Context) (authority Au
 		reader.pressureBaseline = &digest
 	}
 	if err == nil {
+		reader.finalAuthority = cloneExecutionAuthorityResult(authority)
 		row := &reader.evidence.rows[len(reader.evidence.rows)-1]
 		row.Final = cloneInspectionFinal(ExecutionInspectionFinal{Ordinal: report.RequestOrdinal, Authority: authority.AuthorityState, Projection: projection})
 	}
