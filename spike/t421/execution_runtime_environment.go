@@ -117,13 +117,7 @@ func (binding executionRuntimeEnvironmentBindings) observe(parent []string) (exe
 		if err != nil {
 			return executionRuntimeEnvironmentObservation{}, err
 		}
-		digest := sha256.New()
-		for _, entry := range normalized {
-			name, value, _ := strings.Cut(entry, "=") // normalize already validated each unique name.
-			writeFrame(digest, []byte(name))
-			writeFrame(digest, []byte(value))
-		}
-		value := "sha256:" + hex.EncodeToString(digest.Sum(nil))
+		value := executionEnvironmentSHA256(normalized)
 		if index == 0 {
 			observed.Recovery, observed.RecoverySHA256 = normalized, value
 		} else {
@@ -131,4 +125,14 @@ func (binding executionRuntimeEnvironmentBindings) observe(parent []string) (exe
 		}
 	}
 	return observed, nil
+}
+
+func executionEnvironmentSHA256(normalized []string) string {
+	digest := sha256.New()
+	for _, entry := range normalized {
+		name, value, _ := strings.Cut(entry, "=")
+		writeFrame(digest, []byte(name))
+		writeFrame(digest, []byte(value))
+	}
+	return "sha256:" + hex.EncodeToString(digest.Sum(nil))
 }

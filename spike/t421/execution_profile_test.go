@@ -202,13 +202,22 @@ func TestExecutionProfileAssemblyDoesNotIssueAdmission(t *testing.T) {
 			}
 			inputs := admitted
 			inputs.profileSHA256, inputs.invocationSHA256 = "", ""
-			inputs.closedEnvironment, inputs.verifiedBeforeWork = false, false
+			inputs.closedEnvironment, inputs.verifiedBeforeWork, inputs.verifiedBeforeOperationalWork = false, false, false
 			got, commands, err := assembleExecutionProfile(plan, tools, host, inputs)
 			if err != nil || !reflect.DeepEqual(got, want) || commands != admitted.commandsSHA256 {
 				t.Fatal("factored shape changed existing profile bytes", err)
 			}
 			if _, err := expectedExecutionProfile(plan, tools, host, inputs); err == nil {
 				t.Fatal("unverified assembly issued admission")
+			}
+			wrongState := admitted
+			if plan.Schema == PlanV3Schema {
+				wrongState.verifiedBeforeWork = true
+			} else {
+				wrongState.verifiedBeforeOperationalWork = true
+			}
+			if _, err := expectedExecutionProfile(plan, tools, host, wrongState); err == nil {
+				t.Fatal("schema-inappropriate verified state issued admission")
 			}
 			for _, change := range []func(*ExecutionProfileAdmissionBinding){
 				func(v *ExecutionProfileAdmissionBinding) { v.profileSHA256 = "" },

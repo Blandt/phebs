@@ -137,24 +137,25 @@ type ExecutionServerEpochProfile struct {
 
 // ExecutionProfileAdmissionBinding is issued by the T42.2 private launcher
 // after it has measured the real argv, closed environments, config bytes and
-// semantic projection, and root-volume bindings before the first child launch.
+// semantic projection, and root-volume bindings before operational child launch.
 // Private fields prevent an execution freeze from admitting itself.
 type ExecutionProfileAdmissionBinding struct {
-	schema                    string
-	commandsSHA256            string
-	harnessCommandSetSHA256   string
-	pressureCommandSetSHA256  string
-	configBytesSHA256         string
-	epochConfigBytesSHA256    []string
-	configProjectionSHA256    string
-	recoveryEnvironmentSHA256 string
-	serverEnvironmentSHA256   string
-	profileSHA256             string
-	invocationSHA256          string
-	rootVolumeBindingsSHA256  string
-	closedEnvironment         bool
-	verifiedBeforeWork        bool
-	processAccountingSHA256   string
+	schema                        string
+	commandsSHA256                string
+	harnessCommandSetSHA256       string
+	pressureCommandSetSHA256      string
+	configBytesSHA256             string
+	epochConfigBytesSHA256        []string
+	configProjectionSHA256        string
+	recoveryEnvironmentSHA256     string
+	serverEnvironmentSHA256       string
+	profileSHA256                 string
+	invocationSHA256              string
+	rootVolumeBindingsSHA256      string
+	closedEnvironment             bool
+	verifiedBeforeWork            bool
+	verifiedBeforeOperationalWork bool
+	processAccountingSHA256       string
 }
 
 // PhaseRuntimeBinding ties one phase observation to the exact admitted serve
@@ -223,7 +224,9 @@ func expectedExecutionProfile(
 		!validExecutionSHA256(admission.serverEnvironmentSHA256) ||
 		admission.recoveryEnvironmentSHA256 == admission.serverEnvironmentSHA256 ||
 		!validExecutionSHA256(admission.rootVolumeBindingsSHA256) ||
-		!admission.closedEnvironment || !admission.verifiedBeforeWork {
+		!admission.closedEnvironment ||
+		plan.Schema == PlanV3Schema && (!admission.verifiedBeforeOperationalWork || admission.verifiedBeforeWork) ||
+		plan.Schema != PlanV3Schema && (!admission.verifiedBeforeWork || admission.verifiedBeforeOperationalWork) {
 		return ExecutionProfile{}, errors.New("T42.2 execution profile lacks external pre-work admission")
 	}
 	profile, commandsSHA256, err := assembleExecutionProfile(plan, tools, host, admission)

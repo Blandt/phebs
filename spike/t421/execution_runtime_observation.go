@@ -140,6 +140,30 @@ func validateExecutionRuntimeFacts(facts executionConfiguredRuntimeFacts, plan P
 	return nil
 }
 
+func validateObservedExecutionRuntime(observed *executionRuntimeObservation, plan Plan, profile ExecutionProfile, tools []ExecutionToolIdentity, path, directory string) error {
+	index := slices.IndexFunc(tools, func(tool ExecutionToolIdentity) bool { return tool.Role == "phebs" })
+	if observed == nil || index < 0 || observed.Identity != tools[index] || observed.Path != path || observed.Directory != directory ||
+		!observed.RootStarted || !observed.RootJoined || !observed.SessionEmpty || !observed.Observed || !observed.Complete ||
+		observed.PID <= 0 || observed.err != nil || observed.waited == nil || observed.stdout == nil || observed.stderr == nil ||
+		observed.stdout.err != nil || observed.stderr.err != nil || observed.stderr.buffer.Len() != 0 ||
+		observed.Deadline.IsZero() || !time.Now().Before(observed.Deadline) {
+		return ErrExecutionEpochOne
+	}
+	raw, err := json.Marshal(observed.Facts)
+	if err != nil {
+		return ErrExecutionEpochOne
+	}
+	raw = append(raw, '\n')
+	decoded, err := decodeExecutionRuntimeFacts(raw)
+	commandSHA256, commandErr := executionRuntimeCommandSHA256(path, directory)
+	if err != nil || commandErr != nil || !reflect.DeepEqual(decoded, observed.Facts) ||
+		!bytes.Equal(raw, observed.stdout.buffer.Bytes()) || SHA256(raw) != observed.RawSHA256 ||
+		commandSHA256 != observed.CommandSHA256 || validateExecutionRuntimeFacts(observed.Facts, plan, profile) != nil {
+		return ErrExecutionEpochOne
+	}
+	return nil
+}
+
 // Private owned prefix. Output pumps belong to the sole Wait; if it cannot
 // join by Deadline, waited/stdout/stderr remain retained and must not be read.
 // A later exit does not silently promote this failed attempt to completion.
@@ -167,6 +191,21 @@ type executionRuntimeObservation struct {
 
 func (observed *executionRuntimeObservation) releasable() bool {
 	return observed == nil || !observed.RootStarted || observed.RootJoined && observed.SessionEmpty
+}
+
+func executionRuntimeCommandSHA256(path, directory string) (string, error) {
+	command := exec.Command(path, executionRuntimeFactsCommand)
+	command.Dir, command.Env = directory, externalToolEnvironment(directory)
+	binding, err := json.Marshal(struct {
+		Path      string   `json:"path"`
+		Directory string   `json:"directory"`
+		Args      []string `json:"args"`
+		Env       []string `json:"environment"`
+	}{Path: command.Path, Directory: command.Dir, Args: command.Args, Env: command.Env})
+	if err != nil {
+		return "", err
+	}
+	return SHA256(binding), nil
 }
 
 // run owns one native Start/Wait, but grants no image or profile authority.
@@ -270,16 +309,11 @@ func (flow *ExecutionEpochOne) prepareProfileRuntime(ctx context.Context) error 
 	command.Dir, command.Env = observed.Directory, externalToolEnvironment(observed.Directory)
 	// No operational selector, stdin, inherited descriptors or config. Bind
 	// actual unnormalized argv/environment privately; not the three work rows.
-	binding, err := json.Marshal(struct {
-		Path      string   `json:"path"`
-		Directory string   `json:"directory"`
-		Args      []string `json:"args"`
-		Env       []string `json:"environment"`
-	}{Path: command.Path, Directory: command.Dir, Args: command.Args, Env: command.Env})
+	bindingSHA256, err := executionRuntimeCommandSHA256(observed.Path, observed.Directory)
 	if err != nil {
 		return observed.err
 	}
-	observed.CommandSHA256 = SHA256(binding)
+	observed.CommandSHA256 = bindingSHA256
 	observed.err = nil
 	if err := observed.run(ctx, command); err != nil {
 		observed.err = errors.Join(ErrExecutionEpochOne, observed.err, err)

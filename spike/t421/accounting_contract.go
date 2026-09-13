@@ -90,6 +90,9 @@ func applyProcessAccountingCorrection(plan *Plan) error {
 	// The pressure volume stays 96 GiB; retained V1/V2 keep their 96-GiB ceiling.
 	plan.SafetyEnvelope.MaximumDataAllocatedBytes = 128 << 30
 	plan.ToolPolicy.ZoektBuildRecipe = zoektOfferBuildRecipe
+	// V3 launches Git directly and no longer holds or observes the inherited
+	// transport shell. Retained V1/V2 tool inventories remain byte-exact.
+	plan.ToolPolicy.RequiredTools = slices.DeleteFunc(plan.ToolPolicy.RequiredTools, func(role string) bool { return role == "sh" })
 	plan.Profile.Pipeline.ExtractionDomains = storeBoundExtractionDomains()
 	plan.Correction.EvidenceGroupingPolicy = storeBoundEvidenceGroupingPolicy
 	if err := applyCorrectedPhaseReadMaximums(&plan.WorkEnvelope, *plan); err != nil {
@@ -144,7 +147,7 @@ func applyProcessAccountingCorrection(plan *Plan) error {
 		PhaseFencePolicy:      "fence-admissions;drain-records;join-or-irrevocably-cancel-every-one-shot-before-checkpoint;no-old-permission-after-checkpoint;only-modeled-started-persistent-handles-span;hard-death-close-controller-committed-prefix-after-owned-wait-and-EOF;full-producer2-FD6-WarmStartWorkspace-Resume3-PC01-reserved24:32-positive-big-endian-unix-nanoseconds-original-warm-deadline;post-ACK-one-shot-guarded-WB-before-owners-or-requests-reopen;all-other-resume-reserved-bytes-zero;full-producer2-FD6-PhysicalPostAuthorWorkspace-Reopen4-PC01-reserved24:32-positive-big-endian-unix-nanoseconds-original-physical-deadline;ACK-retains-owner-request-fences;one-shot-guarded-walk-retains-S-before-actual-reopen;fixed-phase4-sequence5-R-only-after-reopen-releases-parent;all-other-reopen-reserved-bytes-zero",
 		NativeMeasurementKind: "sampled_observation", NativeHistory: "not_established",
 		NativePolicy:                  "bounded-sequential-coherent-rows;observed-counts-and-RSS-sum-high-water-not-simultaneous-peak-bounds;no-cumulative-image-epochs;required-probe-failure-sticky-unavailable;retain-positive-overshoots;zero-only-none-observed;no-T40-lifetime-cap",
-		ToolIdentityPolicy:            "twelve-admitted-tool-images;exact-private-direct-dispatch-bindings;observed-name-classification-not-image-hash;trusted-native-tools-not-vendor-attestation-or-complete-helper-history",
+		ToolIdentityPolicy:            "eleven-admitted-tool-images;exact-private-direct-dispatch-bindings;observed-name-classification-not-image-hash;trusted-native-tools-not-vendor-attestation-or-complete-helper-history",
 		TeardownPolicy:                "private-recorded-execution-sessions;exclude-controller-and-final-signer-roots;fence-operational-producers;close-store-and-join-owned-handles;drain-custody;zero-complete-recorded-session-censuses;nonforced-detach-before-unlink;exact-image-root-removal-under-custody-lock;then-join-cleanup-and-close-meter;no-global-descendant-zero-claim",
 		FinalSigningPolicy:            "outside-closed-operational-cleanup-meter;frozen-finite-exact-tool-input-command-recipe;no-automatic-retry;bounded-output-deadline-custody;owned-handle-cleanup;post-sign-status-launcher-local-not-in-signed-input",
 		ProductionSiteInventorySHA256: sitesSHA256,

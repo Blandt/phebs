@@ -40,6 +40,23 @@ func runtimeFactsTestJSON(t *testing.T, facts executionConfiguredRuntimeFacts) [
 	return append(raw, '\n')
 }
 
+func exactExecutionRuntimeFacts(profile ExecutionProfile) executionConfiguredRuntimeFacts {
+	return executionConfiguredRuntimeFacts{
+		Schema: "t422-runtime-facts-v2", StoreRunnerDefaultMaxAttempts: 3, StoreRunnerConcurrencyPerKind: 1,
+		ObservationIOConcurrency: 1, ObservationCPUConcurrency: 2,
+		RelationshipConcurrency: 1, ExtractionConcurrency: 2,
+		ObservationPlanning:              executionScheduleFacts{MaxAttempts: 5, RepositoryTokens: 1},
+		ObservationInventory:             executionScheduleFacts{MaxAttempts: 5, RepositoryTokens: 1},
+		ObservationExecution:             executionScheduleFacts{MaxAttempts: 5, RepositoryTokens: 2},
+		Relationship:                     executionScheduleFacts{MaxAttempts: 5, RepositoryTokens: 1},
+		Extraction:                       executionScheduleFacts{MaxAttempts: 5, RepositoryTokens: 1},
+		NativeMaximumAggregatePartitions: 131072, StoreGenerationMaxAttempts: 8,
+		SelectedJobAcceptedAttempts: 3, SelectedChunkAcceptedAttempts: 5,
+		MaximumStoreRowsPerTransaction: 512, MaximumLifecycleDeletesPerTurn: 1024,
+		RegisteredExtractionDomains: slices.Clone(profile.Config.EnabledExtractorDomains),
+	}
+}
+
 func TestExecutionRuntimeFactsObservedWire(t *testing.T) {
 	facts := modeledExecutionRuntimeFacts()
 	raw := runtimeFactsTestJSON(t, facts)
@@ -93,21 +110,7 @@ func TestExecutionRuntimeFactsValidateExactProfile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	facts := executionConfiguredRuntimeFacts{
-		Schema:                        "t422-runtime-facts-v2",
-		StoreRunnerDefaultMaxAttempts: 3, StoreRunnerConcurrencyPerKind: 1,
-		ObservationIOConcurrency: 1, ObservationCPUConcurrency: 2,
-		RelationshipConcurrency: 1, ExtractionConcurrency: 2,
-		ObservationPlanning:              executionScheduleFacts{MaxAttempts: 5, RepositoryTokens: 1},
-		ObservationInventory:             executionScheduleFacts{MaxAttempts: 5, RepositoryTokens: 1},
-		ObservationExecution:             executionScheduleFacts{MaxAttempts: 5, RepositoryTokens: 2},
-		Relationship:                     executionScheduleFacts{MaxAttempts: 5, RepositoryTokens: 1},
-		Extraction:                       executionScheduleFacts{MaxAttempts: 5, RepositoryTokens: 1},
-		NativeMaximumAggregatePartitions: 131072, StoreGenerationMaxAttempts: 8,
-		SelectedJobAcceptedAttempts: 3, SelectedChunkAcceptedAttempts: 5,
-		MaximumStoreRowsPerTransaction: 512, MaximumLifecycleDeletesPerTurn: 1024,
-		RegisteredExtractionDomains: slices.Clone(profile.Config.EnabledExtractorDomains),
-	}
+	facts := exactExecutionRuntimeFacts(profile)
 	if err := validateExecutionRuntimeFacts(facts, plan, profile); err != nil {
 		t.Fatal(err)
 	}

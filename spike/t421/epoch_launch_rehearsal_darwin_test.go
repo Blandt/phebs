@@ -354,50 +354,27 @@ func TestExecutionEpochOneOptionalRealStartRehearsal(t *testing.T) {
 		first, second := *flow.profileWorkspace, *flow.profileWorkspace
 		type profileResult struct {
 			observed executionObservedProfilePreimages
-			handoff  *executionOperationalHandoffCapability
 			err      error
 		}
 		results := make(chan profileResult, 2)
 		for _, capability := range []*executionWorkspaceCustodyCapability{&first, &second} {
 			go func() {
-				observed, handoff, err := capability.ConsumeForProfile(ctx)
-				results <- profileResult{observed: observed, handoff: handoff, err: err}
+				observed, err := capability.ConsumePreimages(ctx)
+				results <- profileResult{observed: observed, err: err}
 			}()
 		}
-		var accepted profileResult
 		successes := 0
 		for range 2 {
 			result := <-results
-			if result.err == nil {
-				accepted, successes = result, successes+1
-			}
-		}
-		observed, handoff := accepted.observed, accepted.handoff
-		if successes != 1 || handoff == nil || observed.commandsSHA256 == "" || observed.commandsSHA256 != observed.harnessCommandSetSHA256 ||
-			observed.pressureCommandSetSHA256 == "" || observed.rootVolumeBindingsSHA256 == "" {
-			t.Fatal("copied actual workspace capability did not issue exactly one profile handoff")
-		}
-		handoffFirst, handoffSecond := *handoff, *handoff
-		handoffResults := make(chan profileResult, 2)
-		for _, capability := range []*executionOperationalHandoffCapability{&handoffFirst, &handoffSecond} {
-			go func() {
-				revalidated, err := capability.consumeWorkspace(ctx)
-				handoffResults <- profileResult{observed: revalidated, err: err}
-			}()
-		}
-		successes = 0
-		for range 2 {
-			result := <-handoffResults
-			if result.err == nil && result.observed == observed {
+			if result.err == nil && result.observed.commandsSHA256 != "" &&
+				result.observed.commandsSHA256 == result.observed.harnessCommandSetSHA256 {
 				successes++
 			}
 		}
 		if successes != 1 {
-			t.Fatal("copied actual operational workspace capability did not revalidate exactly once")
+			t.Fatal("copied preimage-only capability did not spend exactly once")
 		}
-		// T42.2m will combine and consume this workspace handoff with signed-
-		// freeze and checkout custody. This T42.2l rehearsal call site proves
-		// workspace issuance/revalidation only and grants no operational authority.
+		// This diagnostic-only consumer cannot mint operational handoff custody.
 	}
 	result, err := flow.AuthorA(ctx)
 	if err != nil || !result.Completed || !result.RootJoined || !result.SessionEmpty || result.Revision != "a" {

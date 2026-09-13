@@ -282,10 +282,14 @@ func newReferenceToolBuildWorkspace(t *testing.T, request ReferenceToolRequest) 
 
 func buildReferenceToolFixture(t *testing.T, request ReferenceToolRequest, workspace string) {
 	t.Helper()
+	packagePath, _, _, _, _, err := referenceToolRole(request.Role)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if _, err := runReferenceGo(t.Context(), request.RepositoryRoot, filepath.Join(request.GoRoot, "bin", "go"),
 		referenceBuildEnvironment(request, workspace), 64<<10,
 		"build", "-trimpath", "-pgo=off", "-buildvcs=true", "-p=1", "-o", request.Binary,
-		"github.com/bmeddeb/phebs/cmd/phebs-focused-index"); err != nil {
+		packagePath); err != nil {
 		t.Fatal(err)
 	}
 }

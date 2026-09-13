@@ -18,6 +18,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/bmeddeb/phebs/internal/executableidentity"
 	"github.com/bmeddeb/phebs/spike/t4013"
 	"golang.org/x/mod/sumdb/dirhash"
 	"golang.org/x/sys/unix"
@@ -66,7 +67,8 @@ func TestExecutionGoBuildCustodyRealOfflineReference(t *testing.T) {
 	fixture.write(t, "go.mod", "module github.com/bmeddeb/phebs\n\ngo 1.26\n\nrequire example.com/neutral v1.0.0\n")
 	fixture.write(t, "go.sum", "example.com/neutral v1.0.0 "+sum+"\nexample.com/neutral v1.0.0/go.mod "+modSum+"\n")
 	fixture.write(t, "cmd/phebs-focused-index/main.go", "package main\nimport \"example.com/neutral\"\nfunc main() { println(neutral.Message) }\n")
-	fixture.command(t, "add", "go.mod", "go.sum", "cmd/phebs-focused-index/main.go")
+	fixture.write(t, "spike/t422/cmd/execute/main.go", "package main\nimport \"example.com/neutral\"\nfunc main() { println(neutral.Message) }\n")
+	fixture.command(t, "add", "go.mod", "go.sum", "cmd/phebs-focused-index/main.go", "spike/t422/cmd/execute/main.go")
 	fixture.source = fixture.commit(t, "neutral protected offline build")
 	goBinary, err := exec.LookPath("go")
 	if err != nil {
@@ -87,6 +89,10 @@ func TestExecutionGoBuildCustodyRealOfflineReference(t *testing.T) {
 	workspace := newReferenceToolBuildWorkspace(t, request)
 	request.Binary = filepath.Join(workspace, "supplied")
 	buildReferenceToolFixture(t, request, workspace)
+	executorRequest := request
+	executorRequest.Role = "t422-execute"
+	executorRequest.Binary = filepath.Join(workspace, "supplied-executor")
+	buildReferenceToolFixture(t, executorRequest, workspace)
 	// Poison advisory cache material after the supplied build. Neither a ziphash
 	// claim nor unrelated cache contents may be imported as build authority.
 	if err := os.WriteFile(filepath.Join(download, "v1.0.0.ziphash"), []byte("forged"), 0o600); err != nil {
@@ -141,7 +147,7 @@ func TestExecutionGoBuildCustodyRealOfflineReference(t *testing.T) {
 		t.Fatal("exact protected build did not issue the expected reference identity")
 	}
 	// This reuses the real protected SDK/probe/reference build above. It is not
-	// a twelve-tool/profile admission or a synthetic successful Go observation.
+	// a complete profile admission or a synthetic successful Go observation.
 	goIdentity, goPath, err := inputs.CheckGo(t.Context())
 	if err != nil || goPath != filepath.Join(inputs.Directory(), "sdk/bin/go") ||
 		goIdentity.SHA256 != inputs.goImage.digest || goIdentity.Version != "go version "+runtime.Version()+" "+runtime.GOOS+"/"+runtime.GOARCH {
@@ -151,6 +157,60 @@ func TestExecutionGoBuildCustodyRealOfflineReference(t *testing.T) {
 	policy.RequiredTools = []string{"go"} // Exercise the existing exact single-role predicate.
 	if validateExecutionTools([]ExecutionToolIdentity{goIdentity}, policy, fixture.source) != nil {
 		t.Fatal("observed Go identity differs from the existing role contract")
+	}
+	// Exercise bindProfileExecutor itself with actual protected Go/source/module
+	// custody and an actual independently rebuilt t422-execute image. Only the
+	// private launcher-to-process linkage is modeled here; the native outer-prep
+	// test remains a separate opt-in gate.
+	executorDigest, err := executableidentity.Digest(executorRequest.Binary)
+	if err != nil {
+		t.Fatal(err)
+	}
+	executorInput, err := inputCustodyTestProtect(t, t.Context(), parent, []ExecutionInputCopy{{
+		Name: executorRequest.Role, Path: executorRequest.Binary, SHA256: executorDigest, Executable: true,
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	executorPath, err := executorInput.Check(t.Context(), executorRequest.Role)
+	if err != nil {
+		t.Fatal(err)
+	}
+	executorFile, err := os.Open(executorPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	executorInfo, err := executorFile.Stat()
+	if err != nil {
+		t.Fatal(err)
+	}
+	livenessFile, err := os.Open(os.DevNull)
+	if err != nil {
+		t.Fatal(err)
+	}
+	alive, cancelAlive := context.WithCancel(t.Context())
+	t.Cleanup(cancelAlive)
+	launcher := &executionParentLiveness{
+		file: livenessFile, image: &executionHeldImage{file: executorFile, info: executorInfo, path: executorPath,
+			pathSHA256: strings.TrimPrefix(SHA256([]byte(executorPath)), "sha256:"), digest: executorDigest},
+		inner: t4013.NativeProcessRecord{PID: os.Getpid()}, outer: t4013.NativeProcessRecord{PID: os.Getppid()},
+		alive: alive, cancel: cancelAlive, done: make(chan error, 1),
+	}
+	t.Cleanup(func() {
+		_ = livenessFile.Close()
+		_ = launcher.image.Close()
+	})
+	flow := &ExecutionEpochOne{plan: Plan{Schema: PlanV3Schema},
+		epochs: &ExecutionEpochConfigCustody{author: &ExecutionAuthorCustody{request: ExecutionAuthorRequest{Builds: inputs}}}}
+	if err := flow.bindProfileExecutor(t.Context(), launcher); err != nil || flow.profileExecutor == nil {
+		t.Fatal("real executor verification did not cross modeled launcher bind", err)
+	}
+	if bound, err := flow.profileExecutor.check(t.Context()); err != nil || bound.Role != executorRequest.Role ||
+		bound.SHA256 != executorDigest || bound.BuildVCSRevision != fixture.source {
+		t.Fatal("bound executor identity differs", bound, err)
+	}
+	if identity, err := verifyExecutionProfileExecutor(t.Context(), inputs, executorPath, SHA256([]byte("other executor"))); err == nil || identity != (ExecutionToolIdentity{}) {
+		t.Fatal("reference-verified executor crossed a mismatched launcher digest", identity, err)
 	}
 	goIdentity.Version = "caller mutation"
 	again, againPath, err := inputs.CheckGo(t.Context())

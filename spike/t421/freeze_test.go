@@ -425,7 +425,11 @@ func executionProfileTestAdmission(
 		serverEnvironmentSHA256:   SHA256([]byte("t422-test-server-environment")),
 		rootVolumeBindingsSHA256:  SHA256([]byte("t422-test-root-volume-bindings")),
 		closedEnvironment:         true,
-		verifiedBeforeWork:        true,
+	}
+	if plan.Schema == PlanV3Schema {
+		admission.verifiedBeforeOperationalWork = true
+	} else {
+		admission.verifiedBeforeWork = true
 	}
 	var err error
 	if correctedPlanSemantics(plan.Schema) {

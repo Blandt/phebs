@@ -147,8 +147,8 @@ func TestExecutionRuntimeEnvironmentVersioning(t *testing.T) {
 		}
 	}
 	plan := accountingTestPlan(t)
-	if len(plan.ToolPolicy.RequiredTools) != 12 {
-		t.Fatal("runtime projection weakened independent tool inventory")
+	if len(plan.ToolPolicy.RequiredTools) != 11 || slices.Contains(plan.ToolPolicy.RequiredTools, "sh") {
+		t.Fatal("V3 runtime projection did not retire the shell identity", plan.ToolPolicy.RequiredTools)
 	}
 }
 

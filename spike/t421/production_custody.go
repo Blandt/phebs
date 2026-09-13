@@ -50,7 +50,7 @@ type productionSourceControl struct {
 
 // ExecutionProductionCustody owns protected configuration, source-owner lease
 // and root/control descriptors. Tool/build handles are borrowed and must outlive
-// its joined run. It is not a twelve-tool, host/profile or freeze admission.
+// its joined run. It is not a complete tool, host/profile or freeze admission.
 type ExecutionProductionCustody struct {
 	mu          sync.Mutex
 	parent      string

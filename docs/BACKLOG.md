@@ -8505,9 +8505,11 @@ strings and `statfs-fsid-sha256-v1`. Require the successful full
 `bindRehearsal` path to issue a one-shot immutable private workspace capability
 only after its complete held-path, backing-volume and same-workspace proof.
 The capability captures that proof and its descriptors, cannot serialize,
-reload or be reconstructed, and exposes only one `ConsumeForProfile(ctx)`
-attempt. In-process shallow copies share the same spend-once state and cannot
-duplicate authority. At profile issuance it reruns the complete captured predicate and all nine current
+reload or be reconstructed, and exposes only one preimage-only
+`ConsumePreimages(ctx)` attempt. It can never mint an operational handoff.
+In-process shallow copies share the same spend-once state and cannot duplicate
+authority. The separate complete issuer consumes that same workspace capability
+and reruns the complete captured predicate and all nine current
 role-to-FSID mappings—backing/source/config/data/backup/home/temporary/
 tool-output/ballast—against held descriptors and paths, including backing
 distinct from data and ballast equal to data. That attempt irrevocably spends
@@ -8554,6 +8556,55 @@ replacement, backing and same-workspace failure, partial/canceled observation,
 actual builder call sites and detach recheck/drift. This slice preserves ordinary
 nil behavior and V1/V2 bytes and claims no signed binding, launcher or freeze.
 
+Observed-profile issuer implementation slice (2026-09-13). The prospective
+V3-only issuer now spends actual workspace custody once, rechecks eleven held
+tool identities (with inherited `sh` removed only from V3), and requires the
+reference-verified `t422-execute` identity to match the live launcher's held
+image path and SHA-256. It regenerates the five current config bytes, re-observes
+the current environment and command rows, validates the complete joined runtime
+facts process, assembles the profile, and issues a separate one-shot operational
+handoff. V3 uses a distinct private verified-before-operational-work state;
+retained V1/V2 continue to use the legacy state and canonical paths. Focused
+table tests cover complete pure issuance, tool/host/config/environment/command/
+runtime/preimage mutations, executor-image mismatch, missing holders, schema-
+dispatched verified states, and shallow-copy spend-once behavior. The bounded
+issuer repeats eleven held-tool checks, five config regenerations, two environment
+hashes, one three-row command hash, one runtime-facts encode/hash and existing
+profile/preimage hashes while holding the existing custody locks; it opens no FD
+and starts no child, AuthorA or meter. The corrected scoped preimage consumer
+returns no operational handoff; only complete issuance can mint one, and nil or
+canceled issuance spends selected workspace custody. Executor rechecks also
+require the private launcher-watch context to remain live. The existing explicit
+pressure rehearsal retains only its preimage-only diagnostic: a truthful full
+issuer wrapper requires a process actually launched from the independently
+rebuilt protected executor and remains outer-preparation work. This record claims
+no completed native `flow.issueExecutionProfile`→`consumeProfile` wrapper,
+signing, final checkout admission, operational launch, ceremony or release
+result. Focused positive coverage reaches pure complete observed issuance and
+the actual `bindProfileExecutor` code with genuine protected Go/source/module
+custody plus an independently rebuilt protected `t422-execute`; that test
+explicitly models only the private launcher/process linkage and therefore does
+not replace the native outer-preparation gate. The shared implementation remains
+prospective prerequisite code until that real launched-image wrapper passes.
+Executor binding precedes pressure-workspace binding: the outer launcher-owned
+executor is intentionally excluded from mounted-input FSID equality and remains
+bound by a direct existing reference verification of the held running image plus
+live launcher path/image/context checks. That pre-work binding runs seven bounded
+Go children and up to sixteen existing at-most-100,000-entry metadata inventories
+under the flow/author/epoch/Go-build locks and twenty-minute cancellation bound:
+the new pre-verifier `builds.check` is followed by the reference recipe's prior
+fifteen. Caller and launcher-watch cancellation are joined before that work;
+either cancellation and every later failure leave one invalid private sentinel,
+so binding cannot be retried or issue authority. Held launcher-image observation,
+binding comparison and Close share one image mutex, held across the existing
+path/descriptor metadata checks, so concurrent teardown cannot race or retain a
+stale file pointer. A failed eligible bind retains one fixed sentinel object;
+each bind creates one cancel context and one launcher-context callback which are
+stopped on return. No lock nests inside the image mutex.
+Complete issue plus handoff can then run two existing `CheckGo` metadata
+inventories, each bounded to 100,000 entries under its mutex and cancellation
+checks; issue and handoff themselves start no child.
+
 **T42.2m following slice — outer preparation, final signed admission and global
 ordinals (2026-09-12).** After T42.2l's issuer/executor API exists, the same real
 V3 plan must use exact execution-admission-order token
@@ -8593,6 +8644,14 @@ two at-most-64-MiB index inventories and one raw-file pass capped at 2 GiB total
 and 256 MiB per file, including its existing contexts/capture/descriptor costs;
 and final validation/hashes, bounded binding clone and one synchronized checked
 increment per retained event.
+Native outer-preparation acceptance must launch the genuine independently
+protected `t422-execute` outer process, adopt its real inner watcher/image
+custody, bind that executor before pressure-workspace binding, complete the
+actual `bindRehearsal`, call `flow.issueExecutionProfile`, prove returned
+profile/admission and capability copies cannot alias or duplicate private
+authority, consume/revalidate the handoff once, and join/close the launcher and
+workspace owners with clean teardown. Modeled launcher linkage, the pure issuer,
+or direct reference-verifier success cannot satisfy this acceptance condition.
 Required, not-yet-passed tests prove outer preparation starts only its allowlist,
 publishes nothing and cannot authorize operations; signing consumes actual rather
 than expected profile; every verifier child may join while incomplete/mismatching

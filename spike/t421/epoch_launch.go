@@ -59,6 +59,7 @@ type ExecutionEpochOne struct {
 	profileSigner      *ExecutionSystemToolCustody // Borrowed outer-owned signer; never a mounted input owner.
 	profileSignerImage executionProfileSystemImage
 	profileSystemUsed  bool
+	profileExecutor    *executionProfileExecutorCustody
 
 	profileHost      *executionHostObservation
 	profileHostUsed  bool
@@ -132,7 +133,7 @@ func PrepareExecutionEpochOne(ctx context.Context, epochs *ExecutionEpochConfigC
 
 // bindProfileTools retains the two already reference-admitted, non-dispatched
 // images before AuthorA. Omitted holders preserve the scoped rehearsal API;
-// this pair alone does not issue a twelve-tool/profile admission.
+// this pair alone does not issue a complete profile admission.
 func (flow *ExecutionEpochOne) bindProfileTools(ctx context.Context, buf, focused *ExecutionToolCustody) error {
 	if flow == nil || ctx == nil || ctx.Err() != nil || flow.epochs == nil || flow.epochs.author == nil || buf == nil || focused == nil {
 		return ErrExecutionEpochOne
@@ -196,26 +197,37 @@ func (flow *ExecutionEpochOne) prepareProfileEnvironment(ctx context.Context) er
 	if epochs.checkLocked(ctx, 1) != nil {
 		return ErrExecutionEpochOne
 	}
-	path, tools, parent, err := flow.checkEpochTools(ctx, 1)
-	if err != nil || len(tools) != 3 || tools[1].Role != "surreal" || tools[2].Role != "zoekt-git-index" {
-		return ErrExecutionEpochOne
-	}
-	epoch := epochs.epochs[0]
-	binding := executionRuntimeEnvironmentBindings{
-		Home: epoch.Home, Temporary: epoch.Temporary, GitDirectory: author.request.Git.Directory(),
-		SurrealPath: tools[1].Path, SurrealSHA256: flow.surreal.identity.SHA256,
-		ZoektPath: tools[2].Path, ZoektSHA256: flow.zoekt.identity.SHA256,
-	}
-	observed, err := binding.observe(parent)
-	if err != nil || ctx.Err() != nil {
-		return ErrExecutionEpochOne
-	}
-	commands, err := observeExecutionCommands(path, author.parent, epochs.epochs, parent)
+	observed, commands, err := flow.observeProfileEnvironmentCommandsLocked(ctx)
 	if err != nil || ctx.Err() != nil {
 		return ErrExecutionEpochOne
 	}
 	flow.profileEnvironment, flow.profileCommands = &observed, commands
 	return nil
+}
+
+// Caller holds flow, author and epoch locks. Reusing this exact observation at
+// issuance prevents retained hashes from substituting for current held paths.
+func (flow *ExecutionEpochOne) observeProfileEnvironmentCommandsLocked(ctx context.Context) (executionRuntimeEnvironmentObservation, []ExecutionCommandProfile, error) {
+	var zero executionRuntimeEnvironmentObservation
+	path, tools, parent, err := flow.checkEpochTools(ctx, 1)
+	if err != nil || len(tools) != 3 || tools[1].Role != "surreal" || tools[2].Role != "zoekt-git-index" {
+		return zero, nil, ErrExecutionEpochOne
+	}
+	epoch := flow.epochs.epochs[0]
+	binding := executionRuntimeEnvironmentBindings{
+		Home: epoch.Home, Temporary: epoch.Temporary, GitDirectory: flow.epochs.author.request.Git.Directory(),
+		SurrealPath: tools[1].Path, SurrealSHA256: flow.surreal.identity.SHA256,
+		ZoektPath: tools[2].Path, ZoektSHA256: flow.zoekt.identity.SHA256,
+	}
+	observed, err := binding.observe(parent)
+	if err != nil {
+		return zero, nil, ErrExecutionEpochOne
+	}
+	commands, err := observeExecutionCommands(path, flow.epochs.author.parent, flow.epochs.epochs, parent)
+	if err != nil {
+		return zero, nil, ErrExecutionEpochOne
+	}
+	return observed, commands, nil
 }
 
 func (flow *ExecutionEpochOne) AuthorA(ctx context.Context) (ExecutionAuthorResult, error) {

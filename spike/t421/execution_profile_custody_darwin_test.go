@@ -4,11 +4,17 @@ package t421
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
+	"strings"
 	"sync"
 	"testing"
+	"time"
+
+	"github.com/bmeddeb/phebs/spike/t4013"
 )
 
 func TestExecutionPressureCommandRecipe(t *testing.T) {
@@ -201,8 +207,279 @@ func TestExecutionProfileObservationSetRequiresCompleteToolCustody(t *testing.T)
 		t.Fatal("profile completed with only one protected tool")
 	}
 	flow.profileTools[1] = &ExecutionToolCustody{}
+	if !profilePreimageObservationSetComplete(flow) || profileObservationSetComplete(flow) {
+		t.Fatal("scoped preimage custody was not distinguished from complete issuer custody")
+	}
+	flow.profileExecutor = &executionProfileExecutorCustody{}
 	if !profileObservationSetComplete(flow) {
-		t.Fatal("complete signer and protected-tool custody was refused")
+		t.Fatal("complete observed profile custody was refused")
+	}
+}
+
+func TestExecutionProfileMountedInputsExcludeOuterExecutor(t *testing.T) {
+	values := [7]*ExecutionToolCustody{}
+	for index := range values {
+		values[index] = &ExecutionToolCustody{}
+	}
+	flow := &ExecutionEpochOne{
+		epochs: &ExecutionEpochConfigCustody{author: &ExecutionAuthorCustody{request: ExecutionAuthorRequest{Author: values[0]}}},
+		phebs:  values[1], zoekt: values[2], surreal: values[3], profileExecutor: &executionProfileExecutorCustody{},
+		profileTools: [2]*ExecutionToolCustody{values[4], values[5]},
+	}
+	if got := profileMountedInputTools(flow); !slices.Equal(got, values[:6]) {
+		t.Fatal("outer launcher executor was relabeled as a mounted pressure-volume input")
+	}
+}
+
+func TestExecutionProfileExecutorMatchesHeldLauncherImage(t *testing.T) {
+	newFixture := func(t *testing.T) *executionProfileExecutorCustody {
+		t.Helper()
+		parent, _ := inputCustodyTestFixture(t)
+		copy := inputCustodyTestSpec(t, "t422-execute", "/usr/bin/true", true)
+		input, err := inputCustodyTestProtect(t, t.Context(), parent, []ExecutionInputCopy{copy})
+		if err != nil {
+			t.Fatal(err)
+		}
+		path, err := input.Check(t.Context(), copy.Name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		file, err := os.Open(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { _ = file.Close() })
+		info, err := file.Stat()
+		if err != nil {
+			t.Fatal(err)
+		}
+		livenessFile, err := os.Open(os.DevNull)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { _ = livenessFile.Close() })
+		identity := ExecutionToolIdentity{Role: copy.Name, FileType: regularFileType, SHA256: copy.SHA256}
+		alive, cancel := context.WithCancel(t.Context())
+		t.Cleanup(cancel)
+		launcher := &executionProfileLauncherCustody{parent: &executionParentLiveness{
+			file: livenessFile,
+			image: &executionHeldImage{file: file, info: info, path: path,
+				pathSHA256: strings.TrimPrefix(SHA256([]byte(path)), "sha256:"), digest: copy.SHA256},
+			inner: t4013.NativeProcessRecord{PID: os.Getpid()}, outer: t4013.NativeProcessRecord{PID: os.Getppid()},
+			alive: alive, cancel: cancel, done: make(chan error, 1),
+		}}
+		return &executionProfileExecutorCustody{launcher: launcher, identity: identity}
+	}
+	for _, test := range []struct {
+		name   string
+		mutate func(*executionProfileExecutorCustody)
+		wantOK bool
+	}{
+		{name: "exact", wantOK: true},
+		{name: "image_digest", mutate: func(value *executionProfileExecutorCustody) {
+			value.launcher.parent.image.digest = SHA256([]byte("other"))
+		}},
+		{name: "executor_digest", mutate: func(value *executionProfileExecutorCustody) {
+			value.identity.SHA256 = SHA256([]byte("other"))
+		}},
+		{name: "executor_role", mutate: func(value *executionProfileExecutorCustody) { value.identity.Role = "phebs" }},
+		{name: "image_path", mutate: func(value *executionProfileExecutorCustody) {
+			value.launcher.parent.image.path += "-other"
+		}},
+		{name: "other_inner", mutate: func(value *executionProfileExecutorCustody) { value.launcher.parent.inner.PID++ }},
+		{name: "canceled_liveness", mutate: func(value *executionProfileExecutorCustody) { value.launcher.parent.cancel() }},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			executor := newFixture(t)
+			if test.mutate != nil {
+				test.mutate(executor)
+			}
+			_, err := executor.check(t.Context())
+			if (err == nil) != test.wantOK {
+				t.Fatal("executor/launcher cross-check result", err)
+			}
+		})
+	}
+	newFlow := func(builds *ExecutionGoBuildCustody) *ExecutionEpochOne {
+		return &ExecutionEpochOne{plan: Plan{Schema: PlanV3Schema},
+			epochs: &ExecutionEpochConfigCustody{author: &ExecutionAuthorCustody{request: ExecutionAuthorRequest{Builds: builds}}}}
+	}
+	executor := newFixture(t)
+	builds := &ExecutionGoBuildCustody{}
+	late := newFlow(builds)
+	late.workspace = &productionRoot{}
+	if err := late.bindProfileExecutor(t.Context(), executor.launcher.parent); err == nil || late.profileExecutor != nil {
+		t.Fatal("post-workspace executor binding succeeded")
+	}
+
+	t.Run("held image close races observation safely", func(t *testing.T) {
+		executor := newFixture(t)
+		image := executor.launcher.parent.image
+		start := make(chan struct{})
+		var workers sync.WaitGroup
+		for range 8 {
+			workers.Add(1)
+			go func() {
+				defer workers.Done()
+				<-start
+				for range 100 {
+					_, _ = executor.check(t.Context())
+				}
+			}()
+		}
+		close(start)
+		if err := image.Close(); err != nil {
+			t.Fatal(err)
+		}
+		workers.Wait()
+		if _, err := executor.check(t.Context()); err == nil {
+			t.Fatal("closed held image retained launcher authority")
+		}
+	})
+
+	t.Run("eligible failed bind is spent", func(t *testing.T) {
+		for _, test := range []struct {
+			name   string
+			ctx    func(*testing.T) context.Context
+			mutate func(*executionParentLiveness)
+		}{
+			{name: "go custody precheck", ctx: func(t *testing.T) context.Context { return t.Context() }},
+			{name: "nil caller", ctx: func(*testing.T) context.Context { return nil }},
+			{name: "canceled caller", ctx: func(t *testing.T) context.Context {
+				ctx, cancel := context.WithCancel(t.Context())
+				cancel()
+				return ctx
+			}},
+			{name: "canceled launcher", ctx: func(t *testing.T) context.Context { return t.Context() }, mutate: func(value *executionParentLiveness) {
+				value.cancel()
+			}},
+		} {
+			t.Run(test.name, func(t *testing.T) {
+				executor := newFixture(t)
+				if test.mutate != nil {
+					test.mutate(executor.launcher.parent)
+				}
+				flow := newFlow(&ExecutionGoBuildCustody{})
+				if err := flow.bindProfileExecutor(test.ctx(t), executor.launcher.parent); err == nil || flow.profileExecutor == nil {
+					t.Fatal("failed eligible bind did not publish spent sentinel", err)
+				}
+				spent := flow.profileExecutor
+				if err := flow.bindProfileExecutor(t.Context(), newFixture(t).launcher.parent); err == nil || flow.profileExecutor != spent {
+					t.Fatal("failed bind was retried or replaced", err)
+				}
+				if _, err := flow.profileExecutor.check(t.Context()); err == nil {
+					t.Fatal("spent sentinel issued executor authority")
+				}
+			})
+		}
+	})
+}
+
+type observedProfileIssuerFixture struct {
+	plan          Plan
+	tools         []ExecutionToolIdentity
+	host          ExecutionHost
+	configDigests []string
+	configDigest  string
+	environment   executionRuntimeEnvironmentObservation
+	commands      []ExecutionCommandProfile
+	runtime       *executionRuntimeObservation
+	phebsPath     string
+	directory     string
+	preimages     executionObservedProfilePreimages
+}
+
+func newObservedProfileIssuerFixture(t *testing.T) observedProfileIssuerFixture {
+	t.Helper()
+	plan := accountingTestPlan(t)
+	commits := executionFreezeTestCommits()
+	commits.T422SourceCommit = plan.SourceCommit
+	tools, host := executionFreezeTestTools(plan, commits), executionFreezeTestHost()
+	admitted := executionProfileTestAdmission(t, plan, tools, host)
+	profile, err := expectedExecutionProfile(plan, tools, host, admitted)
+	if err != nil {
+		t.Fatal(err)
+	}
+	environment := executionRuntimeEnvironmentObservation{
+		Recovery: slices.Clone(profile.Environment.BaseVariables), Server: executionProfileServerEnvironment(profile.Environment),
+	}
+	environment.RecoverySHA256 = executionEnvironmentSHA256(environment.Recovery)
+	environment.ServerSHA256 = executionEnvironmentSHA256(environment.Server)
+	path, directory := "/private/tmp/t422-phebs", "/private/tmp/t422-data"
+	raw, err := json.Marshal(exactExecutionRuntimeFacts(profile))
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw = append(raw, '\n')
+	stdout := &checkoutCommandOutput{}
+	_, _ = stdout.buffer.Write(raw)
+	commandSHA256, err := executionRuntimeCommandSHA256(path, directory)
+	if err != nil {
+		t.Fatal(err)
+	}
+	phebsIndex := slices.IndexFunc(tools, func(value ExecutionToolIdentity) bool { return value.Role == "phebs" })
+	return observedProfileIssuerFixture{
+		plan: plan, tools: tools, host: host,
+		configDigests: slices.Clone(admitted.epochConfigBytesSHA256), configDigest: admitted.configBytesSHA256,
+		environment: environment, commands: frozenExecutionCommands(), phebsPath: path, directory: directory,
+		preimages: executionObservedProfilePreimages{
+			commandsSHA256: admitted.commandsSHA256, harnessCommandSetSHA256: admitted.commandsSHA256,
+			pressureCommandSetSHA256: admitted.pressureCommandSetSHA256, rootVolumeBindingsSHA256: admitted.rootVolumeBindingsSHA256,
+		},
+		runtime: &executionRuntimeObservation{
+			Identity: tools[phebsIndex], Path: path, Directory: directory, Deadline: time.Now().Add(time.Minute),
+			CommandSHA256: commandSHA256, RawSHA256: SHA256(raw), Facts: exactExecutionRuntimeFacts(profile),
+			Observed: true, Complete: true, PID: os.Getpid(), RootStarted: true, RootJoined: true, SessionEmpty: true,
+			waited: make(chan error, 1), stdout: stdout, stderr: &checkoutCommandOutput{},
+		},
+	}
+}
+
+func (value observedProfileIssuerFixture) issue() (ExecutionProfile, ExecutionProfileAdmissionBinding, error) {
+	return issueObservedExecutionProfile(value.plan, value.tools, value.host, value.configDigests, value.configDigest,
+		value.environment, value.commands, value.runtime, value.phebsPath, value.directory, value.preimages)
+}
+
+func TestExecutionObservedProfileIssuerCompleteAndMutations(t *testing.T) {
+	fixture := newObservedProfileIssuerFixture(t)
+	if err := validateExecutionTools(fixture.tools, fixture.plan.ToolPolicy, fixture.plan.SourceCommit); err != nil {
+		t.Fatal("fixture tools", err)
+	}
+	if err := validateExecutionHost(fixture.host, fixture.plan); err != nil {
+		t.Fatal("fixture host", err)
+	}
+	profile, admission, err := fixture.issue()
+	if err != nil || profile.Schema != ExecutionProfileV3Schema || !admission.verifiedBeforeOperationalWork || admission.verifiedBeforeWork ||
+		admission.profileSHA256 == "" || admission.invocationSHA256 == "" || len(admission.epochConfigBytesSHA256) != 5 {
+		t.Fatal("complete observed issuer refused", profile.Schema, admission, err)
+	}
+	for _, test := range []struct {
+		name   string
+		mutate func(*observedProfileIssuerFixture)
+	}{
+		{name: "tool", mutate: func(value *observedProfileIssuerFixture) { value.tools = value.tools[1:] }},
+		{name: "host", mutate: func(value *observedProfileIssuerFixture) { value.host.GOOS = "linux" }},
+		{name: "config_row", mutate: func(value *observedProfileIssuerFixture) { value.configDigests[0] = SHA256([]byte("other")) }},
+		{name: "config_digest", mutate: func(value *observedProfileIssuerFixture) { value.configDigest = SHA256([]byte("other")) }},
+		{name: "environment_value", mutate: func(value *observedProfileIssuerFixture) { value.environment.Recovery[0] += "-other" }},
+		{name: "environment_digest", mutate: func(value *observedProfileIssuerFixture) { value.environment.ServerSHA256 = SHA256([]byte("other")) }},
+		{name: "command", mutate: func(value *observedProfileIssuerFixture) { value.commands[0].Name = "other" }},
+		{name: "runtime_fact", mutate: func(value *observedProfileIssuerFixture) { value.runtime.Facts.StoreGenerationMaxAttempts++ }},
+		{name: "runtime_raw", mutate: func(value *observedProfileIssuerFixture) { value.runtime.stdout.buffer.WriteByte('x') }},
+		{name: "runtime_join", mutate: func(value *observedProfileIssuerFixture) { value.runtime.RootJoined = false }},
+		{name: "phebs_path", mutate: func(value *observedProfileIssuerFixture) { value.phebsPath += "-other" }},
+		{name: "command_preimage", mutate: func(value *observedProfileIssuerFixture) { value.preimages.commandsSHA256 = SHA256([]byte("other")) }},
+		{name: "harness_preimage", mutate: func(value *observedProfileIssuerFixture) {
+			value.preimages.harnessCommandSetSHA256 = SHA256([]byte("other"))
+		}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			fixture := newObservedProfileIssuerFixture(t)
+			test.mutate(&fixture)
+			if got, binding, err := fixture.issue(); err == nil || !reflect.DeepEqual(got, ExecutionProfile{}) || !reflect.DeepEqual(binding, ExecutionProfileAdmissionBinding{}) {
+				t.Fatal("mutated observation issued a profile", err)
+			}
+		})
 	}
 }
 
@@ -220,8 +497,8 @@ func TestExecutionWorkspaceCapabilitiesAreOneShot(t *testing.T) {
 	for _, selected := range []*executionWorkspaceCustodyCapability{&capability, &copyOfCapability} {
 		go func(capability *executionWorkspaceCustodyCapability) {
 			defer group.Done()
-			observed, handoff, err := capability.ConsumeForProfile(t.Context())
-			if err == nil || observed != (executionObservedProfilePreimages{}) || handoff != nil {
+			observed, err := capability.ConsumePreimages(t.Context())
+			if err == nil || observed != (executionObservedProfilePreimages{}) {
 				t.Error("invalid capability issued profile custody")
 			}
 		}(selected)
@@ -239,22 +516,47 @@ func TestExecutionWorkspaceCapabilitiesAreOneShot(t *testing.T) {
 		}
 	}
 	var reloaded executionWorkspaceCustodyCapability
-	if observed, handoff, err := reloaded.ConsumeForProfile(t.Context()); err == nil || observed != (executionObservedProfilePreimages{}) || handoff != nil {
+	if observed, err := reloaded.ConsumePreimages(t.Context()); err == nil || observed != (executionObservedProfilePreimages{}) {
 		t.Fatal("zero private capability reconstructed workspace authority")
 	}
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
-	handoff := executionOperationalHandoffCapability{state: &executionOperationalHandoffCapabilityState{proof: &executionWorkspaceCustodyProof{}}}
-	copyOfHandoff := handoff
-	if observed, err := handoff.consumeWorkspace(ctx); err == nil || observed != (executionObservedProfilePreimages{}) {
-		t.Fatal("canceled or repeated handoff consumption succeeded")
+	spent := &executionWorkspaceCustodyCapability{state: &executionWorkspaceCustodyCapabilityState{proof: &executionWorkspaceCustodyProof{}}}
+	flow := &ExecutionEpochOne{profileWorkspace: spent}
+	if profile, admission, handoff, err := flow.issueExecutionProfile(ctx); err == nil || !reflect.DeepEqual(profile, ExecutionProfile{}) ||
+		!reflect.DeepEqual(admission, ExecutionProfileAdmissionBinding{}) || handoff != nil {
+		t.Fatal("canceled profile issuance succeeded")
 	}
-	if observed, err := copyOfHandoff.consumeWorkspace(t.Context()); err == nil || observed != (executionObservedProfilePreimages{}) {
-		t.Fatal("repeated handoff consumption succeeded")
+	if profile, admission, handoff, err := flow.issueExecutionProfile(t.Context()); err == nil || !reflect.DeepEqual(profile, ExecutionProfile{}) ||
+		!reflect.DeepEqual(admission, ExecutionProfileAdmissionBinding{}) || handoff != nil {
+		t.Fatal("canceled issuance did not spend workspace custody")
 	}
-	handoff.state.mu.Lock()
-	if handoff.state.proof != nil {
-		t.Fatal("failed handoff did not transfer away its proof")
+	nilSpent := &executionWorkspaceCustodyCapability{state: &executionWorkspaceCustodyCapabilityState{proof: &executionWorkspaceCustodyProof{}}}
+	nilFlow := &ExecutionEpochOne{profileWorkspace: nilSpent}
+	//nolint:staticcheck // Deliberately exercise nil-context refusal at the private issuer boundary.
+	if profile, admission, handoff, err := nilFlow.issueExecutionProfile(nil); err == nil || !reflect.DeepEqual(profile, ExecutionProfile{}) ||
+		!reflect.DeepEqual(admission, ExecutionProfileAdmissionBinding{}) || handoff != nil {
+		t.Fatal("nil-context profile issuance succeeded")
 	}
-	handoff.state.mu.Unlock()
+	if _, _, _, err := nilFlow.issueExecutionProfile(t.Context()); err == nil {
+		t.Fatal("nil-context issuance did not spend workspace custody")
+	}
+	full := executionOperationalHandoffCapability{state: &executionOperationalHandoffCapabilityState{
+		proof: &executionWorkspaceCustodyProof{}, profile: ExecutionProfile{Schema: ExecutionProfileV3Schema},
+		admission: ExecutionProfileAdmissionBinding{schema: ExecutionProfileV3Schema, verifiedBeforeOperationalWork: true},
+	}}
+	fullCopy := full
+	if profile, admission, err := full.consumeProfile(ctx); err == nil || !reflect.DeepEqual(profile, ExecutionProfile{}) || !reflect.DeepEqual(admission, ExecutionProfileAdmissionBinding{}) {
+		t.Fatal("canceled complete handoff consumption succeeded")
+	}
+	if profile, admission, err := fullCopy.consumeProfile(t.Context()); err == nil || !reflect.DeepEqual(profile, ExecutionProfile{}) || !reflect.DeepEqual(admission, ExecutionProfileAdmissionBinding{}) {
+		t.Fatal("shallow copy reconstructed spent complete handoff")
+	}
+	for _, typ := range []reflect.Type{reflect.TypeFor[executionOperationalHandoffCapability](), reflect.TypeFor[ExecutionProfileAdmissionBinding]()} {
+		for index := range typ.NumField() {
+			if typ.Field(index).IsExported() {
+				t.Fatal("caller-constructible profile authority field", typ, typ.Field(index).Name)
+			}
+		}
+	}
 }

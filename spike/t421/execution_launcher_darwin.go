@@ -322,7 +322,7 @@ func adoptExecutionParentLiveness(ctx context.Context, entered time.Time, execut
 		return nil, nil, ErrExecutionLauncher
 	}
 	watchCtx, cancel := context.WithCancel(ctx)
-	liveness := &executionParentLiveness{file: file, image: image, outer: rows[0], inner: rows[1], cancel: cancel, done: make(chan error, 1)}
+	liveness := &executionParentLiveness{file: file, image: image, outer: rows[0], inner: rows[1], alive: watchCtx, cancel: cancel, done: make(chan error, 1)}
 	if file.SetReadDeadline(time.Unix(0, binding.OuterDeadlineUnixNano)) != nil {
 		_ = file.Close()
 		_ = image.Close()
@@ -343,6 +343,7 @@ type executionParentLiveness struct {
 	image  *executionHeldImage
 	outer  t4013.NativeProcessRecord
 	inner  t4013.NativeProcessRecord
+	alive  context.Context
 	cancel context.CancelFunc
 	done   chan error
 	once   sync.Once
@@ -377,6 +378,7 @@ func (value *executionParentLiveness) Close() error {
 }
 
 type executionHeldImage struct {
+	mu            sync.Mutex
 	file          *os.File
 	info          os.FileInfo
 	path          string
@@ -438,6 +440,15 @@ func holdExecutionImage(ctx context.Context, expected string, parentPID int, par
 }
 
 func (image *executionHeldImage) Check(ctx context.Context) error {
+	if image == nil {
+		return ErrExecutionLauncher
+	}
+	image.mu.Lock()
+	defer image.mu.Unlock()
+	return image.checkLocked(ctx)
+}
+
+func (image *executionHeldImage) checkLocked(ctx context.Context) error {
 	if image == nil || image.file == nil || image.info == nil || ctx == nil || ctx.Err() != nil {
 		return ErrExecutionLauncher
 	}
@@ -450,14 +461,36 @@ func (image *executionHeldImage) Check(ctx context.Context) error {
 	return nil
 }
 
+func (image *executionHeldImage) observe(ctx context.Context) (string, string, error) {
+	if image == nil {
+		return "", "", ErrExecutionLauncher
+	}
+	image.mu.Lock()
+	defer image.mu.Unlock()
+	if image.checkLocked(ctx) != nil {
+		return "", "", ErrExecutionLauncher
+	}
+	return image.path, image.digest, nil
+}
+
 func (image *executionHeldImage) matchesBinding(value executionParentLivenessV1) bool {
-	return image != nil && image.pathSHA256 == value.ExecutePathSHA256 && image.device == value.ExecuteDevice &&
+	if image == nil {
+		return false
+	}
+	image.mu.Lock()
+	defer image.mu.Unlock()
+	return image.file != nil && image.pathSHA256 == value.ExecutePathSHA256 && image.device == value.ExecuteDevice &&
 		image.inode == value.ExecuteInode && image.mode == value.ExecuteMode && image.size == value.ExecuteSize &&
 		image.ctimeUnixNano == value.ExecuteCTimeUnixNano && image.digest == value.ExecuteImageSHA256
 }
 
 func (image *executionHeldImage) Close() error {
-	if image == nil || image.file == nil {
+	if image == nil {
+		return ErrExecutionLauncher
+	}
+	image.mu.Lock()
+	defer image.mu.Unlock()
+	if image.file == nil {
 		return ErrExecutionLauncher
 	}
 	err := image.file.Close()
