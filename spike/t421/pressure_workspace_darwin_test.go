@@ -120,6 +120,35 @@ func TestExecutionPressureWorkspaceOptionalNative(t *testing.T) {
 	if err != nil {
 		t.Fatalf("retained native volume %s: %v", parent, err)
 	}
+	identity, toolPath, err := v.tool.Check(ctx, "hdiutil")
+	if err != nil {
+		t.Fatal(err)
+	}
+	pressure, err := executionPressureCommandSetPreimage(identity, toolPath, v.root.path, v.attachDevice, v.pressureCommands)
+	if err != nil || len(pressure.Commands) != 3 || pressure.AttachDevice != v.device || pressure.Commands[2].NormalizedArgv[1] != "@pressure-device" {
+		t.Fatal("actual create/attach call sites did not retain the future detach preimage", err)
+	}
+	detach := pressure.Commands[2]
+	if !v.pressureCommandStartUnchanged(ctx, "detach", identity, toolPath, detach) {
+		t.Fatal("exact actual detach pre-Start boundary refused")
+	}
+	changed := identity
+	changed.SHA256 = SHA256([]byte("wrong-image"))
+	if v.pressureCommandStartUnchanged(ctx, "detach", changed, toolPath, detach) ||
+		v.pressureCommandStartUnchanged(ctx, "detach", identity, toolPath+"-other", detach) {
+		t.Fatal("changed tool identity or path reached detach Start")
+	}
+	savedDevice := v.device
+	v.device = "/dev/disk9"
+	if v.pressureCommandStartUnchanged(ctx, "detach", identity, toolPath, detach) {
+		t.Fatal("changed raw attach device reached detach Start")
+	}
+	v.device = savedDevice
+	changedDetach := clonePressureRow(detach)
+	changedDetach.NormalizedArgv[1] = savedDevice
+	if v.pressureCommandStartUnchanged(ctx, "detach", identity, toolPath, changedDetach) {
+		t.Fatal("changed normalized detach row reached Start")
+	}
 	marked := withExecutionPreparationParent(ctx, v.workspace.path)
 	if _, err := ObserveExecutionExternalTool(marked, "git", "/Library/Developer/CommandLineTools/usr/bin/git"); err != nil {
 		t.Fatal("marked actual Git probe", err)

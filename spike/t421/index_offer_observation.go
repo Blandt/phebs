@@ -23,6 +23,19 @@ type ExecutionIndexObservation struct {
 	Bound, Complete bool
 }
 
+func (out ExecutionIndexObservation) coherent() bool {
+	if !out.Bound {
+		return false
+	}
+	for _, phase := range out.Phases {
+		if phase.StartedChildren != phase.EndedChildren || phase.FailedChildren > phase.EndedChildren ||
+			phase.Offers != phase.SettledOffers || phase.Offers > 0 && phase.StartedChildren == 0 {
+			return false
+		}
+	}
+	return true
+}
+
 // The owner calls this only after native Wait joined every output pump. Stable
 // failed output may retain a positive prefix, but never a complete attestation.
 func observeExecutionIndexOffers(raw []byte, plan Plan, producer uint32, input [32]byte, joined, healthy bool) (out ExecutionIndexObservation, err error) {
@@ -100,13 +113,8 @@ func observeExecutionIndexOffers(raw []byte, plan Plan, producer uint32, input [
 			return out, errExecutionAttempts
 		}
 	}
-	if !out.Bound || !healthy {
+	if !healthy || !out.coherent() {
 		return out, errExecutionAttempts
-	}
-	for _, phase := range out.Phases {
-		if phase.StartedChildren != phase.EndedChildren || phase.Offers != phase.SettledOffers {
-			return out, errExecutionAttempts
-		}
 	}
 	out.Complete = true
 	return out, nil

@@ -56,12 +56,13 @@ type ExecutionEpochOne struct {
 	profileEnvironmentUsed bool                      // One preparation attempt, never per-dispatch hashing.
 	profileCommands        []ExecutionCommandProfile // Actual normalized argv, separate from parsed YAML.
 
-	profileSystemTools  [2]*ExecutionSystemToolCustody // Borrowed outer-owned sh/signer; never mounted input owners.
-	profileSystemImages [2]executionProfileSystemImage
-	profileSystemUsed   bool
+	profileSigner      *ExecutionSystemToolCustody // Borrowed outer-owned signer; never a mounted input owner.
+	profileSignerImage executionProfileSystemImage
+	profileSystemUsed  bool
 
-	profileHost     *executionHostObservation
-	profileHostUsed bool
+	profileHost      *executionHostObservation
+	profileHostUsed  bool
+	profileWorkspace *executionWorkspaceCustodyCapability
 
 	profileRuntime *executionRuntimeObservation // One actual prework process; never an operational producer.
 }

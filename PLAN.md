@@ -216,8 +216,9 @@ source-site inventory to the selected source and reference-built binaries; a
 new unaccounted `exec`/direct OS launch site fails the readiness gate. Include
 the later author/executor/launcher sites and admission-stage launches.
 
-Retain all twelve tool identities, private direct-path bindings and immutable
-admission/custody requirements. Exact direct-image checks and closed Git
+Retain all eleven exact freeze-tool identities, private direct-path bindings
+and immutable admission/custody requirements. No separately held `/bin/sh` or
+controller identity is part of V3. Exact direct-image checks and closed Git
 configuration describe admitted inputs, not vendor attestation or a complete
 history of native delegation. This assumes trusted admitted native tools; it
 is not a malicious-process sandbox. Bind the V3 accounting policy, producer
@@ -370,6 +371,825 @@ fixture or harness input changed. Each ticket closes only its stated ACs.
 The existing V1/V2 seals, V3 claim boundaries and numerical envelopes stay
 unchanged. This plan is orchestration, not evidence that any later gate passed.
 
+- **2026-09-12 — T42.2lm live sealed-handoff and independent signer
+  correction.** This supersedes only the candidate-freeze, signing,
+  final-checkout and operator-handoff mechanics in the prospective T42.2l/m
+  rows below. Their actual command/root preimages, exclusive capability
+  transfer, V3-only token and V1/V2 nonclaims remain exact.
+
+  After outer preparation issues the actual profile and operational-handoff
+  capability, a private V3-only pure assembler builds canonical candidate
+  `ExecutionFreeze` bytes from that admission and the independently selected
+  commits, eleven freeze-tool observations, host facts and signer fingerprint. It
+  validates all shapes available without checkout authority, enforces the
+  existing 64-KiB cap, and issues no checkout/signature/freeze binding or
+  ordinal. Public `BuildExecutionFreeze`, `ValidateExecutionFreeze`,
+  `BindExecutionFreezeForReceipt` and all V1/V2 behavior/bytes keep their
+  current checkout-required semantics. V1/V2 also keep the private
+  `verifiedBeforeWork` before-first-child meaning; V3 uses a distinct private
+  verified-before-operational-work state and cannot set or reinterpret the old
+  predicate after preparation children.
+
+  Independently select and hold one unique external Ed25519 private key,
+  canonical public key, reviewed `SHA256:` fingerprint and exact single-line
+  allowlist `phebs-t422-ceremony <canonical-public-key>\n`. None is authorized
+  by the candidate, its embedded fingerprint, returned `signer.pub` or caller
+  booleans. Keep them outside pressure/return custody and never project or
+  transfer the private key. Through held `/usr/bin/ssh-keygen`, perform one
+  no-retry `-y -f <private-key>` derivation, require byte-exact public-key and
+  SHA256-base64-no-padding fingerprint equality, then one no-retry `-Y sign -f
+  <private-key> -n phebs-t422-freeze <candidate-freeze-file>` and one no-retry
+  `-Y verify -f <allowed-signers> -I phebs-t422-ceremony -n
+  phebs-t422-freeze -s <candidate-freeze-signature>` over the exact candidate
+  bytes on stdin. Shared pure command builders and pre/post held
+  executable/input/output/path/descriptor checks bind each Start/Wait.
+
+  Only independent verification enters
+  `sealed_waiting_for_execution_authorization` in the same live
+  `t422-execute` process. Retain its session, mounted volume, held workspace,
+  tool/key-public/signature FDs, candidate bytes and operational-handoff
+  capability; emit only the bounded signed-freeze handoff and start no AuthorA,
+  meter or operational child. T42.2o hands Ben that live session, exact freeze
+  digest and absolute expiry, not a future command or restartable artifact.
+  Wait without polling on one nonserializable capacity-one launcher capability
+  and one deadline timer. Its sole input is at-most-256-byte canonical JSON with
+  ordered keys `schema`, `freeze_sha256`, `session_binding_sha256`; schema is
+  `t422-execution-authorization-v1` and the latter digest binds the already-held
+  native process-session identity. Accept it once only from the inherited private
+  resume FD whose write end is handed to Ben; it triggers but cannot reconstruct
+  the live capability from JSON, file, environment or CLI state.
+
+  Expire exactly 1,200,000 milliseconds after first successful signature
+  verification, reusing signed `SafetyEnvelope.RevalidationDeadlineMS`. This
+  is the strictest existing semantically compatible revalidation/handoff
+  allowance; the shorter 900,000-millisecond health deadline begins only after
+  a server Start. Never renew this expiry, a phase deadline or the 18-hour
+  post-AuthorA total-wall ceiling. EOF, cancellation, malformed/wrong/duplicate
+  input or expiry issues no final binding/ordinal and enters identity-checked
+  nonforced detach/removal cleanup. Process loss is handled only by the outer
+  launcher's already-required hard-death supervisor; uncertainty retains custody.
+
+  Only after authorization does that process run complete
+  `InspectExecutionCheckout`, require equality with independently selected
+  commits, revalidate all eleven freeze-tool/reference observations, and issue private
+  `CheckoutAdmissionBinding` over those commits and the candidate tool digest.
+  It repeats held freeze/signature/allowlist checks and exact verification,
+  consumes the operational-handoff capability to rerun every
+  path/device/FSID/tool/root predicate, then passes independent bindings to the
+  unchanged full validator/binder. Complete success alone creates
+  `ExecutionFreezeBinding`, consumes ordinal 1 and directly hands the same
+  binding and advanced allocator to AuthorA.
+
+The T42.2m ordinal cost record below is corrected: retained allocator state is
+one mutex, one `uint64` counter, one failure flag and one admitted-handle
+pointer, not one machine word. All other cost and behavior wording is unchanged.
+
+The T42.2l profile-r2 cost record is also retained and corrected: actual
+`issueProfile` and final resource revalidation each run two complete
+`bindRehearsal` predicates (pre/post), three complete `v.check` passes including
+the ballast sample, and fresh canonical encodes/hashes of Commands, pressure
+and all nine roots. Each create, attach and detach boundary separately performs
+its immediate root, HOME/TMP identity, actual-recipe and held-hdiutil rechecks.
+These replace any one-predicate/three-total-hash shorthand below.
+
+- **2026-09-12 — T42.2lm r17 bounded canonical handoff, parent-image and
+  same-directory flat signer staging,
+  argv selection and nonblocking same-image private-session authorization
+  correction.** This supersedes, regardless of
+  whether a contrary row appears before or after this paragraph,
+  every prior anonymous or inherited resume-FD, controlling-terminal,
+  terminal-read, shell-wrapper/controller, authorization-transport, deadline,
+  signer-output, handoff framing/cap, session-binding, parent-image,
+  executable-digest form, signer
+  staging/path layout and global
+  ID/fingerprint uniqueness mechanic
+  in every prospective T42.2l/m
+  record regardless of position; their actual command/root preimages, V3-only
+  token, private
+  capability boundary, complete post-resume checkout and V1/V2 preservation
+  remain exact.
+  Its eleven-row correction applies to every prospective, unsealed T42.2 use
+  of “twelve tool”; historical twelve-file and twelve-phase counts are not tool
+  counts and remain unchanged.
+
+  In particular, the later prospective `T42.2l outer shell and signer custody`
+  row is split. Preserve its signer-image custody only: one held signer FD and
+  acquisition, two bounded image hashes, native header/metadata/read-only-
+  volume checks, pre-work borrow/rechecks, joined close and its signer tests.
+  Retire its shell half completely. V3 holds or admits no shell image and pays
+  no shell FD, acquisition, hash, metadata/recheck, borrow, launcher, cleanup or
+  test cost from that row.
+
+  The protected `t422-execute` outer mode invoked by Ben records
+  `outer_started` and its positive signed-64-bit
+  `outer_started_unix_nano` before its parent-liveness pipe, inner Start or any
+  preparation, key, volume, tool, build or observation action. Checked-add the signed
+  `SafetyEnvelope.MaximumTotalWallMS` (64,800,000 milliseconds) once to obtain
+  `outer_deadline`; its serialized signed-64-bit Unix-nanosecond value is
+  exactly checked `outer_started_unix_nano + 64,800,000,000,000`. Overflow
+  refuses. This is the existing semantically valid
+  whole-execution bound, so V3 total-wall accounting starts there rather than
+  at AuthorA. Create/attach, protected reference builds, runtime/profile
+  observation, key generation/derivation/fingerprint claim, candidate assembly, sign, first
+  verify, the sealed wait, checkout, resource/tool rechecks, second verify,
+  binding, ordinal 1 and the direct in-process AuthorA transition all run under
+  that one deadline. Every existing command, five-minute checkout,
+  revalidation, server-health, phase, convergence and review deadline remains
+  and is clipped to `outer_deadline`; a step with no narrower signed bound uses
+  `outer_deadline` alone. Immediately after the first successful verify,
+  checked-add its finish time and `RevalidationDeadlineMS` (1,200,000
+  milliseconds), then set
+  `final_admission_deadline = min(first_verify_finished + RevalidationDeadlineMS, outer_deadline)`.
+  That same absolute final-admission deadline governs the sealed wait, complete
+  checkout, every resource/tool/signature recheck, second verify, binder,
+  ordinal 1 and direct AuthorA transition. Authorization observed at or after
+  it refuses; an accepted frame cannot escape to the remaining 18-hour budget.
+  Neither AuthorA nor restart renews total wall or final admission. After the
+  direct AuthorA transition, later stage/phase work is clipped to
+  `outer_deadline` and each existing narrower deadline, not to or by escape
+  from `final_admission_deadline`. Preparation that leaves
+  insufficient time refuses; no frozen number is increased. V1/V2 retain their
+  existing author-start accounting and canonical bytes.
+
+  Outer's sole caller selection transport is its exact argv
+  `[<held-t422-execute-path>, run-t422-outer, --selection-base64url,
+  <canonical-unpadded-base64url>]`; any missing, extra, reordered or duplicate
+  flag/value refuses. Decode at most 21,846 unpadded RFC 4648 base64url
+  characters to 1..16,384 bytes, strict-decode JSON with no unknown or
+  duplicate key, canonical-re-encode once, require byte equality, raw-base64url-
+  encode once and require the exact original string. The 16-KiB decoded cap is
+  the smallest fixed power of two that accommodates twice seven Darwin
+  `PATH_MAX`-class slots plus an at-most-2-KiB fixed field/commit/ID envelope;
+  the record currently selects six paths. Escaping that exceeds the cap is
+  rejected input. Its 21,846-character encoded cap is exactly
+  `base64.RawURLEncoding.EncodedLen(16<<10)`. These are transport rejection
+  bounds, not new operational, resource or time allowances.
+
+  Canonical `executionSelectionV1` has exactly these ordered string fields:
+  `schema`, `ceremony_id`, `repository_root`, `plan_source_commit`,
+  `integrated_main_commit`, `source_commit`, `go_root`, `module_cache`,
+  `git_binary`, `surreal_binary`, `signer_control_root`; schema is exactly
+  `t422-execution-selection-v1`. Ceremony ID uses the existing closed grammar
+  `[A-Za-z0-9][A-Za-z0-9._-]{0,63}` and rejects `.` and `..`. Each commit is
+  exactly forty lowercase hexadecimal bytes. Retain all three commit roles
+  independently even when actual Git authority later permits equal values.
+  Each of the six path strings is absolute, lexically clean/canonical, valid
+  UTF-8 without NUL, and 1..1,023 bytes so a terminal NUL fits Darwin's
+  `PATH_MAX == 1,024`. Repository, Go, module-cache and signer-control directory
+  roles are pairwise disjoint by clean path containment; Git and Surreal paths
+  are distinct file roles and are not inside those mutable directory roots.
+  Exact later holdings additionally reject symlink, inode/type or other role
+  aliasing according to their existing custody predicates.
+
+  Outer records its start/deadline before this work, performs the selection
+  decode/re-encode and shape checks strictly before the current outer deadline,
+  and finishes them before pipe creation or inner Start. Caller selection is
+  never authority. It supplies no verified commit, source, tool, signer, root,
+  profile or freeze fact. Caller environment is ignored as authority and is
+  never forwarded. There is no selector boolean, rehearsal environment,
+  shell, tty/stdin record, input file, path inference or default. Outer copies
+  the one validated canonical base64 string unchanged into exact inner argv
+  `[<held-t422-execute-path>, run-t422-inner, --selection-base64url,
+  <canonical-unpadded-base64url>]` and constructs the inner environment with
+  only its exact `PHEBS_T422_PARENT_LIVENESS_V1` entry.
+
+  Ben invokes outer mode with that exact four-element argv. Outer mode never reads a
+  terminal or authorization message and gives the inner process closed
+  nonterminal stdin. Before inner Start it creates one
+  anonymous parent-liveness pipe, sets both originals close-on-exec and Fstats
+  distinct current-uid FIFO read/write rows without assuming equal device or
+  inode. It passes only the read endpoint as literal private FD 3 to an internal
+  invocation with the exact four-element inner argv above of
+  the same held and revalidated `t422-execute` image; the writer is never
+  inherited. The closed internal
+  environment carries
+  `PHEBS_T422_PARENT_LIVENESS_V1=<unpadded-base64url>` whose decoded canonical
+  JSON has ordered fields `schema`, `outer_pid`, `outer_start_token`,
+  `outer_started_unix_nano`, `outer_deadline_unix_nano`, `read_fd`,
+  `read_st_dev`, `read_st_ino`, `read_st_mode`, `write_st_dev`,
+  `write_st_ino`, `write_st_mode`, `t422_execute_canonical_path_sha256`,
+  `t422_execute_st_dev`, `t422_execute_st_ino`, `t422_execute_st_mode`,
+  `t422_execute_size`, `t422_execute_ctime_unix_nano`,
+  `t422_execute_image_sha256`, with schema
+  `t422-parent-liveness-binding-v1` and `read_fd` 3. Outer constructs this sole
+  inner environment value itself. Its canonical
+  bytes are at most 1,024; integer encoding is the same exact encoding specified
+  below, each `st_*` is the corresponding Darwin stat value, each full endpoint
+  mode contains `S_IFIFO`, and the tool fields are the outer's retained held
+  executable observation rather than caller selection.
+  `t422_execute_image_sha256` is the existing canonical executable-digest form:
+  exactly the seven ASCII bytes `sha256:` followed by 64 lowercase hexadecimal
+  bytes; bare hex, uppercase, another prefix or another length refuses at outer
+  construction and inner match. That identical 71-byte value is copied without
+  prefix stripping into the private liveness record, parent/self equality,
+  session binding, handoff and held freeze-tool identity; every decode and
+  comparison revalidates the same grammar. After Start it closes its read endpoint
+  and rechecks its sole writer. As its first clock read on internal-mode entry,
+  inner captures positive signed-64-bit `entry_now_unix_nano`. Before creating
+  an `os.File` or otherwise adopting raw FD 3, it uses
+  `unix.FcntlInt(F_GETFL)` to retain the current flags, requires read-only access,
+  calls `unix.FcntlInt(F_SETFL, flags|O_NONBLOCK)`, applies the already-used
+  `syscall.CloseOnExec`, then verifies with fresh `F_GETFL` and `F_GETFD` calls
+  that `O_NONBLOCK` and `FD_CLOEXEC` are both set and access remains read-only.
+  It Fstats and captures the raw read row without trusting the environment,
+  then calls `os.NewFile` once and Fstats that adopted file again, requiring
+  raw/adopted equality before starting the watcher; failure
+  closes raw FD 3 and refuses. This ordering lets Go adopt a nonblocking
+  descriptor into its runtime poller, so closing the adopted file interrupts a
+  blocked watcher Read.
+
+  Inner independently observes and matches the retained outer pid/start token.
+  Parse that Darwin start token in its exact canonical `Sec:Usec` grammar:
+  positive base-10 seconds, a colon, then base-10 microseconds in 0..999999;
+  each component has no sign or leading zero except the single digit `0` for a
+  zero microsecond value. Checked-compute
+  `parent_started_unix_nano = Sec*1,000,000,000 + Usec*1,000` and require
+  `parent_started_unix_nano <= outer_started_unix_nano <=
+  entry_now_unix_nano`. Require exact checked equality
+  `outer_deadline_unix_nano == outer_started_unix_nano +
+  64,800,000,000,000` and `entry_now_unix_nano <
+  outer_deadline_unix_nano`; overflow, parse failure or inequality refuses.
+  Recheck current time strictly before that deadline before any preparation
+  action. Thus even caller-crafted internal
+  mode is capped to at most the existing 18 hours from a time inside its live
+  parent's lifetime; it cannot extend that invocation's deadline, while a new
+  process in the same held signer namespace still meets the spent claims below.
+  No operational child
+  inherits either endpoint, no byte is ever written, and a byte read is a
+  protocol failure rather than data.
+
+  Inner first treats the one liveness environment value and selection argv as
+  untrusted bytes. Before relying on either, adopting any selected authority or
+  starting irreversible preparation, it derives the actual parent from native
+  process state and independently proves that live parent and itself are the
+  same protected held `t422-execute` executable image. Reuse the existing
+  T40.13 native-process and executable-image custody seams rather than adding a
+  helper or abstraction: obtain coherent parent/self PID, parent and start rows
+  with `ObserveProcessTreeRecords`, which supplies no executable path; then on
+  Darwin separately acquire `unix.SysctlRaw("kern.procargs2", pid)` for each
+  exact live PID. Read and require positive `kern.argmax <= 1,048,576`, bound
+  each raw result to that value, release the first before acquiring the second,
+  parse its native-endian positive 32-bit argc prefix and take the immediately
+  following nonempty executable-path bytes through their first NUL. Require at
+  most 1,023 bytes, absolute valid UTF-8 and no truncation, then canonicalize
+  each. After path
+  equality, open the one common path once with `OpenHostImage` and inspect/hash
+  it once with `DigestHostExecutable` under retained immutable parent/executor
+  tool custody. Parent path, self path, argv[0], frozen held tool path, regular
+  executable `st_dev`/`st_ino`/full `st_mode`/size/ctime, and the new common
+  canonical `sha256:<64-lowercase-hex>` digest equal to outer's independently
+  retained digest must all be equal and unchanged on a post-hash
+  path/FD recheck. Checked-convert common Darwin `st_ctimespec` to signed Unix
+  nanoseconds and require it strictly precede the authenticated parent start.
+  A missing/replaced path, denied/short/unterminated native result, malformed
+  argc, oversized result, ctime overflow/zero/future/equality, PID lifetime
+  change or metadata/digest disagreement refuses. Outer
+  retains its original held tool image FD and immutable-path custody through
+  inner join; inner retains its independently opened matching image FD through
+  direct AuthorA handoff. Only after this proof does inner match the captured
+  FD 3 row, exact parent pid/start identity, held-tool fields and the complete
+  canonical liveness record
+  before relying on any parent-created environment field; mismatch refuses.
+  It then requires exact inner argv cardinality/order, strict-decodes/canonical-
+  re-encodes and shape-validates the identical selection again, and copies no
+  identity/authority boolean from it. Using those selected strings, the existing constructors independently
+  inspect and hold the repository/source and all three commits, Go root, module
+  cache, protected Git image/resources, protected Surreal image and external
+  current-uid mode-0700 `signer_control_root`; their actual canonical paths,
+  types, device/inodes, digests, Git ancestry/trees and retained custody must
+  succeed before any profile or freeze authority. Their operational parent and
+  every pressure/workspace/output path remain executor-created rather than
+  selected. Inner deletes the authenticated liveness environment value before
+  constructor work, and every constructor child uses its existing explicit
+  closed environment. After every actual input/root/tool custody is successfully
+  constructed and held, inner releases transient decoded/canonical selection
+  buffers; the selection argv string necessarily remains in each outer/inner
+  process argv until that process exits. Only independently held outputs and
+  separately retained commit-role values continue.
+
+  Inner Start uses the existing `Setsid` custody. Inner independently requires
+  `getpid() == getsid(0) == getpgrp()` and requires the live parent's positive
+  session and process-group IDs both to differ from the inner's; the parent is
+  outside the new private session/group. Outer retains the exact Start
+  pid, observes bounded native outer/inner rows with the existing in-process
+  T40.13 collector, and requires inner parent pid to equal outer pid and inner
+  pid, `getsid(inner_pid)` and `getpgid(inner_pid)` to be the same positive
+  value. Outer and inner independently read those facts from the same live
+  kernel child identified by the successful Start pid; neither receives an
+  identity assertion from the other, and no post-Start identity IPC is needed.
+  Native start tokens bind lifetimes only; they are never called image
+  identity. A direct inner invocation has a shell or other wrong executable as
+  its immediate parent; a wrapper/helper likewise interposes its own image, so
+  neither can satisfy this parent/self image equality, FD3/liveness and
+  private-session conjunction. No helper child is permitted to repair it. One
+  inner liveness goroutine blocks on the adopted FD 3: EOF before local
+  completion cancels the inner context and cleanup, any byte refuses, while
+  normal completion marks local shutdown, closes the adopted file and joins
+  the watcher even while outer deliberately retains its writer. A close-caused
+  read error after local shutdown is the expected joined result; any other
+  read/error result refuses.
+  Outer retains its sole writer until the inner root/session finishes or outer
+  cancellation/error begins. Outer cancellation/error closes that writer once,
+  waits only within the still-live outer deadline, then performs the same
+  bounded sweep. On inner error, cancellation or hard death, outer performs the existing exact
+  root Wait and `KillPrivateProcessSession`/`WaitPrivateProcessSession` sweep
+  using the inner pid/session identity. If outer dies first, kernel writer EOF
+  makes inner cancel, clean every owned resource/session and exit; that path
+  cannot report ceremony success. Outer joins normal inner exit and proves its
+  private session empty before rechecking/closing its writer and releasing custody.
+
+  Before any signer-root mutation, inner creates and holds its existing short,
+  executor-created current-uid mode-0700 operational root outside
+  `signer_control_root`, derives the exact authorization pathname
+  `<held-executor-operational-root>/auth.sock`, and requires its canonical UTF-8
+  bytes plus terminal NUL to fit Darwin `sockaddr_un`; failure refuses before
+  an ID claim can be created. After the independently claimed signer exists,
+  candidate assembly, signing and the first successful verify, inner creates
+  exactly one Unix stream socket at that create-exclusive pathname. The held
+  operational parent is unchanged; the socket is not registry authority and no
+  socket or socket basename exists under the signer root. Under retained umask 077, require
+  the name absent, bind once without unlinking a preexisting name, change the
+  socket inode to mode 0600 before accepting, and require current uid, socket
+  type and exact full mode `S_IFSOCK|0600`. The canonical absolute pathname is
+  valid UTF-8, contains no NUL and is at most 103 bytes so Darwin's 104-byte
+  `sun_path` retains its terminal NUL. Hold/recheck the parent and socket rows
+  around a close-on-exec listener, `listen(2)` with backlog 1 and before
+  guarded unlink. Darwin has no `accept4`: immediately apply the already-used
+  `syscall.CloseOnExec` to the accepted descriptor and verify `FD_CLOEXEC`
+  with `unix.FcntlInt(F_GETFD)` before validation; no child Start is permitted
+  between accept and that verification. Require both descriptors to remain
+  close-on-exec, so neither reaches an operational child. Cleanup
+  unlinks only the still-matching socket device/inode/type/mode through the held
+  operational parent and syncs that parent. This uses the already-required
+  `golang.org/x/sys/unix` raw Unix-socket/syscall surface; it adds no dependency
+  or helper child.
+
+  Only then build canonical private
+  `executionAuthorizationSessionBindingPreimageV1` with exactly these ordered
+  fields: `schema`, `ceremony_id`, `freeze_sha256`, `outer_pid`,
+  `outer_start_token`, `inner_pid`, `inner_parent_pid`, `inner_start_token`,
+  `inner_session_id`, `inner_process_group_id`,
+  `t422_execute_canonical_path_sha256`, `t422_execute_st_dev`,
+  `t422_execute_st_ino`, `t422_execute_st_mode`, `t422_execute_size`,
+  `t422_execute_ctime_unix_nano`,
+  `t422_execute_image_sha256`, `listener_parent_st_dev`,
+  `listener_parent_st_ino`, `listener_st_dev`, `listener_st_ino`,
+  `listener_st_mode`, `socket_path_sha256`, `outer_deadline_unix_nano`,
+  `final_admission_deadline_unix_nano`; schema is exactly
+  `t422-execution-authorization-session-binding-v1`. String fields use the
+  existing canonical JSON escaping; hashes are lowercase 64-hex SHA-256 except
+  `t422_execute_image_sha256`, which is exactly `sha256:` plus 64 lowercase hex, and
+  start tokens are the exact nonempty native UTF-8 strings, each capped at 64
+  bytes as in the existing process gauge. PID/parent/session/
+  process-group fields are positive platform integers; every `st_dev` and `st_ino`
+  are nonnegative values of the corresponding Darwin `stat` members;
+  `listener_st_mode` is the nonnegative full `st_mode` value, including
+  `S_IFSOCK` and permission bits rather than permissions alone; deadline fields
+  are positive signed-64-bit Unix nanoseconds. Every integer is emitted as an
+  unquoted base-10 JSON integer with no sign, fraction, exponent or leading
+  zero, and no field is omitted. `t422_execute_canonical_path_sha256` hashes the
+  exact canonical UTF-8 path bytes without terminal NUL; the five tool metadata
+  fields are the common parent/self/held-image regular-file row proved above,
+  with ctime encoded as its checked Darwin `st_ctimespec` Unix nanoseconds.
+  `socket_path_sha256` hashes those exact absolute UTF-8 pathname bytes without
+  a terminal NUL. The preimage is capped at 4,096 bytes and
+  `session_binding_sha256` is its canonical SHA-256. The held
+  `t422_execute_image_sha256` comes from the exact `t422-execute` freeze-tool
+  observation and revalidation and equals the inner's independently recomputed
+  common parent/self image hash, never a name or digest from
+  `NativeProcessRecord`.
+
+  Authorization remains 1..256-byte canonical JSON with ordered string fields
+  `schema`, `freeze_sha256`, `session_binding_sha256`, schema exactly
+  `t422-execution-authorization-v1`. Canonical private
+  `executionAuthorizationHandoffV1` has exactly these ordered fields: `schema`,
+  `socket_path`, `authorization_json`, `authorization_sha256`,
+  `payload_base64url`, `session_binding_sha256`, `freeze_sha256`,
+  `t422_execute_image_sha256`, `outer_deadline_unix_nano`,
+  `final_admission_deadline_unix_nano`, `client_argv`, `client_argv_sha256`,
+  `rendered_client_command`, `rendered_client_command_sha256`; schema is
+  `t422-execution-authorization-handoff-v1`. `authorization_json` is the exact
+  canonical authorization bytes encoded as one JSON string;
+  `authorization_sha256`, session/freeze and both client digests are lowercase
+  64-hex SHA-256, while the tool image retains exact `sha256:` plus 64 lowercase
+  hex. `payload_base64url` is unpadded RFC 4648 base64url of those exact
+  authorization bytes. Deadlines use the unquoted positive base-10 integer
+  grammar above. `client_argv` is the exact six-string JSON array
+  `[<held-t422-execute-path>, authorize-t422, --socket, <socket-path>,
+  --payload-base64url, <payload_base64url>]`; its digest hashes that array's
+  canonical bytes. The rendered command single-quotes every argv element,
+  replaces each embedded single quote by exact ASCII `'\''`, joins with one
+  ASCII space and has no LF; its digest hashes those exact UTF-8 bytes.
+
+  Canonical handoff JSON uses the existing `encoding/json.Marshal` escaping:
+  quote and backslash use their two-byte escapes; U+0001..U+001F, `<`, `>` and
+  `&` use lowercase six-byte `\u00xx`; U+2028/U+2029 use `\u2028`/`\u2029`;
+  NUL is already forbidden and other valid UTF-8 remains unchanged. Frame bytes
+  are exactly that canonical object followed by one LF,
+  with no BOM, prefix, second line or trailing byte; private
+  `handoff_frame_sha256` is lowercase 64-hex SHA-256 of the complete frame and
+  is returned beside, not recursively inside, the frame.
+
+  Before any ceremony claim or signer-root mutation, build a complete canonical
+  maximum handoff witness using the already-known exact execute/socket paths,
+  tool digest and deadlines plus grammar-valid fixed-length placeholder
+  session/freeze hashes and their resulting authorization/payload/client
+  digests. Canonical-decode/re-encode it byte-exactly and hash its complete
+  one-LF frame. Checked unsigned arithmetic accounts for every field literal,
+  punctuation byte, actual UTF-8 JSON escape expansion, authorization string,
+  `RawURLEncoding.EncodedLen`, argv array, POSIX quote expansion, command JSON
+  re-escaping and final LF; overflow refuses. Set
+  `projected_handoff_frame_bytes` to that exact length and require it at most
+  16,384 before the claim. Sixteen KiB is the smallest fixed power-of-two above
+  the ordinary maximum-shape witness without path escape amplification. Actual
+  path expansion is included before the claim; an escape-heavy selection that
+  does not fit is rejected input, not a larger operational allowance. The
+  placeholder witness/hash supplies no key, socket inode, freeze/session digest
+  or authority prediction.
+
+  After the actual values exist, build the same schema once, recompute its exact
+  checked actual bound, strict-decode/canonical-re-encode and require byte
+  equality. Require its framed length to equal that actual bound, be no greater
+  than `projected_handoff_frame_bytes`, and remain at most 16,384; then hash and
+  emit it once. No truncation, alternate encoder or post-claim cap discovery is
+  allowed. Independently parse the rendered command back to exact `client_argv`
+  before emission.
+  The client CLI requires precisely those five arguments after argv[0], decodes
+  and canonical-round-trips the payload, connects only to that socket, writes
+  the decoded authorization bytes plus one LF, shuts down its write side and
+  closes without reading a response. `authorize-t422` has only its existing
+  socket/payload argv and receives neither selection nor liveness argument;
+  environment supplies no authority. It releases its decoded buffer
+  and FD and receives/retains no server capability. Ben runs this protected same-image subcommand from a second terminal;
+  the user shell and both terminals are outside ceremony custody, outer/inner
+  read no tty input, and the server never interprets command or payload as shell
+  syntax. The peer protocol cannot prove the external client's executable
+  image: reuse of the held path is a required operator procedure, not a claimed
+  ceremony-owned child, native descendant or image-attestation result.
+
+  Inner sets the one listener/connection deadline to
+  `final_admission_deadline`. One charged context-cancel goroutine closes the
+  listener or accepted connection currently held, so cancellation and parent-
+  liveness loss interrupt blocking I/O without polling. The first accepted
+  connection atomically spends capacity and closes/unlinks the listener before
+  peer or message validation. An invalid first refuses the ceremony; closure
+  refuses or resets every queued/extra connection and no retry exists. Reuse the existing Darwin
+  peer-check pattern: require
+  `unix.GetsockoptInt(fd, unix.SOL_SOCKET, unix.SO_TYPE) == unix.SOCK_STREAM`,
+  `unix.Getpeername(fd)` to be `*unix.SockaddrUnix`, and
+  `unix.GetsockoptInt(fd, unix.SOL_LOCAL, unix.LOCAL_PEERPID)` to return a
+  positive peer pid, then require
+  `unix.GetsockoptXucred(fd, unix.SOL_LOCAL, unix.LOCAL_PEERCRED)` to succeed,
+  return `Xucred.Version == 0` (`XUCRED_VERSION`) and current effective uid.
+  Unlike the inherited-bootstrap case, the external peer pid is not required
+  to equal inner's parent; it is retained only as private connection evidence
+  and is not an image or custody claim. Unavailable or malformed pid/
+  credentials refuse. Read at most 4,098 bytes:
+  require 1..4,096 message bytes, exactly one final LF and then EOF, reject EOF
+  before LF, overrun, bytes after LF, delayed EOF, unknown/noncanonical JSON or
+  any authorization mismatch. Recheck time strictly before final admission,
+  close the accepted connection and join the cancel goroutine before complete
+  checkout. Restart lacks the spent in-memory capacity and, within the same
+  held signer namespace, meets the existing ceremony-ID/fingerprint claims; it
+  may not recreate or rehydrate a listener.
+
+  Independent signer authority lives under the selected exact canonical
+  `signer_control_root`, held current-uid, directory, full mode
+  `S_IFDIR|0700`, outside pressure/return custody. That exact path plus held
+  `st_dev`, `st_ino` and full `st_mode`—not a global machine/user concept—is
+  the complete registry namespace. Canonical private
+  `signerNamespaceBindingPreimageV1` has ordered fields `schema`,
+  `signer_control_root`, `signer_control_root_st_dev`,
+  `signer_control_root_st_ino`, `signer_control_root_st_mode`, schema exactly
+  `t422-signer-namespace-binding-v1`; integers use the session-binding encoding,
+  path bytes are the validated selection bytes, canonical bytes cap at 8 KiB,
+  and `signer_namespace_sha256` is their SHA-256. Hold/recheck the exact path and
+  inode and recompute that digest at signer, profile, post-authorization and
+  final receipt-binding boundaries.
+
+  Every V3 ceremony-ID/fingerprint claim includes that namespace digest. The
+  signed V3 ExecutionFreeze, its ExecutionProfile and final receipt each carry
+  exact lowercase-64-hex `signer_namespace_sha256` and require equality to the
+  independently revalidated root; V1/V2 fields and bytes do not change. This
+  cryptographically binds the root path/identity preimage without publishing
+  it as global uniqueness evidence. Registry layout is flat: no ceremony or
+  fingerprint subdirectory may be created. Define `id_sha256` as lowercase hex
+  SHA-256 of the exact canonical ceremony-ID UTF-8 bytes. Before the ceremony
+  claim, derive the exact same-root exclusive hidden temporary basenames
+  `.t422-keygen-<id_sha256>.key.tmp` and
+  `.t422-keygen-<id_sha256>.key.tmp.pub`; the six ID-derived non-claim/final
+  basenames `signer-<id_sha256>.key`, `signer-<id_sha256>.key.pub`,
+  `allowed-signers-<id_sha256>.txt`, `execution-freeze-<id_sha256>.json`,
+  `execution-freeze-<id_sha256>.sig.stage`,
+  `execution-freeze-<id_sha256>.sig` plus claim basename
+  `ceremony-<id_sha256>.claim.json`; and the maximum public-derived templates
+  `canonical-public-<64-lowercase-hex>.pub` and
+  `fingerprint-<64-lowercase-hex>.claim.json`. Every component is fixed ASCII
+  within `NAME_MAX`; join each temporary, final or template maximum to the held
+  signer root and require a clean absolute UTF-8/no-NUL path at most 1,023
+  bytes. Complete the 103-byte operational-root `auth.sock` preflight first.
+  Any long root, join change, alias, existing temporary or known ID-derived
+  non-claim destination refuses before the ceremony claim.
+
+  Exclusively create `ceremony-<id_sha256>.claim.json` mode 0600, write its
+  at-most-1-KiB canonical bytes, fsync the file, then fsync the signer root.
+  Preexistence is a collision and retires the ID in this namespace only. From
+  that successful create onward the ID is burned: any later key promotion,
+  fingerprint claim, candidate, signing, verification, authorization or
+  admission failure retains the claim and may not retry that ID in this root.
+
+  Set umask 077 and, after a fresh absence/revalidated-root check, run one
+  no-retry held `/usr/bin/ssh-keygen -q -t ed25519 -N '' -C '' -f
+  <signer-control-root>/.t422-keygen-<id_sha256>.key.tmp`. The successful claim
+  reserves those exact hidden single-use names for this executor; any
+  preexisting or newly colliding temp refuses. Require current uid, regular
+  non-link, link count one and mode 0600 for both staged private and generated-
+  public files, each 1..1,024 bytes; fsync both held files then the signer root.
+  Local macOS `/usr/bin/ssh-keygen` behavior under umask 077 was checked: both
+  files are mode 0600; empty comment emits one trailing space before LF in the
+  generated `.pub`, while `-y` emits the two-field key without that space.
+  Require the generated bytes to be the canonical public key without LF,
+  followed by exactly one ASCII space and one LF; define canonical public bytes
+  solely as one no-retry `-y -f <staged-private-key>` stdout value
+  `ssh-ed25519 <base64>\n`, at most 1,024 bytes. Independently decode its RFC4253
+  blob, compute the SHA256-base64-no-padding fingerprint, and define
+  `public_sha256` as lowercase hex SHA-256 of the exact canonical public-key
+  bytes including LF. Substitute that digest into the two preflighted template
+  names, repeat exact path/absence/root checks and refuse disagreement.
+
+  A keygen/derive failure after the claim always leaves the ID burned. If both
+  temp paths are provably absent, record absence; if exact matching temp inodes
+  are held, joined teardown may guarded-unlink only those inodes and fsync the
+  signer root while retaining the claim. Any identity, close, unlink or sync
+  uncertainty retains failed key custody and refuses rather than claiming
+  cleanup. A promoted final key/claim is never teardown-cleaned.
+
+  Next exclusively create `fingerprint-<public_sha256>.claim.json` mode 0600,
+  write its at-most-4-KiB canonical bytes, fsync it and then the root; its
+  collision rejects same-public-key reuse in this namespace. Its ordered JSON fields are
+  `schema`, `signer_namespace_sha256`, `ceremony_id`,
+  `canonical_public_key`, `signer_fingerprint`, with schema exactly
+  `t422-signer-fingerprint-claim-v1`. The ceremony-ID
+  claim has ordered canonical JSON fields `schema`,
+  `signer_namespace_sha256`, `ceremony_id`, schema
+  exactly `t422-signer-ceremony-id-claim-v1`. Existing
+  claim, ID/fingerprint disagreement or any generated/derived key
+  mismatch refuses; the ID and fingerprint registries are independent retained
+  same-namespace authority, never inferred from the candidate. Selecting a
+  different canonical held root/path/inode creates a distinct namespace whose
+  empty claims cannot prove the ID or fingerprint was globally unused. No
+  global, per-user, per-host or cross-root uniqueness claim is made. Promote
+  staged private then staged generated-public to their exact flat final names
+  with separate Darwin `renameatx_np(..., RENAME_EXCL)` operations through the
+  held signer-root descriptor, checking temp/final identity and syncing that
+  root after each, requiring its source temp absent. Temp and
+  final names share the one held directory/device, so no cross-directory move
+  or `EXDEV` path exists; a
+  collision or partial pair refuses and leaves all already-promoted/claimed
+  registry state retained. Exclusively create held mode-0600 canonical-public
+  and one-line allowlist files at their exact names, syncing each file then the
+  root, each 1..1,024 bytes;
+  the allowlist is exactly
+  `phebs-t422-ceremony <canonical-public-key-without-LF>\n`. Recheck parent and
+  every held inode/path/mode/link/size before and after each signer Start/Wait.
+  Only after keygen, the one derive, independent fingerprint calculation,
+  exclusive fingerprint claim, canonical-public file and allowlist have all
+  succeeded and been rechecked may inner assemble, create-exclusively encode,
+  hash, source-scan and validate the candidate once. The private key never
+  enters the candidate, handoff, logs or pressure roots.
+
+  The candidate is create-exclusive at
+  `execution-freeze-<id_sha256>.json`, mode 0600, regular, non-link,
+  link-count one and at most 65,536 bytes; sync it then the signer root before
+  signing. Sign without a message pathname: run exactly one no-retry
+  `ssh-keygen -Y sign -f <private-key> -n phebs-t422-freeze`, feed the exact
+  at-most-64-KiB canonical candidate to stdin, close stdin, capture stdout
+  separately up to 4,096 bytes plus one overflow sentinel, and require stderr
+  within the existing bounded command-capture allowance. This stdin/stdout
+  form is supported by the installed OpenSSH CLI and prevents implicit
+  `<candidate>.sig` path creation. Write nonempty signature stdout once to a
+  create-exclusive mode-0600
+  `execution-freeze-<id_sha256>.sig.stage`, sync it then the signer root, and
+  perform the first no-retry `ssh-keygen` verification with exact
+  argv `[-Y, verify, -f, <allowlist>, -I, phebs-t422-ceremony, -n,
+  phebs-t422-freeze, -s, <held-stage>]` and exact candidate stdin. Only
+  successful verification permits an
+  exclusive no-overwrite same-directory inode promotion with Darwin
+  `renameatx_np(..., RENAME_EXCL)` through the held signer-root descriptor to
+  `execution-freeze-<id_sha256>.sig`; sync the signer root, hold/recheck the promoted
+  inode, require the stage absent and never overwrite or retry. The second verification after resume
+  uses that same promoted signature, candidate bytes, namespace, identity and
+  allowlist. All signer stdout/stderr buffers are released after checked
+  staging; private bytes are never copied into them.
+
+  The candidate and final admission contain the exact actual eleven-row freeze
+  inventory matching `ToolPolicy.RequiredTools`: `buf`, `git`, `go`, `hdiutil`, `phebs`,
+  `phebs-focused-index`, `ssh-keygen`, `surreal`, `t422-author`,
+  `t422-execute`, `zoekt-git-index`. No `/bin/sh` image is held or admitted.
+  Outer, inner and the procedural external client all name the same held
+  `t422-execute` row; that does not duplicate its inventory entry. Post-resume complete checkout returns the
+  already specified private `CheckoutAdmissionBinding`, then rechecks those
+  eleven rows, the external signer inputs, signature and every live resource.
+  The unchanged `BindExecutionFreezeForReceipt` performs the one final full
+  validator/binder call. Under the still-live `final_admission_deadline`, its success is
+  followed by one nonfailing in-process transition which requires current time
+  strictly before that deadline,
+  consumes ordinal 1 and transfers the binding/advanced allocator directly to
+  AuthorA; expiry/cancellation before that transition issues neither ordinal
+  nor AuthorA, and expiry afterward invokes ordinary bounded teardown.
+
+  Cost replaces the earlier terminal and shell shorthand. Outside the already
+  charged operator-launched outer process, it adds one same-image inner
+  `t422-execute` Start/sole Wait/private Setsid session; one two-endpoint parent-
+  liveness pipe and one blocking EOF watcher goroutine; one Unix listener and,
+  after the listener closes, one accepted connection; one context-cancel closer
+  goroutine; one absolute listener/connection deadline; one capacity-one accept;
+  one at-most-4,098-byte message buffer; and one at-most-16,384-byte canonical
+  handoff frame/client command. Before the claim, handoff projection adds one
+  checked length/escape/base64/POSIX-quote arithmetic pass, one complete
+  maximum-witness canonical encode/decode/re-encode equality pass, one frame
+  SHA-256 and at most one 16,384-byte witness buffer; that buffer is released
+  after retaining only the projected byte count and digest. Final handoff adds
+  the same checked arithmetic and canonical round trip, one frame SHA-256 and
+  one at-most-16,384-byte output buffer; its authorization, payload, canonical
+  argv and rendered command are contained in that charge rather than separate
+  unbounded copies. It also adds one create-exclusive socket inode/path under the held
+  operational root plus flat held private/generated-public/canonical-public/
+  allowlist/candidate/staged-signature/promoted-signature custody and two small
+  exclusive registry records under the separately held signer root; and five serial
+  signer children (keygen, derive, sign, first verify, second verify), each with
+  existing held-image checks, bounded capture, deadline and join. At each of
+  the two outer/inner argv-selection validation boundaries, transport
+  performs one at-most-21,846-byte base64 decode/encode pair, one strict
+  at-most-16-KiB canonical JSON decode/encode/equality pass, six lexical path
+  validations, three commit checks, one ceremony-ID check and one fixed role-
+  alias matrix. Outer makes one bounded encoded-string copy into child argv;
+  both process argvs retain that string until exit, while transient decoded/
+  canonical buffers are released after validation/custody construction. The
+  inner environment contains only the separately charged liveness value and
+  the external client receives no selection argument. These checks perform no filesystem I/O or
+  hash and do not replace the existing independently charged custody,
+  checkout, tool-image or signer-root inspections. Liveness
+  binding performs six endpoint Fstats (both outer originals, raw inner read
+  after exec and adopted read before watcher, outer writer after Start and
+  before close); two explicit `F_GETFL`, one `F_SETFL`, one `CloseOnExec`, one
+  `F_GETFD`, and one `os.NewFile` adoption with its current internal third
+  `F_GETFL` used to recognize nonblocking state; one entry clock read and one pre-preparation
+  deadline recheck; one canonical endpoint encode/base64url decode with the
+  added outer-start integer; one bounded Darwin `Sec:Usec` parse plus two
+  checked multiplies and two checked adds; and one bounded native outer/inner
+  observation plus inner and parent `getsid`/`getpgid`. Before these bytes may
+  convey trust, same-image admission adds one `kern.argmax` read and two sequential
+  `kern.procargs2` acquisitions capped at 1,048,576 bytes with only one raw
+  buffer live at once, two native-endian argc/NUL-path parses, two path
+  canonicalizations, one `OpenHostImage` descriptor retained through handoff,
+  one additional at-most-256-MiB `DigestHostExecutable` read/hash, its existing
+  pre/open/post path and FD metadata observations, one checked ctime conversion/
+  parent-start comparison, comparison with the outer's
+  already charged held path/FD/digest, and final path/FD rechecks. Listener custody adds bounded held-
+  parent/socket checks at absent, bound, mode, listen, accept and unlink seams;
+  one accepted-descriptor `CloseOnExec` plus listener/connection `F_GETFD`
+  checks; one `SO_TYPE`/`Getpeername`/`LOCAL_PEERPID`/`LOCAL_PEERCRED` check set; one
+  parent sync; and short close-state locking for
+  main/cancel ownership. Signer namespace binding adds four at-most-8-KiB
+  canonical preimage encodes/SHA-256 passes at signer, profile, post-auth and
+  receipt-binding boundaries, plus one fixed digest field in each claim,
+  signed V3 freeze/profile and receipt and existing root path/stat rechecks; it
+  performs no cross-root scan. Signer custody adds one umask-077 set and restore,
+  two same-root hidden-temp absence checks, two staged-key file syncs and one
+  signer-root stage sync; `id_sha256` and `public_sha256` each add one bounded
+  hash. Eleven temporary/final basename component/join/`PATH_MAX` validations
+  and the earlier socket `sun_path` validation precede the claim; eight temp/
+  known-ID non-claim absence checks precede it and two public-derived absence
+  checks follow derivation. Registry durability adds six file syncs and nine
+  additional signer-root syncs across two claims,
+  two key promotions, canonical public, allowlist, candidate, signature stage
+  and signature promotion; every collision stops at its named exclusive seam.
+  A failed staged-key path adds at most two guarded matching-inode unlinks and
+  one signer-root sync, or retains custody without that cleanup if uncertain.
+  Retained candidate/signature/public/allowlist buffers are capped at 65,536/4,096/
+  1,024/1,024 bytes respectively. Claim-name hashing is exactly the two
+  `id_sha256`/`public_sha256` hashes above; fingerprint calculation remains its
+  separate RFC4253 digest.
+  At both actual `issueProfile` and final resource revalidation, the profile-r2
+  path performs two complete `bindRehearsal` predicates (pre and post), three
+  complete `v.check` passes including the ballast sample, and separately
+  re-encodes/hashes actual Commands, pressure and all nine roots: six preimage
+  encodes/hashes across the two boundaries, with each command digest reused for
+  its two profile fields. Each of create, attach and detach also immediately
+  rechecks root identity, HOME/TMP identity, its actual recipe and held hdiutil
+  identity. Pre-sign candidate validation runs
+  `ValidateFrozenPlan`, hashes canonical tools and plan, and runs the existing
+  profile reconstruction hashes (ProcessAccounting both where current helpers
+  require it, frozen Commands, config projection, epoch-config vector,
+  PhaseOrder, PhaseStates, PhaseDeadlines, FailurePoints, profile and invocation
+  tools), then encodes/hashes and source-scans the candidate once. Its canonical
+  bytes/digest are reused for sign, both verifies, the session binding and
+  handoff. Final `BindExecutionFreezeForReceipt` deliberately repeats full
+  plan/tool/profile/freeze validation after checkout, then hashes receipt plan,
+  freeze and admission and deep-clones the bounded freeze/profile/tool/pressure
+  slices. Fingerprint computation, session-binding
+  SHA, authorization SHA and socket-path SHA are additional fixed hashes;
+  client-argv/command hashes and the bounded authorization base64url encode/
+  decode are included in the two handoff passes charged above.
+  Resume also pays the existing complete 33-Git/35-image-hash checkout; the
+  final profile-r2 work above replaces the earlier one-resource-predicate-repeat
+  shorthand. The second-terminal authorization invocation is one external
+  same-image operator process with one connect/write/shutdown/close and one
+  at-most-256-byte decoded payload buffer; it is not
+  an owned ceremony child, dispatch attempt, phase process, signer child or
+  native-descendant/image-attestation claim and consumes no frozen per-phase
+  child slot. The one inner Start is a pre-AuthorA admission launch charged to
+  the existing dispatch/source-site inventory, not a ceremony phase-role
+  attempt; all signer and checkout children retain their existing individual
+  command/deadline bounds. There is no held shell, tty read, polling loop, new dependency,
+  store call, source-content copy,
+  new frozen number, ordinary request/tick/startup/publication work or public
+  V1/V2 API/bytes is added.
+
+  Required tests use a fake clock to expire at every preparation/admission seam
+  and prove outer anchoring before pipe/inner Start, exact clipping, no post-
+  frame escape or AuthorA reset, and later phases clipped to outer rather than
+  final-admission time. Canonical tests pin `outer_started_unix_nano`, exact
+  `Sec:Usec` grammar/unit conversion, checked equality to the 64,800,000-ms
+  deadline and every future/start/expiry/overflow/direct-inner refusal. Native
+  tests pin the two bounded `kern.procargs2` argc/path observations and common held path/FD/
+  metadata/digest, exact outer/inner pid/parent/start/Setsid/session/pgrp rows,
+  inner as session/group leader and parent outside both. A wrong executable
+  parent, replaced parent/self path or image, direct inner, interposed helper,
+  malformed argc, missing NUL, over-`kern.argmax`, truncated/denied native path,
+  image ctime at/after parent start and post-hash drift each refuse before liveness,
+  selection or preparation authority. Also prove closed stdin, sole pipe endpoints,
+  no writes/inheritance, outer-EOF self-cleanup, inner hard-death outer sweep and
+  normal joins. An exact native regression holds the outer writer open, blocks
+  the normal inner watcher Read, closes the adopted nonblocking read file and
+  requires the watcher to join; missing `O_NONBLOCK`, `FD_CLOEXEC`, flag/read-
+  mode drift, adoption failure or any child Start before verification refuses.
+  Golden tests pin complete canonical liveness, session (including tool path/
+  metadata) and
+  authorization bytes/digests, integer encodings, stat meanings, socket-path
+  digest, base64url and client argv/rendering. Handoff goldens additionally pin
+  its fourteen-field order, exact JSON/string escaping and one-LF framing,
+  every digest's input and encoding, canonical argv-array hash and POSIX command
+  hash/parse-back equality. Cover a maximum normal input, a legal path rich in
+  quote, control, `<`, `>`, `&`, U+2028 and U+2029 expansion, an exact 16,384-
+  byte frame and a one-byte-over refusal, plus every checked add/multiply and
+  `RawURLEncoding.EncodedLen` overflow. Prove complete witness construction,
+  canonical round trip, checked projection and cap refusal all precede ceremony
+  claim/signer-root mutation; the witness never predicts key/socket inode or
+  actual session/freeze authority; and final bytes equal their recomputed
+  actual bound and do not exceed either the retained projection or 16,384.
+  Reject alternate escaping/framing, projection drift, truncation and any
+  encoder/output allocation before the preclaim cap passes. Real Darwin Unix-socket tests
+  cover the preflighted short operational-root `auth.sock` path, prove no
+  signer-root socket, 0700 parent, exact `S_IFSOCK|0600`, guarded
+  unlink/sync, listener/accepted `FD_CLOEXEC` and no intervening child Start,
+  Unix-stream peer shape, positive `LOCAL_PEERPID`, current-uid
+  `LOCAL_PEERCRED` version,
+  unavailable/wrong peer, invalid-first/extra-connection spending, EOF-before-
+  LF, delayed EOF, trailing, overflow, noncanonical/mismatch, cancellation
+  close and expiry with no poll; prove listener/connection/cancel-goroutine
+  closure before checkout and no restart/rehydration. Prove neither outer nor
+  inner reads a tty, server bytes are never shell-parsed, and the external same-
+  image client is procedural but not claimed as owned/attested process evidence.
+  Selection goldens pin field order and exact canonical/base64 round trip;
+  reject missing/duplicate/unknown/mutated fields, padded/noncanonical/invalid
+  base64, empty/oversized bytes, every commit grammar mutation, ceremony-ID
+  mutation, relative/unclean/non-UTF-8/NUL/PATH_MAX path, each directory/
+  binary role alias, missing/extra/reordered/duplicate selection argv,
+  outer-to-inner string drift,
+  an alternative bool/rehearsal/stdin/file/default and any selection-only
+  authority. Prove constructors independently reject source/commit/Go/module/
+  Git/Surreal/signer-root drift, liveness is the sole inner environment entry
+  and reaches no child, client mode receives no selection/liveness argument, and the
+  later shell-custody row contributes only signer custody and zero shell work.
+  Pin namespace preimage/claim/freeze/profile/receipt digest equality and every
+  path/inode/mode replacement; prove same-root ID/fingerprint reuse refuses,
+  while a different held root is a distinct namespace and supports no global,
+  per-user, per-host or cross-root unused claim.
+  Assert operational-root socket preflight and `NAME_MAX`/`PATH_MAX`
+  validation of two hidden temp plus nine maximum flat final basenames precede
+  the ceremony claim, then claim precedes keygen/derive; cover each one-byte fit boundary, long signer
+  root, exact existing destination, ID-claim and public-key-claim collisions,
+  no subdirectory, same signer-root device/no-`EXDEV`, temp symlink/type/mode,
+  exact absent/guarded-unlink/retained-uncertainty cleanup, and every file/root
+  sync order. Prove a signing
+  failure after ceremony-claim sync leaves that ID burned in this root. Assert
+  fingerprint claim precedes candidate assembly. Run the
+  actual installed `ssh-keygen` stdin-sign/stdout-signature and verify flow;
+  reject key-path and same-root ID/fingerprint reuse, exact `id_sha256`/
+  `public_sha256` names, partial
+  keygen, umask-077 mode 0600 for both generated files, every mode/link/uid/
+  size/output overflow, implicit signature-file creation and promotion
+  overwrite; assert at each profile-r2 boundary two bind predicates, three
+  `v.check` passes, one ballast sample and three hashes plus all three pressure actions'
+  immediate rechecks; prove eleven ordered freeze rows with no held shell; and
+  reject bare/uppercase/wrong-prefix/wrong-length executable digests at outer,
+  inner, session binding and handoff; retain all earlier candidate-nonauthority, complete-checkout, second-verify,
+  final-resource, ordinal, direct-handoff and V1/V2 byte-preservation cases.
+  This correction authorizes implementation but claims no generated key,
+  signature, live session, gate, freeze or ceremony result.
+
 ### Two-track execution of the freeze plan (2026-09-07)
 
 Ben reaffirmed orchestration through freeze with two implementation tracks and
@@ -386,7 +1206,8 @@ Each implementation slice reuses the existing controls and states its exact
 exit criteria before a bounded native confirmation. Complete phase measurements
 and failed-prefix retention must accompany the eventual full executor; passing
 authority observations do not supply missing work measurements. After the two
-tracks converge, complete the real twelve-tool admission and signed launcher,
+tracks converge, complete the real eleven-row freeze-tool admission and
+same-image signed launcher,
 T42.2n exact-source acceptance, then T42.2o canonical V3 seal, reviewed
 integration, exact-main host/tool/profile admission and authenticated freeze.
 Stop with the exact invocation and custody/expiry handoff; ceremony execution
@@ -935,6 +1756,10 @@ walk, child, retry, deadline or ordinary runtime work.
 
 | Area | Decision | Escape hatch |
 |---|---|---|
+| 2026-09-12 — T42.2l complete profile-custody correction cost | At profile issue and final handoff, revalidate the borrowed signer image and both required mounted Buf/focused images through their existing custody APIs; detached observations alone are insufficient. | Each boundary adds one signer `Check` (held/path stat, symlink resolution and read-only-volume check) and two input-custody `Check` calls (bounded canonical-path, held/path metadata and volume checks), with no content hash, scan, FD, child or allocation proportional to repository size. |
+| 2026-09-12 — T42.2l complete profile-custody and inspection correction | The complete prospective V3 profile issuer requires both already reference-admitted Buf/focused holders and the one borrowed `ssh-keygen` holder, rechecking each through existing custody. Scoped pre-issuer APIs may still omit Buf/focused, but omission cannot issue or revalidate a complete profile. The superseded shell is never held or observed. In-process shallow copies of either private capability share its same synchronized spend-once state; they cannot duplicate authority, serialize, reload or reconstruct it. Joined inspection evidence requires `accepted_reports == next_ordinal - first_ordinal`, and every accepted final ordinal lies inside that exact span, so no consumed ordinal can lack its corresponding accepted report. | Removing shell custody removes its held FD, image acquisition/hash and metadata checks. The Buf/focused holders and checks already exist in the full profile path and add no new child, image, FD or hash; completeness adds fixed nonnil predicates and makes the existing six mounted tool-input checks unconditional. Ordinal equality is one bounded scalar comparison during post-join composition. Focused tests cover signer-only observation/refusal, missing each protected holder, shallow-copy shared-state spending and an ordinal hole. No ordinary request, sync, retry, publication, phase allowance or V1/V2 byte changes. |
+| 2026-09-12 — T42.2l joined receipt-metric composition | Prospective V3 first passes the existing complete plan/revision validation, then accepts only the final joined cleanup owner's complete cumulative dispatch/store prefixes, seven coherent complete producer records, thirteen accepted phase-inspection rows plus the interrupted phase-eight predecessor prefix, and five joined server-process observations in the fixed five-epoch topology. Nested cache, source/catalog census, unsupported-source, lifecycle, reuse and index-offer prefixes must remain coherent; index closure requires started=ended, failed≤ended and offered=settled, permits native zero-offer and failed-before-offer child histories, and refuses a positive offer without any started child. Inspection store-write attempts refuse because that stream owns no receipt write counter. It projects their authoritative fields into fifteen partial `ReceiptMetrics` rows: producer work and native workspace maxima cover phases two through fourteen; inspection control/member reads and its three source-bound logical-change observations cover the same phases; dispatch/store cover all phases; and sampled native process evidence covers phases two through fourteen. Phase eight adds both epoch-local inspection prefixes, requires the successor process census to subsume its predecessor and projects only that successor; workspace values use maxima, never sums. Successful Darwin teardown additionally projects its two-observation phase-fifteen workspace maximum. Phase one, phase fifteen's remaining families, phase wall/event ordinals, pressure volume/disk, other semantic/state-derived counters, teardown-native accounting and final receipt acceptance remain unavailable. | The existing bounded in-memory plan validator runs once. Composition then traverses eleven dispatch producers, 105 dispatch-role rows, seven store producers, fifteen store rows, fourteen inspection rows, each fixed producer's bounded nested fifteen-slot observations and sixteen owned producer-phase contributions, 105 workspace slots, and fourteen process-phase rows. Addition and totals use checked arithmetic; store per-transaction, frozen counter maxima, workspace/RSS ceilings, exact phase/epoch/logical-revision order, final-owner closure and phase-eight monotonicity refuse. Retained output contains fifteen metrics/coverage rows, fifteen newly allocated eight-role slices and one cloned class slice for each of thirteen projected native rows; bounded transient validation/metric lists do not survive the call. No source/store/file scan, sample, I/O, child, hash, timer, lock, retry, receipt, freeze or numerical allowance. Missing families remain coverage-false rather than zero evidence. |
+| 2026-09-12 — T42.2l producer-joined work composition | Prospective V3 composes the seven actual joined producer records into a partial per-phase `ReceiptMetrics` value. Only fields with complete producer bindings are included; phase one, phase fifteen and all other receipt fields remain unavailable rather than inferred zero. Producer four and five contributions to phase eight are independently added, and archive producers ten and eleven add only their supported phase-twelve families. | One fixed result and coverage mask, checked addition and maximum folding over seven fixed records. Missing binding/phase coverage, values outside producer ownership and overflow refuse. No DA/store/process/workspace/inspection composition, extra scan, I/O, child, hash, lock, receipt, freeze or numerical allowance. |
 | 2026-09-12 — T42.2l native zero-unsupported-source observation | Prospective V3 selected semantic servers report the unsupported subtotal of the fully validated inventory-v2 authority: the confirmed-current fast path derives `RecordCount-ObservedCount`, while fresh, prior-member and completed-root replay report the returned `InventoryRootV2.UnsupportedCount` after publication completes and before notification. Every report must be zero. Each owned parsing phase requires at least one report; non-parsing phases may report zero, and all phases reject a sixth report. Offline archive producers reserve and reject the server-only family. The frozen zero is joined-work prerequisite evidence, not a signed phase metric, receipt, freeze or general source-support claim; V1/V2 and ordinary behavior remain exact. | Selected startup adds one 79-byte binding and each inventory handler completion adds one fixed 17-byte record under one new report mutex. Checked arithmetic proves only the UF-family subtotal, `79 + 17 × 5 × owned phases`, fits the unchanged 64-MiB retained-output cap; whole-log fit remains open. Parsing retains fifteen counters and fixed flags. Current reuse adds no read because it uses the already confirmed authority; build/replay uses the already returned validated root. No new source walk, store/file read, child, hash, cadence, retry, cache or numerical allowance. Each ordinary inventory handler completion adds one production-selection atomic load, one context lookup and the nil-observer branch, with no mutex or allocation. |
 | 2026-09-12 — T42.2l native reuse observation | Prospective V3 selected servers retain, for every owned phase, whether source/search reused the exact current generation or reactivated the exact retained prior generation and whether observation, catalog and relationship publication returned fully fenced current. Empty lanes become known zero only after the exact final-authority body, ledger and report complete; product phase 14 uses its authenticated second F after queries, never the first F. Offline archive producers reject the server-only binding and terminal family. This is joined-work prerequisite evidence, not a signed phase metric or reuse claim by itself; V1/V2 and ordinary nil-observer behavior remain exact. | Reuse existing current/re-activation exits and the existing bounded joined-log pass. Selected startup adds one 79-byte binding; each owned phase adds one fixed 14-byte terminal, at most 135 bytes to one producer stream. State is five lane bytes across fifteen phases plus fixed flags and one mutex; each accepted current decision performs one semantic snapshot, constant validation and short lock. A successful final F performs four fixed semantic snapshots, three brief reuse-lock acquisitions and one terminal write around the existing report continuation. No new query, store/file read, child, hash, cadence, retry, cache, publication transition or numerical allowance; ordinary paths add nil branches only. |
 | 2026-09-12 — T42.2l V3 runtime-profile vocabulary | Prospective V3 uses `t422-production-runtime-constants-v2` and names its two admitted target facts explicitly: `selected_chunk_accepted_attempts=5` and `admitted_target_aggregate_partitions=56`. It omits the retained ambiguous `generation_max_attempts` and `maximum_aggregate_partitions` fields. Protected runtime facts remain the sole representation of native store generation capacity eight and native sparse aggregate capacity 131,072. This is a semantic separation, not a numerical-limit change; V1/V2 retain their exact v1 runtime-profile bytes. | Two optional uint64 fields add sixteen bytes to the in-memory profile and seventeen bytes to canonical V3 JSON. Assembly adds constant assignments and compact chunk parsing selects the versioned field with one scalar branch. No request, query, startup, retry, worker, store/file read, hash, lock, child, cache, publication, topology or admission bound changes. The actual private profile issuer, full evidence composition and freeze remain open. |
@@ -947,10 +1772,13 @@ walk, child, retry, deadline or ordinary runtime work.
 | 2026-09-12 — T42.2l actual pre-author runtime observation | Execute the already reference-protected Phebs no-work facts command once before AuthorA, bind actual source/image/argv/environment and canonical returned values, and retain actual Start, sole Wait and empty native session facts. Require the caller's original deadline; no renewed cleanup grace. An unjoined prefix retains output pumps and borrowed inputs, blocks AuthorA/Close and every outer release, and cannot silently become complete after a late exit. | One preparation-only child, two existing 4-KiB sinks, one bounded decode/re-encode/hash and one command-binding hash, two Phebs checks and two existing epoch metadata checks. Existing flow/author/epoch locks span the bounded operation; cancellation/descendants add native kill/session polling only under the original deadline. No operational producer, SDK/HTTP call, new numerical limit or profile issuer. Tiny native shell/session tests are not protected-Phebs evidence. The rehearsal's outer deadline does not establish the separately bounded launcher admission stage, which remains open. |
 | 2026-09-12 — T42.2l native resolver setup correction | The reduced marker fixture must make the real runner's checked claimed-to-running transition before invoking resolver materialization; the existing successor fence correctly rejects a merely claimed job. | One existing selected SDK status write under the original fixture context. No lease-guard relaxation, new deadline, retry or production behavior; the failed native attempt remains failed. |
 | 2026-09-12 — T42.2l native runtime configuration facts | Add a private no-argument `t422-runtime-facts` command after the unchanged bootstrap/command checks; refuse operational lifetimes. Report values shared with actual scheduler constructors, store defaults and selected report validators, never expected-profile copies or worker-registration evidence. Keep native generation capacity eight, selected accepted chunk attempts five, native aggregate cap 131,072 and target-specific counts as distinct facts. | Only explicit unbound invocation allocates one fixed struct, canonical JSON plus newline and one checked 688-byte write. Nil/canceled inputs, arguments, selected lifetime and short/error writes refuse; late cancellation preserves any emitted prefix. The actual main constructions consume named constants with unchanged 1/2/1 concurrency, store default remains three and explicit overrides remain exact. No added normal request, startup, worker, retry, publication, timer, lock, store or child work. A parent-owned protected-image launch, bounded joined custody and complete profile issuance remain separate prerequisites; this command alone admits nothing. |
+| 2026-09-12 — T42.2l runtime-profile facts closure | Advance only the private no-work runtime-facts wire to v2. Report the actual serial store-runner invariant, the sorted nine-domain registry constructed through the same selected extractor registry as `serve`, and the selected lifecycle construction's 1,024-delete maximum; retain the independently compiled 131,072 aggregate-partition ceiling, while the observed plan/config remains sole authority for its target-specific 56 partitions. Provide the later issuer a bounded verifier for every reported field against production constants and the prospective V3 profile/plan projection; retained V1/V2 profiles and bytes remain exact. | The explicit probe now constructs nine extractor values, copies/sorts nine domain names, reads one fixed lifecycle constant, and writes one canonical 954-byte record (+266 bytes) within the existing 4-KiB sinks. Decode retains one nine-string slice, validates canonical sorted uniqueness and positive scalar fields; prospective profile validation builds one fixed expected value, clones nine strings and performs bounded in-memory comparisons. Each production store runner replaces its direct single start with one iteration of the compiled concurrency constant and starts the same one goroutine; no new worker exists. No config/source/content read, SDK/HTTP/store call, timer, lock, retry, publication or extra child is added. Ordinary request/tick/retry/no-op/publication behavior is unchanged; no executor, signer, profile issuer, admission event, freeze or ceremony authorization is introduced. |
 | 2026-09-12 — T42.2l reduced native marker composition | Reuse the actual preparation fixture and unchanged original thirty-minute parent/child deadline to drive a real relationship scheduler claim through authenticated HIT, guarded marker workspace S, natural heartbeat/readmission R, RECOVERED, service activation and one durable completion. A real pre-indexed source, 56 manually executed extraction partitions, real resolver materialization and a two-service prior/target catalog supply authority; explicit setup-owned Git/build/index work precedes selected bootstrap. No fabricated prior, raised phase-six index budget or full-corpus/reaper claim. | Test-only: actual indexing and publication setup, one selected target scheduler with existing concurrency one, one-second test polling and natural heartbeat, two whole-workspace walks, one readiness record and five PC exchanges including EOF. The WB/binding subtotal is 277 bytes, not complete output. Actual native root/session and DA/SA closure are required; setup compiler helpers retain only their existing direct-command join semantics. Inactive lifecycle callbacks and test authentication remain supplied. No production request/startup/publication cost, runtime bound, deadline, tool role or ceremony authorization changes. |
 | 2026-09-12 — T42.2l retained marker workspace coordination | Full epoch-three checkpoint/FD6 keeps one actual relationship claim across a reversible one-shot measurement mask, separate from irreversible terminal ownership. Drain peer/request tails after publication locks unwind; park the same heartbeat after admitted calls return, sample through the existing local runner Park and engine/SDK guard, then require a natural successful heartbeat for that same lease before reopening. Parent arms before HIT and requires actual S plus post-reopen R before RECOVERED. Carry the original phase-six deadline in optional authenticated semantic stdin; retain individual marker/finish values and positive prefixes across checkpoint/restore. Failed suspension or later failed/canceled continuation retains the claim without Release/Retry/Complete/End. | One actual whole-workspace walk, one Park rendezvous, fixed mask/generation state and six channels plus mutex/once on an opted claim. The existing heartbeat goroutine/ticker parks; it is joined at finish, not falsely called joined while parked. One natural heartbeat confirmation precedes peer reopening. One extra 86-byte WB pair plus 26-byte readiness record makes producer-four WB 707 bytes; optional deadline adds at most 48 stdin bytes and one marker-only timer, never renewed phase time. Live parsing reuses capped 64-MiB output with fixed state. Short bookkeeping locks never span the walk; no new PC pair/child or numerical permission. Ordinary paths add only bounded inactive checks/fixed fields. Generic streams cannot infer full marker selection from one S; the selected parent still requires both exact samples/readiness. Unit regressions use real owner/scheduler/parser machinery with supplied store outcomes/fake time; native publication/reaper/whole-phase proof remains separate. |
 | 2026-09-12 — T42.2l private native host observations | Before AuthorA on the bound pressure flow, retain actual OS/build/CPU/memory and backing/data/zero-ballast filesystem facts from native queries and held descriptors. Define prospective `statfs-fsid-sha256-v1` serialization as SHA-256 of exactly eight bytes: each signed FSID component's uint32 bit pattern, in component order, big-endian. No historical serializer or V1/V2 bytes change. Separate observation from the unchanged host-admission floor, retaining truthful below-floor capacity without admitting it. | One attempt under volume/flow/author/epoch locks: four named sysctl lookups (ten underlying kernel calls), nineteen Fstatfs including pre/post guards, fourteen held-file stats, fourteen path stats, ten canonical-path checks, two ballast inode stats and three eight-byte hashes. Native string buffers precede bounded token validation; synchronous kernel calls are checked around, not claimed interruptible. Three raw private FSIDs and one detached host value are retained. No new FD, child, timer, tree walk or ordinary request/tick/retry/publication work; all numerical limits stay unchanged. Actual scalar tests and supplied arithmetic/owner tests are distinct from the optional real empty-volume FD test, genuine flow-root admission and full rehearsal. |
 | 2026-09-12 — T42.2l actual command recipe observations | Share the existing actual serve/backup/restore command construction with one pre-AuthorA observation. Validate concrete executable, working directory, config/archive paths, argv and environment before normalizing detached private rows. Inspect all five serve configs and both epoch-four archive verbs; publish command and environment observations together only after every recipe agrees. | Seven unstarted command values, bounded argv copies and six serve-environment copies under the existing flow/author/epoch locks; archive construction/normalization uses existing bounded path joins. No child, filesystem read, hash, timer or new custody check. Actual launch behavior, ordinary serving and all numerical limits remain unchanged. Tests bind actual call sites and recipe equivalence but do not execute the full native launch. These are private recipe observations, not completed execution, complete profile admission or global event one. |
+| 2026-09-12 — T42.2l exact observed profile preimages | Prospective V3 canonical-JSON hashes the existing actual `[]ExecutionCommandProfile` observation once, in exact `backup`, `restore`, `serve` order, only after the shared builder checks all five serve and both epoch-four archive recipes. That one retained digest populates both private `commandsSHA256` and `harnessCommandSetSHA256`; existing full validation independently hashes canonical `frozenExecutionCommands()` and requires equality with `commandsSHA256`, so neither field can admit expected-only rows and no second actual-row encode/hash is allowed. `pressure_command_set_sha256` hashes private `executionPressureCommandSetPreimageV1` JSON with keys in struct order `schema`, `tool`, `tool_path`, `attach_device`, `commands`; schema is exactly `t422-pressure-command-set-preimage-v1`, `tool` is the held hdiutil `ExecutionToolIdentity`, `tool_path` is its checked actual path, `attach_device` is the exact raw device returned by the validated attach parser and accepted by the existing at-most-32-byte device grammar, and `commands` is `[]executionPressureCommandPreimageV1`. Each ordered command row has keys `name`, `working_directory`, `environment`, `normalized_argv`; rows are `create`, `attach`, `detach`, each carries the actual pressure-root working directory and the ordered environment `PATH=/usr/bin:/bin`, `LANG=C`, `LC_ALL=C`, actual `HOME=<pressure-root>/home`, actual `TMPDIR=<pressure-root>/tmp`. Normalized argv is respectively `create -size 96g -layout NONE -type SPARSE -fs APFS -volname phebs-t422-private -nospotlight @pressure-image`, `attach -owners on -nobrowse -noautoopen -mountpoint @pressure-mount -plist @pressure-image`, and `detach @pressure-device`; those three literals are the only replacements. One pure builder supplies both observation and execution. Successful create/attach retain their checked rows; after validated attach returns its raw device, the owner retains that value and constructs the prospective tokenized nonforced-detach row. Immediately before the one detach Start, teardown must require its live raw device equals retained `attach_device`, rebuild and compare the normalized recipe, and recheck the held identity, tool path, directory and environment; the preimage is recipe admission, never proof that detach executed or succeeded. `root_volume_bindings_sha256` hashes private `executionRootVolumeBindingsPreimageV1` JSON with keys `schema`, `bindings`, schema exactly `t422-root-volume-bindings-preimage-v1`, and `bindings` type `[]executionRootVolumeBindingPreimageV1` whose row keys are `root_role`, `volume_identity`. Row order and exact role strings are backing `pressure-image-on-admitted-backing-volume-v1`, source `authored-source-on-mounted-pressure-volume-v1`, config `config-and-catalog-on-mounted-pressure-volume-v1`, data `server-data-on-mounted-pressure-volume-v1`, backup `archive-on-mounted-pressure-volume-v1`, home `private-home-on-mounted-pressure-volume-v1`, temporary `private-temp-on-mounted-pressure-volume-v1`, tool-output `tool-outputs-on-mounted-pressure-volume-v1`, ballast `pressure-ballast-on-mounted-pressure-volume-v1`. Identities are backing for backing, data for the seven mounted roots, and the ballast volume identity observed through the held ballast inode for ballast; that ballast identity must equal data. The full successful `bindRehearsal` path issues one immutable private one-shot workspace-custody capability only after completing its existing held-path, backing-volume and same-workspace proof across source/config/input/tool-output and all workspace roles. The capability captures that complete proof and its held descriptors, cannot serialize, copy, reload or be reconstructed from paths/booleans, and exposes only `ConsumeForProfile(ctx)`. At profile issuance that call reruns the entire captured `bindRehearsal` held-path/same-workspace predicate, backing checks and every one of the nine role-to-FSID mappings against current paths and held descriptors, including the ballast volume identity observed through its held inode and required equal to data. The call irrevocably spends the workspace capability; only complete success issues the three digests and transfers—not copies—the same held-resource custody into a distinct nonserializable one-shot operational-handoff capability. Expected profile rows, supplied digests, caller path strings and a prospective detach row that is not raw-device/rebuild rechecked cannot issue either output. The complete issuer runs once within T42.2m's finite bounded non-operational outer preparation, after authenticated tool/custody setup and authorized pressure, reference-build and protected runtime-fact observations, but before T42.2o signing, AuthorA, any phase meter or operational child. Its profile and handoff-capability outputs remain private, bounded and one-shot; they authorize no product publication or phase metric. T42.2o's signer consumes the actual profile, and the executor later consumes the handoff capability to revalidate every held resource and the signed freeze before operational handoff. | Exactly three bounded canonical encodes and SHA-256 passes issue the profile preimages: one shared command-row digest for both private fields, one pressure digest over the bounded raw device and three rows with bounded path/environment strings, and one root digest over nine fixed rows. Retained state is three detached command rows, one bounded raw device, one tool identity/path, at most one live nonserializable custody capability whose ownership is transferred once, nine root pairs and three digest fields whose first two values are equal; canonical buffers are released after issuance. Root issuance adds one complete fixed-size repeat of the captured `bindRehearsal` held-path, backing and same-workspace predicate plus current descriptor/path/FSID checks for all nine roles, with no tree or file-content read; the later final-handoff repeat is charged by T42.2m. Recipe factoring and capability transfer add no FD, command, retry, store/source-content read, phase allowance or ordinary request/tick/startup/publication work; create, attach and detach remain their existing single native attempts. No numerical ceiling or V1/V2 builder, field, canonical byte or replay changes. Focused canonical-byte/digest, equality of the two command digest fields, raw-device/token separation, every field/order/token/path/FSID mutation, both capabilities' one-use/nonserialization and exclusive custody transfer, drift in each of backing/source/config/data/backup/home/temporary/tool-output/ballast, held-path replacement, same-workspace failure, partial/canceled observation, detach-recheck/drift and actual-callsite tests are required implementation work and are not claimed passed. This defines T42.2l profile issuance only; it supplies no signed binding, ordinal, launcher, freeze, gate or ceremony result. |
+| 2026-09-12 — T42.2m two-boundary signed admission and ordinal custody | Prospective V3 replaces only its execution-admission-order value with exact token `bounded_private_outer_preparation_then_authenticated_signed_freeze_and_complete_checkout_before_author_a_phase_meter_or_operational_child`; V1/V2 retain byte-exact `verify_freeze_signature_and_checkout_before_first_phase_meter_or_child_launch`, and no already-signed plan, freeze, admission event or receipt is reinterpreted. The one real `t422-execute` process may first run only a finite bounded non-operational outer-preparation stage: authenticated tool/custody setup, create/attach, full `bindRehearsal`, reference-build/runtime-fact observation and actual profile issuance. That stage may create only private one-shot custody capabilities and bounded detached inputs for the T42.2o signer; it starts no AuthorA, phase meter, server, product/publication worker or other operational child and publishes no product or phase metric. T42.2o consumes the actual observed profile to author and seal V3. Final admission then requires both successful exact signed-freeze verification and complete `InspectExecutionCheckout` verification over independently selected plan/integration/source commits. Checkout completion means its initial authority and `ls-tree` checks, first exact index/extra-input inventory, raw regular-file pass, second inventory, final authority and final Git check all succeed; joining every verifier child is necessary but not sufficient. Immediately before operational handoff, the executor revalidates the signed freeze and every retained held path, raw attach device, filesystem identity and tool identity through the live one-shot outer-preparation capabilities. Only that full success creates the private `ExecutionFreezeBinding`; failure or cancellation yields no AuthorA, phase meter, operational child, binding or ordinal. The launcher owns one noncopyable, concurrency-safe checked global event allocator starting at zero; only successful final admission consumes ordinal 1 for the canonical signed-freeze admission event containing the new V3 order token. The executor receives the same opaque binding and allocator objects directly, without JSON/file/environment/CLI capability rehydration, self-admission, counter reset or authority reconstructed from booleans; every later allocated ordinal is greater than 1 and overflow refuses. | Outer preparation retains the separately charged T42.2l fixed observations and its existing native create/attach attempts; those actions are preparation, not ceremony phase work or proof of final admission. Signature verification is a separately bounded, no-retry held-ssh-keygen child over the at-most-64-KiB canonical freeze and bounded signature/trust-root inputs. Complete checkout verification retains T42.2b's cost: 33 serial Git launches, 35 at-most-2-GiB hashes of the selected Git image, one at-most-100,000-entry source inventory, two at-most-64-MiB index inventories, and one raw-file pass capped at 2 GiB total and 256 MiB per file, plus bounded command capture/stdio, ten-second child contexts, one-second pipe drains and the five-minute cooperative admission context. The launcher charges verifier commands, outputs, deadlines, Start/Wait, image rechecks and session custody. Because checkout inspection grants no mutation lock, final handoff also charges the fixed T42.2l capability consumption and held-resource rechecks; neither verifier is part of the three profile-preimage hashes. Full binding performs existing plan/freeze/profile/tool validation and canonical hashes and owns the existing bounded deep clone of freeze/profile/tool/pressure slices. The allocator adds one atomic or mutex-protected checked increment per retained event and one machine word of state; it adds no transport, file, environment value or persistent log. V3 plan construction/validation and future canonical bytes change only for the new order token; V1/V2 and selector-absent ordinary work remain unchanged. Focused tests must prove V1/V2 retain the old token and canonical bytes, V3 requires the new token and rejects the old one, the closed outer-preparation allowlist cannot start operational work or publish metrics/products, the signer consumes the actual profile, complete checkout success rather than child joins gates final admission, every held path/device/FSID/tool and signed-freeze drift refuses before operational handoff, exactly one successful ordinal 1, no ordinal/binding on failure, concurrent uniqueness, overflow refusal, direct nonserialized capability handoff, clone non-aliasing and every later phase ordinal greater than 1; none is claimed passed. T42.2o remains the sole actual V3 author/seal step after T42.2n acceptance; this row implements or freezes nothing and cannot alter any prior signed artifact. |
 | 2026-09-12 — T42.2l outer shell and signer custody | Observe the actual fixed read-only host shell and signer images through existing Hold/Check, then borrow their detached identities/paths once before AuthorA. The outer owner retains both handles beyond mounted operational-input release; future actual signing must join before their close. Keep these handles out of the mounted Buf/focused tool list. | Two held FDs and two existing acquisitions, each with two bounded image-hash passes and native header/metadata/read-only-volume checks; no child executes. Pre-work borrowing performs fixed metadata checks under existing flow/author/epoch locks and adds no image hash. Rehearsal outer cleanup runs after flow/input/volume defers but before directory cleanup; close errors preserve failed custody, while unjoined work retains the handles. Ordinary request/tick/retry/publication work and all numerical limits are unchanged. Tests hold actual host images but model flow bookkeeping; no signing, mounted teardown, complete profile or admission event is established. |
 | 2026-09-12 — T42.2l native stale-preparation composition gate | Extend the existing inherited fixture with an opt-in actual reduced Git/candidate/source/observation publication, all nine domains and 56 partition handlers with durable first-attempt claim/completion, then the real selected stale-preparation POST. Verify actual preparation authority, guarded workspace completion before the first body write and sink, arming only afterward, SDK resumption and native/accounting joins. | Test-only: 31,605 files, existing full publication passes, three whole-workspace walks, 337 WB bytes, nine PC requests plus EOF inside the existing fourteen-pair ceiling. One original thirty-minute opt-in fixture context begins before authoring and bounds all joins; production phase clocks and numerical limits stay unchanged. One helper, its engine and actual Git children use inherited DA/SA; parent Git authoring is explicitly test setup. Prior F routing, bearer store and unused lifecycle owners are supplied; HTTP uses the actual middleware/handler with a recorder, not TCP. Manual claim/handle/complete proves neither scheduler heartbeat/reaper behavior nor full F/stale recovery. The inherited private diagnostic buffer is not a production output-bound proof. Native wall/resource fit requires the actual gate, not this static review. |
 | 2026-09-12 — T42.2l private profile input observations | Factor expected-profile assembly without changing any existing external-admission flags, version routing or digest comparisons. Retain the actual parsed five config values from the existing byte-validation pass only after protected-copy checks succeed. Once before AuthorA, check the held epoch/tool inputs and normalize the actual parent and serve environment builders into detached private observations with framed hashes. | Five already-parsed private config pointers retain secrets/paths but establish no argv, runtime constructor or registered-domain fact. One pre-work attempt holds the existing flow/author/epoch locks, repeats existing bounded epoch/tool metadata checks, normalizes 28 plus 29 entries and hashes their framed names/values once. No additional config parse, child, build, source-content read or per-dispatch hashing; existing launch/dispatch checks stay unchanged. Failure consumes that preparation attempt and issues no observation. Expected shape is not measured evidence, and these observations issue neither the complete twelve-tool profile nor global admission event one. Ordinary request/tick/retry/publication work and V1/V2 bytes and all numerical limits remain unchanged. |

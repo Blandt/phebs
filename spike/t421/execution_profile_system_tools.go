@@ -9,12 +9,12 @@ type executionProfileSystemImage struct {
 	Path     string
 }
 
-// prepareProfileSystemTools borrows an outer owner's fixed-host handles. They
-// deliberately do not enter profileTools: mounted input release may precede
+// prepareProfileSigner borrows an outer owner's fixed-host signer handle. It
+// deliberately does not enter profileTools: mounted input release may precede
 // future signing, which must join before that outer owner closes the signer.
 // No image hash or child is added here; Check revalidates actual held metadata.
-func (flow *ExecutionEpochOne) prepareProfileSystemTools(ctx context.Context, shell, signer *ExecutionSystemToolCustody) error {
-	if flow == nil || ctx == nil || ctx.Err() != nil || flow.epochs == nil || flow.epochs.author == nil || shell == nil || signer == nil {
+func (flow *ExecutionEpochOne) prepareProfileSigner(ctx context.Context, signer *ExecutionSystemToolCustody) error {
+	if flow == nil || ctx == nil || ctx.Err() != nil || flow.epochs == nil || flow.epochs.author == nil || signer == nil {
 		return ErrExecutionEpochOne
 	}
 	flow.mu.Lock()
@@ -30,18 +30,14 @@ func (flow *ExecutionEpochOne) prepareProfileSystemTools(ctx context.Context, sh
 		return ErrExecutionEpochOne
 	}
 	flow.profileSystemUsed = true
-	selected := [2]*ExecutionSystemToolCustody{shell, signer}
-	var observed [2]executionProfileSystemImage
-	for i, role := range []string{"sh", "ssh-keygen"} {
-		identity, path, err := selected[i].Check(ctx, role)
-		if err != nil {
-			return ErrExecutionEpochOne
-		}
-		observed[i] = executionProfileSystemImage{Identity: identity, Path: path}
+	identity, path, err := signer.Check(ctx, "ssh-keygen")
+	if err != nil {
+		return ErrExecutionEpochOne
 	}
 	if ctx.Err() != nil {
 		return ErrExecutionEpochOne
 	}
-	flow.profileSystemTools, flow.profileSystemImages = selected, observed
+	flow.profileSigner = signer
+	flow.profileSignerImage = executionProfileSystemImage{Identity: identity, Path: path}
 	return nil
 }

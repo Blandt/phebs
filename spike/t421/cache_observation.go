@@ -85,7 +85,9 @@ func (out ExecutionCacheObservation) complete() bool {
 		return false
 	}
 	for _, phase := range out.Phases {
-		if phase.RootReads != phase.RootValidations || phase.MemberReads != phase.MemberValidations {
+		if phase.RootReads != phase.RootValidations || phase.MemberReads != phase.MemberValidations ||
+			phase.Hits > math.MaxUint64-phase.Misses || phase.Lookups != phase.Hits+phase.Misses ||
+			phase.RootReads > math.MaxUint64-phase.MemberReads || phase.Misses != phase.RootReads+phase.MemberReads {
 			return false
 		}
 	}

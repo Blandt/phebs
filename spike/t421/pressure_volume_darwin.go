@@ -13,6 +13,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -36,9 +37,12 @@ type executionPressureVolume struct {
 	image                                                                             *os.File
 	imageInfo                                                                         os.FileInfo
 	underlay                                                                          os.FileInfo
+	environmentInfos                                                                  [2]os.FileInfo // home, tmp direct children of the held pressure root.
 	tool                                                                              *ExecutionSystemToolCustody
 	lock                                                                              io.Closer
-	device                                                                            string
+	device, attachDevice                                                              string
+	pressureCommands                                                                  [2]executionPressureCommandPreimageV1
+	pressureCommandCount                                                              uint8
 	sessions                                                                          []int // Registered only by this owner's successful native Start.
 	ready                                                                             bool
 	closed                                                                            bool
@@ -109,9 +113,14 @@ func prepareExecutionPressureVolume(ctx context.Context, parent string) (_ *exec
 			return v, errPressureVolume
 		}
 	}
+	for index, name := range []string{"home", "tmp"} {
+		v.environmentInfos[index], err = os.Lstat(filepath.Join(directory, name))
+		if err != nil || !inputCustodyOwned(v.environmentInfos[index]) || !v.environmentInfos[index].IsDir() || v.environmentInfos[index].Mode().Perm() != 0o700 {
+			return v, errPressureVolume
+		}
+	}
 	imagePath := filepath.Join(directory, "pressure.sparseimage")
-	if _, err := v.command(ctx, "create", "-size", "96g", "-layout", "NONE", "-type", "SPARSE", "-fs", "APFS",
-		"-volname", "phebs-t422-private", "-nospotlight", imagePath); err != nil {
+	if _, err := v.command(ctx, "create"); err != nil {
 		return v, errPressureVolume
 	}
 	v.image, err = t4013.OpenHostImage(imagePath)
@@ -131,7 +140,7 @@ func prepareExecutionPressureVolume(ctx context.Context, parent string) (_ *exec
 	if err != nil || !inputCustodyOwned(v.underlay) || !v.underlay.IsDir() {
 		return v, errPressureVolume
 	}
-	raw, err := v.command(ctx, "attach", "-owners", "on", "-nobrowse", "-noautoopen", "-mountpoint", mountPath, "-plist", imagePath)
+	raw, err := v.command(ctx, "attach")
 	if err != nil {
 		return v, errPressureVolume
 	}
@@ -139,7 +148,7 @@ func prepareExecutionPressureVolume(ctx context.Context, parent string) (_ *exec
 	if err != nil {
 		return v, errPressureVolume
 	}
-	v.device = device
+	v.device, v.attachDevice = device, device
 	mountFile, err := t4013.OpenHostImage(mountPath)
 	if err != nil {
 		return v, errPressureVolume
@@ -176,27 +185,42 @@ func pressureBackingCapacity(stat unix.Statfs_t, volume [2]int32) bool {
 // native attempt each. It is not a V3 operational/preparation budget issuer.
 // Attach's recorded session is retained until detach: native helpers may live
 // as long as the image. Root Wait is joined before its bounded output is read.
-func (v *executionPressureVolume) command(ctx context.Context, args ...string) ([]byte, error) {
-	if ctx == nil || ctx.Err() != nil || len(args) == 0 || len(v.sessions) >= 3 {
+func (v *executionPressureVolume) command(ctx context.Context, name string) ([]byte, error) {
+	if ctx == nil || ctx.Err() != nil || len(v.sessions) >= 3 {
 		return nil, errPressureVolume
 	}
-	_, tool, err := v.tool.Check(ctx, "hdiutil")
+	identity, tool, err := v.tool.Check(ctx, "hdiutil")
 	if err != nil {
 		return nil, errPressureVolume
+	}
+	args, observed, err := executionPressureCommandRecipe(v.root.path, name, v.device)
+	if err != nil || name == "create" && v.pressureCommandCount != 0 || name == "attach" && v.pressureCommandCount != 1 ||
+		name == "detach" && (v.pressureCommandCount != 2 || v.device == "" || v.device != v.attachDevice) {
+		return nil, errPressureVolume
+	}
+	if name == "detach" {
+		if _, err := executionPressureCommandSetPreimage(identity, tool, v.root.path, v.attachDevice, v.pressureCommands); err != nil {
+			return nil, errPressureVolume
+		}
 	}
 	ctx, cancel := context.WithTimeout(ctx, time.Minute)
 	defer cancel()
 	output := &checkoutCommandOutput{remaining: 64 << 10, cancel: cancel}
 	command := exec.CommandContext(ctx, tool, args...)
 	command.Dir = v.root.path
-	command.Env = []string{"PATH=/usr/bin:/bin", "LANG=C", "LC_ALL=C", "HOME=" + filepath.Join(v.root.path, "home"),
-		"TMPDIR=" + filepath.Join(v.root.path, "tmp")}
+	command.Env = slices.Clone(observed.Environment)
+	if command.Path != tool || command.Dir != observed.WorkingDirectory || !slices.Equal(command.Args[1:], args) || !slices.Equal(command.Env, observed.Environment) {
+		return nil, errPressureVolume
+	}
 	command.Stdout, command.Stderr = output, output
 	command.WaitDelay = 5 * time.Second
 	prepareProductionSession(command)
+	if !v.pressureCommandStartUnchanged(ctx, name, identity, tool, observed) {
+		return nil, errPressureVolume
+	}
 	var wait func() error
 	if v.teardownRun != nil {
-		if len(args) != 2 || args[0] != "detach" || args[1] != v.device {
+		if name != "detach" {
 			return nil, errPressureVolume
 		}
 		handle, err := v.flow.parent.StartInPhase(ctx, 15, dispatchadmission.Site{ID: executionSiteDetach, Role: executionRoleHdiutil}, command)
@@ -223,10 +247,56 @@ func (v *executionPressureVolume) command(ctx context.Context, args ...string) (
 		v.unsettled = !empty
 		return nil, errPressureVolume
 	}
-	if _, _, err := v.tool.Check(ctx, "hdiutil"); err != nil {
+	after, afterPath, err := v.tool.Check(ctx, "hdiutil")
+	if err != nil || after != identity || afterPath != tool {
 		return nil, errPressureVolume
 	}
+	if name != "detach" {
+		v.pressureCommands[v.pressureCommandCount] = observed
+		v.pressureCommandCount++
+	}
 	return output.buffer.Bytes(), nil
+}
+
+// This is the last validation before native Start. The retained pressure-root
+// descriptor binds cwd; cached direct-child identities reject HOME/TMP path
+// replacement without opening new descriptors. Check repeats the held tool
+// identity and reconstructs the exact raw-device recipe at this boundary.
+func (v *executionPressureVolume) pressureCommandStartUnchanged(ctx context.Context, name string, identity ExecutionToolIdentity, toolPath string, observed executionPressureCommandPreimageV1) bool {
+	if ctx == nil || ctx.Err() != nil || !v.pressureCommandPathsUnchanged(observed) {
+		return false
+	}
+	_, rebuilt, err := executionPressureCommandRecipe(v.root.path, name, v.device)
+	if err != nil || !equalExecutionPressureCommandPreimages(rebuilt, observed) {
+		return false
+	}
+	if name == "detach" {
+		if v.device == "" || v.device != v.attachDevice {
+			return false
+		}
+		if _, err := executionPressureCommandSetPreimage(identity, toolPath, v.root.path, v.attachDevice, v.pressureCommands); err != nil {
+			return false
+		}
+	}
+	after, afterPath, err := v.tool.Check(ctx, "hdiutil")
+	return err == nil && after == identity && afterPath == toolPath
+}
+
+func (v *executionPressureVolume) pressureCommandPathsUnchanged(observed executionPressureCommandPreimageV1) bool {
+	if pressureRootsUnchanged(v.root) != nil || observed.WorkingDirectory != v.root.path || len(observed.Environment) != 5 {
+		return false
+	}
+	for index, name := range []string{"home", "tmp"} {
+		path := filepath.Join(v.root.path, name)
+		current, err := os.Lstat(path)
+		canonical, canonicalErr := filepath.EvalSymlinks(path)
+		if err != nil || canonicalErr != nil || canonical != path || v.environmentInfos[index] == nil ||
+			!os.SameFile(v.environmentInfos[index], current) || !inputCustodyOwned(current) || !current.IsDir() || current.Mode().Perm() != 0o700 {
+			return false
+		}
+	}
+	want := []string{"PATH=/usr/bin:/bin", "LANG=C", "LC_ALL=C", "HOME=" + filepath.Join(v.root.path, "home"), "TMPDIR=" + filepath.Join(v.root.path, "tmp")}
+	return slices.Equal(observed.Environment, want)
 }
 
 func pressureImageOwned(info os.FileInfo) bool {
@@ -328,7 +398,7 @@ func (v *executionPressureVolume) remove(ctx context.Context, emptyOnly bool) er
 	v.workspace.file, v.mount.file = nil, nil
 	// No -force and no mounted deletion. Native success is the writer barrier,
 	// not proof of no escaped helper or source in another process's memory.
-	if _, err := v.command(ctx, "detach", v.device); err != nil {
+	if _, err := v.command(ctx, "detach"); err != nil {
 		return errPressureVolume
 	}
 	if v.teardownRun != nil {
@@ -612,20 +682,7 @@ document:
 }
 
 func pressureDevice(device string) bool {
-	if !strings.HasPrefix(device, "/dev/disk") || len(device) > 32 {
-		return false
-	}
-	for _, number := range strings.Split(strings.TrimPrefix(device, "/dev/disk"), "s") {
-		if number == "" || len(number) > 1 && number[0] == '0' {
-			return false
-		}
-		for _, digit := range number {
-			if digit < '0' || digit > '9' {
-				return false
-			}
-		}
-	}
-	return strings.Count(device, "s") <= 2 // One in "disk", at most one partition suffix.
+	return executionPressureDevice(device)
 }
 
 func pressureXMLToken(decoder *xml.Decoder) (xml.Token, error) {

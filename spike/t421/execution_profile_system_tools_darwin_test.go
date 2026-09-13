@@ -19,73 +19,63 @@ func modeledSystemProfileFlow() *ExecutionEpochOne {
 	}
 }
 
-func holdSystemProfilePair(t *testing.T) [2]*ExecutionSystemToolCustody {
+func holdSystemProfileSigner(t *testing.T) *ExecutionSystemToolCustody {
 	t.Helper()
 	requireExternalToolFrozenHost(t)
-	var tools [2]*ExecutionSystemToolCustody
-	t.Cleanup(func() {
-		for _, tool := range tools {
-			if err := tool.Close(); err != nil {
-				t.Error(err)
-			}
-		}
-	})
-	for i, role := range []string{"sh", "ssh-keygen"} {
-		var err error
-		tools[i], err = HoldExecutionSystemTool(t.Context(), role)
-		if err != nil {
-			t.Fatal(err)
-		}
-	}
-	return tools
-}
-
-func TestExecutionProfileSystemToolsActualBorrowedLifetime(t *testing.T) {
-	tools := holdSystemProfilePair(t)
-	flow := modeledSystemProfileFlow()
-	if err := flow.prepareProfileSystemTools(t.Context(), tools[0], tools[1]); err != nil {
+	tool, err := HoldExecutionSystemTool(t.Context(), "ssh-keygen")
+	if err != nil {
 		t.Fatal(err)
 	}
-	if flow.profileSystemTools != tools || flow.profileTools != ([2]*ExecutionToolCustody{}) {
+	t.Cleanup(func() {
+		if err := tool.Close(); err != nil {
+			t.Error(err)
+		}
+	})
+	return tool
+}
+
+func TestExecutionProfileSignerActualBorrowedLifetime(t *testing.T) {
+	signer := holdSystemProfileSigner(t)
+	flow := modeledSystemProfileFlow()
+	if err := flow.prepareProfileSigner(t.Context(), signer); err != nil {
+		t.Fatal(err)
+	}
+	if flow.profileSigner != signer || flow.profileTools != ([2]*ExecutionToolCustody{}) {
 		t.Fatal("borrowed fixed images entered mounted inputs")
 	}
-	observed := flow.profileSystemImages
-	for i, role := range []string{"sh", "ssh-keygen"} {
-		identity, path, err := tools[i].Check(t.Context(), role)
-		if err != nil || observed[i] != (executionProfileSystemImage{Identity: identity, Path: path}) {
-			t.Fatal("observation was not actual held-image evidence", err)
-		}
+	observed := flow.profileSignerImage
+	identity, path, err := signer.Check(t.Context(), "ssh-keygen")
+	if err != nil || observed != (executionProfileSystemImage{Identity: identity, Path: path}) {
+		t.Fatal("observation was not actual held-image evidence", err)
 	}
-	if flow.prepareProfileSystemTools(t.Context(), tools[0], tools[1]) == nil {
+	if flow.prepareProfileSigner(t.Context(), signer) == nil {
 		t.Fatal("repeat observation admitted")
 	}
 	if err := flow.Close(); err != nil {
 		t.Fatal(err)
 	}
 	// Real flow.Close, but unused controller/store bookkeeping: not native
-	// operational teardown. It must not own either of these borrowed handles.
-	for i, role := range []string{"sh", "ssh-keygen"} {
-		if _, _, err := tools[i].Check(t.Context(), role); err != nil {
-			t.Fatal("flow close released outer custody", err)
-		}
-		if err := tools[i].Close(); err != nil {
-			t.Fatal(err)
-		}
-		if _, _, err := tools[i].Check(t.Context(), role); err == nil {
-			t.Fatal("closed outer custody accepted")
-		}
+	// operational teardown. It must not own the borrowed signer handle.
+	if _, _, err := signer.Check(t.Context(), "ssh-keygen"); err != nil {
+		t.Fatal("flow close released outer custody", err)
 	}
-	if flow.profileSystemImages != observed {
+	if err := signer.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := signer.Check(t.Context(), "ssh-keygen"); err == nil {
+		t.Fatal("closed outer custody accepted")
+	}
+	if flow.profileSignerImage != observed {
 		t.Fatal("outer release rewrote detached observations")
 	}
-	observed[0].Identity.Role = "caller mutation"
-	if flow.profileSystemImages[0].Identity.Role != "sh" {
+	observed.Identity.Role = "caller mutation"
+	if flow.profileSignerImage.Identity.Role != "ssh-keygen" {
 		t.Fatal("observation aliases caller value")
 	}
 }
 
-func TestExecutionProfileSystemToolsPreworkRefusals(t *testing.T) {
-	tools := holdSystemProfilePair(t)
+func TestExecutionProfileSignerPreworkRefusals(t *testing.T) {
+	signer := holdSystemProfileSigner(t)
 	for _, mode := range []string{"nil_context", "canceled", "v1", "v2", "closed", "started", "used", "authored", "author_closed", "author_active", "epoch_closed", "epoch_active", "released", "repeat"} {
 		t.Run(mode, func(t *testing.T) {
 			flow := modeledSystemProfileFlow()
@@ -122,8 +112,7 @@ func TestExecutionProfileSystemToolsPreworkRefusals(t *testing.T) {
 			case "repeat":
 				flow.profileSystemUsed = true
 			}
-			if flow.prepareProfileSystemTools(ctx, tools[0], tools[1]) == nil || flow.profileSystemTools != ([2]*ExecutionSystemToolCustody{}) ||
-				flow.profileSystemImages != ([2]executionProfileSystemImage{}) {
+			if flow.prepareProfileSigner(ctx, signer) == nil || flow.profileSigner != nil || flow.profileSignerImage != (executionProfileSystemImage{}) {
 				t.Fatal("invalid prework returned observations")
 			}
 			if flow.profileSystemUsed != (mode == "repeat") {
@@ -133,33 +122,33 @@ func TestExecutionProfileSystemToolsPreworkRefusals(t *testing.T) {
 	}
 }
 
-func TestExecutionProfileSystemToolsOwnedCheckFailureSticks(t *testing.T) {
+func TestExecutionProfileSignerOwnedCheckFailureSticks(t *testing.T) {
 	for _, mode := range []string{"closed", "drift", "role", "close_error"} {
 		t.Run(mode, func(t *testing.T) {
-			tools := holdSystemProfilePair(t)
+			signer := holdSystemProfileSigner(t)
 			switch mode {
 			case "closed":
-				if err := tools[1].Close(); err != nil {
+				if err := signer.Close(); err != nil {
 					t.Fatal(err)
 				}
 			case "drift":
-				tools[1].volume[0] ^= 1 // Change only owned fixture metadata, never the system file.
+				signer.volume[0] ^= 1 // Change only owned fixture metadata, never the system file.
 			case "role":
-				tools[1].identity.Role = "sh"
+				signer.identity.Role = "sh"
 			case "close_error":
-				if err := tools[1].file.Close(); err != nil {
+				if err := signer.file.Close(); err != nil {
 					t.Fatal(err)
 				}
-				if tools[1].Close() == nil {
+				if signer.Close() == nil {
 					t.Fatal("actual descriptor-close error was hidden")
 				}
 			}
 			flow := modeledSystemProfileFlow()
-			if flow.prepareProfileSystemTools(t.Context(), tools[0], tools[1]) == nil || !flow.profileSystemUsed ||
-				flow.profileSystemTools != ([2]*ExecutionSystemToolCustody{}) || flow.profileSystemImages != ([2]executionProfileSystemImage{}) {
-				t.Fatal("failed actual check retained a partial pair or renewed attempt")
+			if flow.prepareProfileSigner(t.Context(), signer) == nil || !flow.profileSystemUsed ||
+				flow.profileSigner != nil || flow.profileSignerImage != (executionProfileSystemImage{}) {
+				t.Fatal("failed actual check retained a partial signer or renewed attempt")
 			}
-			if flow.prepareProfileSystemTools(t.Context(), tools[0], tools[1]) == nil {
+			if flow.prepareProfileSigner(t.Context(), signer) == nil {
 				t.Fatal("failed observation retried")
 			}
 		})

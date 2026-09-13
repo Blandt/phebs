@@ -44,57 +44,76 @@ func (v *executionPressureVolume) bindRehearsal(ctx context.Context, flow *Execu
 	defer author.mu.Unlock()
 	epochs.mu.Lock()
 	defer epochs.mu.Unlock()
-	if !v.borrowed || v.flow != nil || flow.workspace != nil || !v.ready || v.check() != nil || v.bytes == nil || v.byteErr != nil || !v.preparationBytes.Completed || flow.closed || flow.used || flow.authored ||
-		flow.controller == nil || flow.parent == nil || flow.store == nil || author.parent != v.workspace.path ||
-		author.active || author.borrowedBy != nil || author.closed || author.err != nil || epochs.active || epochs.closed || epochs.err != nil ||
-		len(author.roots) != 4 || len(epochs.roots) != 4 || author.request.Builds == nil || author.request.Git == nil {
-		return errPressureVolume
-	}
-	for _, roots := range [][]productionRoot{author.roots, epochs.roots} {
-		if pressureRootsUnchanged(roots...) != nil {
-			return errPressureVolume
-		}
-		for _, root := range roots {
-			if root.volume != v.workspace.volume || root.path != v.workspace.path && filepath.Dir(root.path) != v.workspace.path {
-				return errPressureVolume
-			}
-		}
-	}
-	inputs := []*ExecutionInputCustody{author.request.Plan, author.request.Git.input, epochs.catalogs, epochs.configs}
-	for _, tool := range []*ExecutionToolCustody{author.request.Author, flow.phebs, flow.zoekt, flow.surreal} {
-		if tool == nil || tool.input == nil {
-			return errPressureVolume
-		}
-		inputs = append(inputs, tool.input)
-	}
-	if (flow.profileTools[0] == nil) != (flow.profileTools[1] == nil) {
-		return errPressureVolume
-	}
-	for _, tool := range flow.profileTools {
-		if tool != nil {
-			if tool.input == nil || tool.referenceInputs != author.request.Builds {
-				return errPressureVolume
-			}
-			inputs = append(inputs, tool.input)
-		}
-	}
-	for _, input := range inputs {
-		if !v.inputOnWorkspace(input) {
-			return errPressureVolume
-		}
-	}
-	builds := author.request.Builds
-	builds.mu.Lock()
-	defer builds.mu.Unlock()
-	if builds.closed || builds.err != nil || builds.volume != v.workspace.volume || filepath.Dir(builds.directory) != v.workspace.path ||
-		!os.SameFile(builds.parentInfo, v.workspace.info) {
+	if !v.rehearsalWorkspaceValidLocked(ctx, flow, false) {
 		return errPressureVolume
 	}
 	v.flow = flow
 	root := v.workspace
 	flow.workspace = &root
 	flow.workspaceBytes = v.bytes.Observer
+	flow.profileWorkspace = newExecutionWorkspaceCustodyCapability(flow.plan.Schema, v, flow)
 	return nil
+}
+
+// Called only with volume, flow, author and epoch locks in that order. This is
+// the single complete predicate used both to bind and to consume the captured
+// workspace capability; bound selects only the ownership edge that the first
+// successful invocation creates.
+func (v *executionPressureVolume) rehearsalWorkspaceValidLocked(ctx context.Context, flow *ExecutionEpochOne, bound bool) bool {
+	if ctx == nil || ctx.Err() != nil || flow == nil || flow.epochs == nil || flow.epochs.author == nil {
+		return false
+	}
+	author, epochs := flow.epochs.author, flow.epochs
+	ownership := v.flow == nil && flow.workspace == nil && flow.profileWorkspace == nil
+	if bound {
+		ownership = v.flow == flow && flow.workspace != nil && flow.workspace.file == v.workspace.file &&
+			flow.workspace.path == v.workspace.path && flow.workspace.volume == v.workspace.volume
+	}
+	if !ownership || !v.borrowed || !v.ready || v.check() != nil || v.bytes == nil || v.byteErr != nil ||
+		!v.preparationBytes.Completed || flow.closed || flow.used || flow.authored || !flow.authorStarted.IsZero() ||
+		flow.controller == nil || flow.parent == nil || flow.store == nil || author.parent != v.workspace.path ||
+		author.active || author.borrowedBy != nil || author.closed || author.err != nil || epochs.active || epochs.closed || epochs.err != nil ||
+		len(author.roots) != 4 || len(epochs.roots) != 4 || author.request.Builds == nil || author.request.Git == nil {
+		return false
+	}
+	for _, roots := range [][]productionRoot{author.roots, epochs.roots} {
+		if pressureRootsUnchanged(roots...) != nil {
+			return false
+		}
+		for _, root := range roots {
+			if root.volume != v.workspace.volume || root.path != v.workspace.path && filepath.Dir(root.path) != v.workspace.path {
+				return false
+			}
+		}
+	}
+	inputs := []*ExecutionInputCustody{author.request.Plan, author.request.Git.input, epochs.catalogs, epochs.configs}
+	for _, tool := range []*ExecutionToolCustody{author.request.Author, flow.phebs, flow.zoekt, flow.surreal} {
+		if tool == nil || tool.input == nil {
+			return false
+		}
+		inputs = append(inputs, tool.input)
+	}
+	if (flow.profileTools[0] == nil) != (flow.profileTools[1] == nil) {
+		return false
+	}
+	for _, tool := range flow.profileTools {
+		if tool != nil {
+			if tool.input == nil || tool.referenceInputs != author.request.Builds {
+				return false
+			}
+			inputs = append(inputs, tool.input)
+		}
+	}
+	for _, input := range inputs {
+		if !v.inputOnWorkspace(input) {
+			return false
+		}
+	}
+	builds := author.request.Builds
+	builds.mu.Lock()
+	defer builds.mu.Unlock()
+	return !builds.closed && builds.err == nil && builds.volume == v.workspace.volume && filepath.Dir(builds.directory) == v.workspace.path &&
+		os.SameFile(builds.parentInfo, v.workspace.info)
 }
 
 func (v *executionPressureVolume) inputOnWorkspace(input *ExecutionInputCustody) bool {

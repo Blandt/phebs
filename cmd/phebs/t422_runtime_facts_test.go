@@ -9,12 +9,14 @@ import (
 	"go/parser"
 	"go/token"
 	"io"
+	"slices"
 	"strings"
 	"testing"
 
 	"github.com/bmeddeb/phebs/internal/dispatchadmission"
 	"github.com/bmeddeb/phebs/internal/extractionpublication"
 	"github.com/bmeddeb/phebs/internal/generationscheduler"
+	"github.com/bmeddeb/phebs/internal/lifecycle"
 	"github.com/bmeddeb/phebs/internal/store"
 )
 
@@ -24,6 +26,9 @@ func TestT422RuntimeFacts(t *testing.T) {
 	var output bytes.Buffer
 	if err := writeT422RuntimeFacts(t.Context(), nil, &output, nil); err != nil {
 		t.Fatal(err)
+	}
+	if output.Len() != 954 {
+		t.Fatal("runtime facts wire size changed", output.Len())
 	}
 	var facts t422RuntimeFacts
 	decoder := json.NewDecoder(bytes.NewReader(output.Bytes()))
@@ -36,11 +41,16 @@ func TestT422RuntimeFacts(t *testing.T) {
 		t.Fatal("noncanonical runtime facts", err)
 	}
 	if facts.Schema != t422RuntimeFactsSchema || facts.StoreRunnerDefaultMaxAttempts != 3 ||
+		facts.StoreRunnerConcurrencyPerKind != store.RunnerConcurrencyPerKind ||
 		facts.ObservationIOConcurrency != 1 || facts.ObservationCPUConcurrency != 2 ||
 		facts.RelationshipConcurrency != 1 || facts.ExtractionConcurrency != 2 ||
 		facts.NativeMaximumAggregatePartitions != 131072 || facts.StoreGenerationMaxAttempts != 8 ||
 		facts.SelectedJobAcceptedAttempts != 3 || facts.SelectedChunkAcceptedAttempts != 5 ||
-		facts.MaximumStoreRowsPerTransaction != 512 {
+		facts.MaximumStoreRowsPerTransaction != 512 || facts.MaximumLifecycleDeletesPerTurn != lifecycle.SelectedCleanupObservationDeletes ||
+		!slices.Equal(facts.RegisteredExtractionDomains, []string{
+			"grpc-caller", "grpc-consumer", "kafka-consumer", "kafka-producer", "proto-contract",
+			"scip-proto-field", "thrift-caller", "thrift-consumer", "thrift-contract",
+		}) {
 		t.Fatal("native configuration changed", facts)
 	}
 	for name, schedule := range map[string]t422ScheduleFacts{
@@ -57,8 +67,7 @@ func TestT422RuntimeFacts(t *testing.T) {
 	}
 	// The existing admission probe transport accepts at most 4 KiB; this is
 	// a fit assertion, not a new transport or permission to launch that probe.
-	if output.Len() != 688 || output.Len() > 4<<10 || strings.Contains(output.String(), "target") ||
-		strings.Contains(output.String(), "registered") || strings.Contains(output.String(), "verified") {
+	if output.Len() > 4<<10 || strings.Contains(output.String(), "target") || strings.Contains(output.String(), "verified") {
 		t.Fatal("unobserved authority or oversized facts", output.String())
 	}
 }
@@ -190,7 +199,13 @@ func TestT422RuntimeFactsSchedulerConstruction(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := map[string]int{"observationIOConcurrency": 1, "observationCPUConcurrency": 1, "relationshipConcurrency": 1}
+	runnerStarts := 0
 	ast.Inspect(file, func(node ast.Node) bool {
+		if call, ok := node.(*ast.CallExpr); ok {
+			if function, ok := call.Fun.(*ast.Ident); ok && function.Name == "runStoreRunner" {
+				runnerStarts++
+			}
+		}
 		field, ok := node.(*ast.KeyValueExpr)
 		if !ok {
 			return true
@@ -211,5 +226,8 @@ func TestT422RuntimeFactsSchedulerConstruction(t *testing.T) {
 		if remaining != 0 {
 			t.Fatal("serve does not construct the observed class once", name, remaining)
 		}
+	}
+	if runnerStarts != 7 {
+		t.Fatal("serve store-runner topology changed", runnerStarts)
 	}
 }

@@ -6,9 +6,18 @@ import (
 	"encoding/json"
 	"errors"
 	"os/exec"
+	"reflect"
 	"runtime"
+	"slices"
 	"time"
 
+	"github.com/bmeddeb/phebs/internal/candidate"
+	"github.com/bmeddeb/phebs/internal/extractionpublication"
+	"github.com/bmeddeb/phebs/internal/lifecycle"
+	"github.com/bmeddeb/phebs/internal/observationpublication"
+	"github.com/bmeddeb/phebs/internal/relationshippublication"
+	"github.com/bmeddeb/phebs/internal/store"
+	"github.com/bmeddeb/phebs/internal/storeaccounting"
 	"github.com/bmeddeb/phebs/spike/t4013"
 )
 
@@ -25,6 +34,7 @@ type executionScheduleFacts struct {
 type executionConfiguredRuntimeFacts struct {
 	Schema                           string                 `json:"schema"`
 	StoreRunnerDefaultMaxAttempts    int                    `json:"store_runner_default_max_attempts"`
+	StoreRunnerConcurrencyPerKind    int                    `json:"store_runner_concurrency_per_kind"`
 	ObservationIOConcurrency         int                    `json:"observation_io_concurrency"`
 	ObservationCPUConcurrency        int                    `json:"observation_cpu_concurrency"`
 	RelationshipConcurrency          int                    `json:"relationship_concurrency"`
@@ -39,6 +49,8 @@ type executionConfiguredRuntimeFacts struct {
 	SelectedJobAcceptedAttempts      int                    `json:"selected_job_accepted_attempts"`
 	SelectedChunkAcceptedAttempts    int                    `json:"selected_chunk_accepted_attempts"`
 	MaximumStoreRowsPerTransaction   int                    `json:"maximum_store_rows_per_transaction"`
+	MaximumLifecycleDeletesPerTurn   int                    `json:"maximum_lifecycle_deletes_per_turn"`
+	RegisteredExtractionDomains      []string               `json:"registered_extraction_domains"`
 }
 
 func decodeExecutionRuntimeFacts(raw []byte) (executionConfiguredRuntimeFacts, error) {
@@ -49,14 +61,15 @@ func decodeExecutionRuntimeFacts(raw []byte) (executionConfiguredRuntimeFacts, e
 	canonical, err := json.Marshal(facts)
 	// Exact re-encoding rejects duplicate/unknown/missing fields, reordered
 	// keys, alternate numbers, trailing data and anything but one final LF.
-	if err != nil || !bytes.Equal(raw, append(canonical, '\n')) || facts.Schema != "t422-runtime-facts-v1" {
+	if err != nil || !bytes.Equal(raw, append(canonical, '\n')) || facts.Schema != "t422-runtime-facts-v2" {
 		return facts, ErrExecutionEpochOne
 	}
 	for _, value := range []int{
-		facts.StoreRunnerDefaultMaxAttempts, facts.ObservationIOConcurrency, facts.ObservationCPUConcurrency,
+		facts.StoreRunnerDefaultMaxAttempts, facts.StoreRunnerConcurrencyPerKind,
+		facts.ObservationIOConcurrency, facts.ObservationCPUConcurrency,
 		facts.RelationshipConcurrency, facts.ExtractionConcurrency, facts.NativeMaximumAggregatePartitions,
 		facts.StoreGenerationMaxAttempts, facts.SelectedJobAcceptedAttempts, facts.SelectedChunkAcceptedAttempts,
-		facts.MaximumStoreRowsPerTransaction,
+		facts.MaximumStoreRowsPerTransaction, facts.MaximumLifecycleDeletesPerTurn,
 		facts.ObservationPlanning.MaxAttempts, facts.ObservationPlanning.RepositoryTokens,
 		facts.ObservationInventory.MaxAttempts, facts.ObservationInventory.RepositoryTokens,
 		facts.ObservationExecution.MaxAttempts, facts.ObservationExecution.RepositoryTokens,
@@ -67,8 +80,64 @@ func decodeExecutionRuntimeFacts(raw []byte) (executionConfiguredRuntimeFacts, e
 			return facts, ErrExecutionEpochOne
 		}
 	}
+	if len(facts.RegisteredExtractionDomains) == 0 || !slices.IsSorted(facts.RegisteredExtractionDomains) {
+		return facts, ErrExecutionEpochOne
+	}
+	for index, domain := range facts.RegisteredExtractionDomains {
+		if domain == "" || index > 0 && domain == facts.RegisteredExtractionDomains[index-1] {
+			return facts, ErrExecutionEpochOne
+		}
+	}
 	// No comparison against expected profile values: later admission owns it.
 	return facts, nil
+}
+
+func validateExecutionRuntimeFacts(facts executionConfiguredRuntimeFacts, plan Plan, profile ExecutionProfile) error {
+	if profile.Schema != ExecutionProfileV3Schema || profile.Runtime.Schema != "t422-production-runtime-constants-v2" ||
+		plan.Schema != PlanV3Schema || profile.Runtime.GenerationMaxAttempts != 0 || profile.Runtime.MaximumAggregatePartitions != 0 {
+		return ErrExecutionEpochOne
+	}
+	want := executionConfiguredRuntimeFacts{
+		Schema:                        "t422-runtime-facts-v2",
+		StoreRunnerDefaultMaxAttempts: store.DefaultRunnerMaxAttempts,
+		StoreRunnerConcurrencyPerKind: store.RunnerConcurrencyPerKind,
+		ObservationIOConcurrency:      1, ObservationCPUConcurrency: 2,
+		RelationshipConcurrency: 1, ExtractionConcurrency: extractionpublication.ScheduleClassConcurrency,
+		ObservationPlanning:              executionScheduleFacts{MaxAttempts: observationpublication.PlanningScheduleMaxAttempts, RepositoryTokens: observationpublication.PlanningScheduleRepositoryTokens},
+		ObservationInventory:             executionScheduleFacts{MaxAttempts: observationpublication.InventoryScheduleMaxAttemptsV2, RepositoryTokens: observationpublication.InventoryScheduleRepositoryTokensV2},
+		ObservationExecution:             executionScheduleFacts{MaxAttempts: observationpublication.ScheduleMaxAttempts, RepositoryTokens: observationpublication.ScheduleRepositoryTokens},
+		Relationship:                     executionScheduleFacts{MaxAttempts: relationshippublication.ScheduleMaxAttempts, RepositoryTokens: relationshippublication.ScheduleRepositoryTokens},
+		Extraction:                       executionScheduleFacts{MaxAttempts: extractionpublication.ScheduleMaxAttempts, RepositoryTokens: extractionpublication.ScheduleRepositoryTokens},
+		NativeMaximumAggregatePartitions: candidate.MaxSparseAggregatePartitions,
+		StoreGenerationMaxAttempts:       store.MaxGenerationAttempts,
+		SelectedJobAcceptedAttempts:      store.DefaultRunnerMaxAttempts,
+		SelectedChunkAcceptedAttempts:    extractionpublication.ScheduleMaxAttempts,
+		MaximumStoreRowsPerTransaction:   storeaccounting.MaximumRows,
+		MaximumLifecycleDeletesPerTurn:   lifecycle.SelectedCleanupObservationDeletes,
+		RegisteredExtractionDomains:      slices.Clone(profile.Config.EnabledExtractorDomains),
+	}
+	if !reflect.DeepEqual(facts, want) ||
+		uint64(facts.StoreRunnerConcurrencyPerKind) != profile.Runtime.StoreRunnerConcurrencyPerKind ||
+		uint64(facts.StoreRunnerDefaultMaxAttempts) != profile.Runtime.StoreRunnerMaxAttempts ||
+		uint64(facts.SelectedJobAcceptedAttempts) != profile.Runtime.StoreRunnerMaxAttempts ||
+		uint64(facts.ObservationIOConcurrency) != profile.Runtime.ObservationIOConcurrency ||
+		uint64(facts.ObservationCPUConcurrency) != profile.Runtime.ObservationCPUConcurrency ||
+		uint64(facts.RelationshipConcurrency) != profile.Runtime.RelationshipConcurrency ||
+		uint64(facts.ExtractionConcurrency) != profile.Runtime.ExtractionConcurrency ||
+		uint64(facts.ObservationExecution.RepositoryTokens) != profile.Runtime.ObservationRepositoryTokens ||
+		uint64(facts.Relationship.RepositoryTokens) != profile.Runtime.RelationshipRepositoryTokens ||
+		uint64(facts.Extraction.RepositoryTokens) != profile.Runtime.ExtractionRepositoryTokens ||
+		uint64(facts.SelectedChunkAcceptedAttempts) != profile.Runtime.SelectedChunkAcceptedAttempts ||
+		uint64(facts.MaximumStoreRowsPerTransaction) != profile.Runtime.MaximumStoreRowsPerTransaction ||
+		uint64(facts.MaximumLifecycleDeletesPerTurn) != profile.Runtime.MaximumLifecycleDeletesPerTurn ||
+		profile.Runtime.AdmittedTargetAggregatePartitions != plan.WorkEnvelope.MaximumAggregatePartitions ||
+		profile.Runtime.MaximumStoreRowsPerTransaction != plan.WorkEnvelope.MaximumStoreRowsPerTransaction ||
+		profile.Runtime.MaximumLifecycleDeletesPerTurn != plan.WorkEnvelope.MaximumLifecycleDeletesPerTurn ||
+		profile.Runtime.AdmittedTargetAggregatePartitions == 0 ||
+		profile.Runtime.AdmittedTargetAggregatePartitions > uint64(facts.NativeMaximumAggregatePartitions) {
+		return ErrExecutionEpochOne
+	}
+	return nil
 }
 
 // Private owned prefix. Output pumps belong to the sole Wait; if it cannot

@@ -22,6 +22,9 @@ func (measurement *ExecutionUnsupportedSourceObservation) complete(plan Plan, pr
 	for _, phase := range executionProducerPhases(producer) {
 		index := phase - 1
 		row := plan.WorkEnvelope.Phases[index]
+		if measurement.Reports[index] > plan.WorkEnvelope.MaximumRetriesPerUnit {
+			return false
+		}
 		if row.ObservationParses.Maximum == 0 {
 			continue
 		}

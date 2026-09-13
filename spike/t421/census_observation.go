@@ -16,7 +16,16 @@ type ExecutionSourceCensusObservation struct {
 }
 
 func (observation ExecutionSourceCensusObservation) complete() bool {
-	return observation.Bound && observation.Started == observation.Finished
+	if !observation.Bound || observation.Started != observation.Finished {
+		return false
+	}
+	for index := range observation.Started {
+		if observation.Succeeded[index] > observation.Finished[index] ||
+			observation.Succeeded[index] == 0 && observation.RegularOwners[index] != 0 {
+			return false
+		}
+	}
+	return true
 }
 
 func reservedCensusEvent(line []byte) bool {

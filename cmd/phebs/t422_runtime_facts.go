@@ -5,10 +5,12 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"sort"
 
 	"github.com/bmeddeb/phebs/internal/candidate"
 	"github.com/bmeddeb/phebs/internal/dispatchadmission"
 	"github.com/bmeddeb/phebs/internal/extractionpublication"
+	"github.com/bmeddeb/phebs/internal/lifecycle"
 	"github.com/bmeddeb/phebs/internal/observationpublication"
 	"github.com/bmeddeb/phebs/internal/relationshippublication"
 	"github.com/bmeddeb/phebs/internal/store"
@@ -22,7 +24,7 @@ const (
 	observationCPUConcurrency = 2
 	relationshipConcurrency   = 1
 	t422RuntimeFactsCommand   = "t422-runtime-facts"
-	t422RuntimeFactsSchema    = "t422-runtime-facts-v1"
+	t422RuntimeFactsSchema    = "t422-runtime-facts-v2"
 )
 
 type t422ScheduleFacts struct {
@@ -30,12 +32,13 @@ type t422ScheduleFacts struct {
 	RepositoryTokens int `json:"repository_tokens"`
 }
 
-// This private recipe reports native configuration only. Target partition
-// totals, registered domains, serial runner topology and selected lifecycle
-// construction require separate facts; none is inferred from this record.
+// This private recipe reports native configuration and the selected registry
+// shape only. The target partition total remains an observed plan/config input;
+// this record supplies its independent native ceiling.
 type t422RuntimeFacts struct {
 	Schema                           string            `json:"schema"`
 	StoreRunnerDefaultMaxAttempts    int               `json:"store_runner_default_max_attempts"`
+	StoreRunnerConcurrencyPerKind    int               `json:"store_runner_concurrency_per_kind"`
 	ObservationIOConcurrency         int               `json:"observation_io_concurrency"`
 	ObservationCPUConcurrency        int               `json:"observation_cpu_concurrency"`
 	RelationshipConcurrency          int               `json:"relationship_concurrency"`
@@ -50,12 +53,15 @@ type t422RuntimeFacts struct {
 	SelectedJobAcceptedAttempts      int               `json:"selected_job_accepted_attempts"`
 	SelectedChunkAcceptedAttempts    int               `json:"selected_chunk_accepted_attempts"`
 	MaximumStoreRowsPerTransaction   int               `json:"maximum_store_rows_per_transaction"`
+	MaximumLifecycleDeletesPerTurn   int               `json:"maximum_lifecycle_deletes_per_turn"`
+	RegisteredExtractionDomains      []string          `json:"registered_extraction_domains"`
 }
 
 func configuredT422RuntimeFacts() t422RuntimeFacts {
 	return t422RuntimeFacts{
 		Schema:                           t422RuntimeFactsSchema,
 		StoreRunnerDefaultMaxAttempts:    store.DefaultRunnerMaxAttempts,
+		StoreRunnerConcurrencyPerKind:    store.RunnerConcurrencyPerKind,
 		ObservationIOConcurrency:         observationIOConcurrency,
 		ObservationCPUConcurrency:        observationCPUConcurrency,
 		RelationshipConcurrency:          relationshipConcurrency,
@@ -70,6 +76,26 @@ func configuredT422RuntimeFacts() t422RuntimeFacts {
 		SelectedJobAcceptedAttempts:      t422JobAcceptedAttempts,
 		SelectedChunkAcceptedAttempts:    t422ChunkAcceptedAttempts,
 		MaximumStoreRowsPerTransaction:   storeaccounting.MaximumRows,
+		MaximumLifecycleDeletesPerTurn:   lifecycle.SelectedCleanupObservationDeletes,
+		RegisteredExtractionDomains:      t422RegisteredExtractionDomains(),
+	}
+}
+
+func t422RegisteredExtractionDomains() []string {
+	extractors := evidenceExtractors(true, true, false, true)
+	domains := make([]string, 0, len(extractors))
+	for _, extractor := range extractors {
+		domains = append(domains, extractor.Domain())
+	}
+	sort.Strings(domains)
+	return domains
+}
+
+// runStoreRunner makes the production per-kind topology consume the same
+// compiled constant reported by the private facts command.
+func runStoreRunner(ctx context.Context, runBackground func(func()), runner *store.Runner) {
+	for range store.RunnerConcurrencyPerKind {
+		runBackground(func() { runner.Run(ctx) })
 	}
 }
 

@@ -81,7 +81,7 @@ func TestExecutionEpochOneOptionalRealStartRehearsal(t *testing.T) {
 	completed := false
 	hostParent := parent
 	var volume *executionPressureVolume
-	var systemTools [2]*ExecutionSystemToolCustody
+	var signer *ExecutionSystemToolCustody
 	var canRelease func() bool
 	t.Cleanup(func() {
 		if volume != nil {
@@ -122,8 +122,8 @@ func TestExecutionEpochOneOptionalRealStartRehearsal(t *testing.T) {
 			t.Error("fixed-host image handles retained beside unjoined rehearsal custody")
 			return
 		}
-		for _, tool := range systemTools {
-			if err := tool.Close(); err != nil {
+		if signer != nil {
+			if err := signer.Close(); err != nil {
 				t.Error("outer fixed-host image close", err)
 			}
 		}
@@ -192,11 +192,9 @@ func TestExecutionEpochOneOptionalRealStartRehearsal(t *testing.T) {
 		}
 		return true
 	}
-	for i, role := range []string{"sh", "ssh-keygen"} {
-		systemTools[i], err = HoldExecutionSystemTool(ctx, role)
-		if err != nil {
-			t.Fatal("actual outer fixed-host image hold", role, err)
-		}
+	signer, err = HoldExecutionSystemTool(ctx, "ssh-keygen")
+	if err != nil {
+		t.Fatal("actual outer fixed-host image hold", "ssh-keygen", err)
 	}
 	git, err := ProtectExecutionGit(ctx, parent, gitBinary)
 	if git != nil {
@@ -313,7 +311,7 @@ func TestExecutionEpochOneOptionalRealStartRehearsal(t *testing.T) {
 	if err := flow.bindProfileTools(ctx, tools[3], tools[4]); err != nil {
 		t.Fatal("protected Buf/focused holder binding", err)
 	}
-	if err := flow.prepareProfileSystemTools(ctx, systemTools[0], systemTools[1]); err != nil {
+	if err := flow.prepareProfileSigner(ctx, signer); err != nil {
 		t.Fatal("actual outer fixed-host image observation", err)
 	}
 	if volume != nil {
@@ -351,6 +349,55 @@ func TestExecutionEpochOneOptionalRealStartRehearsal(t *testing.T) {
 				observed.PID, observed.RootStarted, observed.RootJoined, observed.SessionEmpty, observed.Observed, observed.Complete, observed.Deadline)
 		}
 		t.Fatal("actual protected runtime facts", err)
+	}
+	if volume != nil && pressure {
+		first, second := *flow.profileWorkspace, *flow.profileWorkspace
+		type profileResult struct {
+			observed executionObservedProfilePreimages
+			handoff  *executionOperationalHandoffCapability
+			err      error
+		}
+		results := make(chan profileResult, 2)
+		for _, capability := range []*executionWorkspaceCustodyCapability{&first, &second} {
+			go func() {
+				observed, handoff, err := capability.ConsumeForProfile(ctx)
+				results <- profileResult{observed: observed, handoff: handoff, err: err}
+			}()
+		}
+		var accepted profileResult
+		successes := 0
+		for range 2 {
+			result := <-results
+			if result.err == nil {
+				accepted, successes = result, successes+1
+			}
+		}
+		observed, handoff := accepted.observed, accepted.handoff
+		if successes != 1 || handoff == nil || observed.commandsSHA256 == "" || observed.commandsSHA256 != observed.harnessCommandSetSHA256 ||
+			observed.pressureCommandSetSHA256 == "" || observed.rootVolumeBindingsSHA256 == "" {
+			t.Fatal("copied actual workspace capability did not issue exactly one profile handoff")
+		}
+		handoffFirst, handoffSecond := *handoff, *handoff
+		handoffResults := make(chan profileResult, 2)
+		for _, capability := range []*executionOperationalHandoffCapability{&handoffFirst, &handoffSecond} {
+			go func() {
+				revalidated, err := capability.consumeWorkspace(ctx)
+				handoffResults <- profileResult{observed: revalidated, err: err}
+			}()
+		}
+		successes = 0
+		for range 2 {
+			result := <-handoffResults
+			if result.err == nil && result.observed == observed {
+				successes++
+			}
+		}
+		if successes != 1 {
+			t.Fatal("copied actual operational workspace capability did not revalidate exactly once")
+		}
+		// T42.2m will combine and consume this workspace handoff with signed-
+		// freeze and checkout custody. This T42.2l rehearsal call site proves
+		// workspace issuance/revalidation only and grants no operational authority.
 	}
 	result, err := flow.AuthorA(ctx)
 	if err != nil || !result.Completed || !result.RootJoined || !result.SessionEmpty || result.Revision != "a" {

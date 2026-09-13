@@ -14,7 +14,15 @@ type ExecutionCatalogCensusObservation struct {
 }
 
 func (observation ExecutionCatalogCensusObservation) complete() bool {
-	return observation.Bound && observation.Started == observation.Finished
+	if !observation.Bound || observation.Started != observation.Finished {
+		return false
+	}
+	for index := range observation.Started {
+		if observation.ClosedChildren[index] > observation.Finished[index] {
+			return false
+		}
+	}
+	return true
 }
 
 func reservedCatalogCensusEvent(line []byte) bool {

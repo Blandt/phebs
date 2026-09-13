@@ -1385,8 +1385,8 @@ func serve(args []string) (retErr error) {
 		Interval: cfg.Sync.Interval(), Diagnostics: cfg.Diagnostics.Jobs}
 	bindT4013ExactReports(exactReports, failExactReport, nil, runner, fetchRunner)
 	attemptReports.bindJobs(runner, fetchRunner)
-	runBackground(func() { runner.Run(ctx) })
-	runBackground(func() { fetchRunner.Run(ctx) })
+	runStoreRunner(ctx, runBackground, runner)
+	runStoreRunner(ctx, runBackground, fetchRunner)
 	if watched := phebssync.Watched(cfg); len(watched) > 0 {
 		log.Printf("watch mode: polling %d local repo(s)", len(watched))
 		runBackground(func() {
@@ -1906,8 +1906,8 @@ func serve(args []string) (retErr error) {
 			candidateRunner, exRunner, resolverRunner, callerRunner,
 		)
 		attemptReports.bindJobs(candidateRunner, exRunner, resolverRunner, callerRunner)
-		runBackground(func() { candidateRunner.Run(ctx) })
-		runBackground(func() { exRunner.Run(ctx) })
+		runStoreRunner(ctx, runBackground, candidateRunner)
+		runStoreRunner(ctx, runBackground, exRunner)
 		partitionScheduler := &generationscheduler.Scheduler{
 			Store:       st,
 			Owners:      owners,
@@ -1955,10 +1955,10 @@ func serve(args []string) (retErr error) {
 			}
 		})
 		if resolverRunner != nil {
-			runBackground(func() { resolverRunner.Run(ctx) })
+			runStoreRunner(ctx, runBackground, resolverRunner)
 		}
 		if callerRunner != nil {
-			runBackground(func() { callerRunner.Run(ctx) })
+			runStoreRunner(ctx, runBackground, callerRunner)
 		}
 		catalogAfterIndex := onIndexed
 		onIndexed = func(ctx context.Context, name, commit string) error {
@@ -2022,7 +2022,7 @@ func serve(args []string) (retErr error) {
 			Interval: cfg.Sync.Interval(), Diagnostics: cfg.Diagnostics.Jobs}
 		bindT4013ExactReports(exactReports, failExactReport, nil, ixRunner)
 		attemptReports.bindJobs(ixRunner)
-		runBackground(func() { ixRunner.Run(ctx) })
+		runStoreRunner(ctx, runBackground, ixRunner)
 	}
 
 	reportT4013Startup("scheduler_recovery_complete")

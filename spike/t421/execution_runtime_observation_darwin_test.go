@@ -6,6 +6,7 @@ import (
 	"context"
 	"os"
 	"os/exec"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -63,7 +64,7 @@ func TestExecutionRuntimeProbeNativeSession(t *testing.T) {
 			}
 			if mode == "success" {
 				facts, decodeErr := decodeExecutionRuntimeFacts(observed.stdout.buffer.Bytes())
-				if decodeErr != nil || facts != modeledExecutionRuntimeFacts() {
+				if decodeErr != nil || !reflect.DeepEqual(facts, modeledExecutionRuntimeFacts()) {
 					t.Fatal("actual pipe did not retain supplied model", facts, decodeErr)
 				}
 			}
