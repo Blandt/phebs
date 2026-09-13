@@ -163,7 +163,8 @@ func TestExecutionOuterCancellationCleansPrivateSession(t *testing.T) {
 	executable := protectedExecutionTestImage(t)
 	command := exec.Command(executable, executionOuterMode, "--selection-base64url", encodeExecutionSelection(t, selection))
 	command.Env = []string{"AMBIENT_IGNORED=1"}
-	if code := exitCode(t, command.Run()); code != 51 {
+	_, runErr := runExecutionLauncherWithOutput(t, command)
+	if code := exitCode(t, runErr); code != 51 {
 		t.Fatalf("canceled outer exit = %d", code)
 	}
 	if info, err := os.Lstat(selection.RepositoryRoot); err != nil || !info.Mode().IsRegular() {
@@ -208,7 +209,7 @@ func TestExecutionOuterRefusesInnerWithoutHandoff(t *testing.T) {
 	defer cancel()
 	command := exec.CommandContext(ctx, executable, executionOuterMode, "--selection-base64url", encoded)
 	command.Env = []string{"AMBIENT_IGNORED=1"}
-	err := command.Run()
+	_, err := runExecutionLauncherWithOutput(t, command)
 	var exit *exec.ExitError
 	if !errors.As(err, &exit) || exit.ExitCode() != 45 {
 		t.Fatalf("outer did not reach protected inner authority boundary: %v", err)
@@ -226,7 +227,7 @@ func TestExecutionOuterForwardsOneCanonicalInheritedHandoff(t *testing.T) {
 	executable := protectedExecutionTestImage(t)
 	command := exec.Command(executable, executionOuterMode, "--selection-base64url", encodeExecutionSelection(t, selection))
 	command.Env = []string{"AMBIENT_IGNORED=1"}
-	output, err := command.Output()
+	output, err := runExecutionLauncherWithOutput(t, command)
 	value, decodeErr := decodeExecutionAuthorizationHandoff(output)
 	digest, digestErr := t4013.DigestHostExecutable(t.Context(), executable)
 	if err != nil || decodeErr != nil || digestErr != nil || value.clientArgvPath() != executable || value.T422ExecuteImageSHA256 != digest {
@@ -240,7 +241,7 @@ func TestExecutionOuterRefusesBytesAfterInheritedHandoff(t *testing.T) {
 	executable := protectedExecutionTestImage(t)
 	command := exec.Command(executable, executionOuterMode, "--selection-base64url", encodeExecutionSelection(t, selection))
 	command.Env = []string{"AMBIENT_IGNORED=1"}
-	output, err := command.Output()
+	output, err := runExecutionLauncherWithOutput(t, command)
 	value, decodeErr := decodeExecutionAuthorizationHandoff(output)
 	if code := exitCode(t, err); code != 65 || decodeErr != nil || value.clientArgvPath() != executable {
 		t.Fatalf("extra-byte refusal = code %d, %d output bytes, decode %v", code, len(output), decodeErr)

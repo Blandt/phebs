@@ -46,6 +46,11 @@ func runExecutionOuter(ctx context.Context, started time.Time, executable, selec
 		return ErrExecutionLauncher
 	}
 	defer func() { retErr = errors.Join(retErr, image.Close()) }()
+	output, err := prepareExecutionAuthorizationOutput(ctx, os.Stdout)
+	if err != nil {
+		return ErrExecutionLauncher
+	}
+	defer func() { retErr = errors.Join(retErr, output.file.Close()) }()
 	rows, err := t4013.ObserveProcessTreeRecords(ctx, os.Getpid())
 	if err != nil || len(rows) == 0 || rows[0].PID != os.Getpid() || rows[0].StartIdentity == "" {
 		return ErrExecutionLauncher
@@ -161,7 +166,7 @@ func runExecutionOuter(ctx context.Context, started time.Time, executable, selec
 		writer = nil
 		return stopExecutionInner(command, waited, stoppedWriter, time.Unix(0, deadlineNano))
 	}
-	if forwardExecutionAuthorizationHandoff(os.Stdout, handoffFrame) != nil {
+	if forwardExecutionAuthorizationHandoff(ctx, output, handoffFrame) != nil {
 		stoppedWriter := writer
 		writer = nil
 		return stopExecutionInner(command, waited, stoppedWriter, time.Unix(0, deadlineNano))

@@ -4835,6 +4835,16 @@ source-free result, and waits for acknowledged accounting checkpoint before
 closing. Direct invocation refuses; this command is not yet the full ceremony
 launcher or a freeze command.
 
+The private `spike/t422/cmd/execute` seam also remains incomplete: execution
+stops at the pending-authority boundary after AuthorA. On Darwin its outer
+authorization handoff requires an already nonblocking pipe or socket whose
+write deadline can be enforced. Ordinary blocking pipes, terminals and regular
+files refuse before inner preparation starts; a general shell-output adapter
+is still pending. Cancellation interrupts a connected authorization client
+while it waits for peer closure. Failed or uncertain reference builds retain
+their scratch for inspection instead of claiming successful cleanup. These
+component checks do not establish a runnable full ceremony or authorize one.
+
 The decoded parent-bound V3 execution recipe deliberately leaves contract
 compatibility unavailable: its compatibility child budget is zero, so it skips
 Buf discovery and startup sandbox validation. Its closed read recipes never

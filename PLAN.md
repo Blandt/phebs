@@ -3258,3 +3258,24 @@ in [docs/ROADMAP.md](./docs/ROADMAP.md).
   ballast fixture includes a modeled run/recorder mismatch to exercise this
   exact refusal with real volume/inode custody. Its compile-only or skipped
   result is not a native pass or complete pressure/readiness evidence.
+
+- **2026-09-13 — T42.2n cancellable authorization-output boundary.** Before
+  starting inner preparation, require inherited stdout to be an already
+  nonblocking FIFO or socket with working runtime write deadlines. Observe it
+  through `SyscallConn.Control`, duplicate it close-on-exec, and retain that
+  owned descriptor without calling `Fd` or changing shared status flags.
+  Forward the single canonical frame through this capability under the earlier
+  of final admission, outer and caller deadlines. A joined cancellation
+  callback advances its write deadline; partial writes, expiry, cancellation,
+  identity drift and replay refuse through the existing inner/session cleanup.
+  Blocking pipes, terminals and regular files now refuse before inner Start;
+  general operator shell-output support remains an unimplemented launcher
+  prerequisite, not an asserted elapsed-time guarantee for arbitrary writers.
+  The successful preparation/forward path adds one held descriptor, one
+  duplicate, four stats, five status-flag reads (including `NewFile`), three
+  descriptor-flag reads, two deadline setters and one temporary callback/channel
+  pair. Cancellation adds at most one deadline setter. No child, image hash,
+  corpus scan, persistent cache, product lock or ordinary-runtime work is added.
+  Owned-pipe tests cover actual inner launch/cleanup, full unread output,
+  cancellation, final/caller expiry and prelaunch sink refusal; these do not
+  establish full executor transport or readiness.

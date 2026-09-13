@@ -5,8 +5,10 @@ package t421
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"errors"
 	"io"
+	"time"
 )
 
 type executionAuthorizationHandoffFrame struct {
@@ -44,15 +46,41 @@ func captureExecutionAuthorizationHandoff(
 	tail <- nil
 }
 
-func forwardExecutionAuthorizationHandoff(writer io.Writer, raw []byte) error {
-	if writer == nil || len(raw) < 2 || len(raw) > maxExecutionAuthorizationHandoffFrameBytes {
+func forwardExecutionAuthorizationHandoff(ctx context.Context, output *executionAuthorizationOutput, raw []byte) (retErr error) {
+	if ctx == nil || ctx.Err() != nil || output == nil || output.used || len(raw) < 2 || len(raw) > maxExecutionAuthorizationHandoffFrameBytes {
 		return errExecutionAuthorization
 	}
-	if _, err := decodeExecutionAuthorizationHandoff(raw); err != nil {
+	output.used = true
+	value, err := decodeExecutionAuthorizationHandoff(raw)
+	if err != nil || output.check(ctx) != nil {
 		return errExecutionAuthorization
 	}
-	written, err := writer.Write(raw)
-	if err != nil || written != len(raw) {
+	deadline := time.Unix(0, value.FinalAdmissionDeadlineUnixNano)
+	if output.deadline.Before(deadline) {
+		deadline = output.deadline
+	}
+	if selected, ok := ctx.Deadline(); ok && selected.Before(deadline) {
+		deadline = selected
+	}
+	if !time.Now().Before(deadline) || output.file.SetWriteDeadline(deadline) != nil || ctx.Err() != nil {
+		return errExecutionAuthorization
+	}
+	joined := make(chan struct{})
+	var cancellationErr error
+	stop := context.AfterFunc(ctx, func() {
+		cancellationErr = output.file.SetWriteDeadline(time.Now())
+		close(joined)
+	})
+	defer func() {
+		if !stop() {
+			<-joined
+		}
+		if cancellationErr != nil || ctx.Err() != nil || !time.Now().Before(deadline) {
+			retErr = errExecutionAuthorization
+		}
+	}()
+	written, err := output.file.Write(raw)
+	if err != nil || written != len(raw) || output.check(ctx) != nil {
 		return errExecutionAuthorization
 	}
 	return nil
