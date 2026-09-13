@@ -2,6 +2,7 @@ package t421
 
 import (
 	"context"
+	"math"
 	"strconv"
 	"strings"
 	"testing"
@@ -60,6 +61,10 @@ func TestExecutionAttemptFailedPrefix(t *testing.T) {
 }
 func TestExecutionAttemptSimultaneousHeadroom(t *testing.T) {
 	plan := accountingTestPlan(t)
+	if plan.Profile.Physical.StructuralEligibleGoFiles != 2_000_000 ||
+		plan.Profile.Pipeline.UnsupportedSourceFiles != 0 {
+		t.Fatal("frozen source/unsupported profile changed")
+	}
 	expected := []uint64{32864807, 600395, 19938998, 10012813, 13165061}
 	combined := []uint64{33946097, 961101, 21020672, 11453563, 13525767}
 	withResolver := []uint64{34446276, 961180, 21270801, 11453642, 13775896}
@@ -124,9 +129,19 @@ func TestExecutionAttemptSimultaneousHeadroom(t *testing.T) {
 		if total != withReferences[producer-2] || total >= 64<<20 {
 			t.Fatalf("reference batch output bound changed: producer %d total %d", producer, total)
 		}
-		total += 79 // Mandatory SB binding only; invocation/batch fit remains unproved.
-		total += 79 // Mandatory GC binding; call/failed-start fit remains unproved.
-		t.Logf("producer=%d starts=%d combined=%d remaining=%d", producer, starts, total, (64<<20)-total)
+		total += 79                       // Mandatory SB binding only; invocation/batch fit remains unproved.
+		total += 79                       // Mandatory GC binding; call/failed-start fit remains unproved.
+		unsupportedSubtotal := uint64(79) // Mandatory UF binding.
+		for range executionProducerPhases(producer) {
+			if plan.WorkEnvelope.MaximumRetriesPerUnit == 0 || plan.WorkEnvelope.MaximumRetriesPerUnit > (math.MaxUint64-unsupportedSubtotal)/17 {
+				t.Fatal("unsupported aggregate output overflows", producer)
+			}
+			unsupportedSubtotal += 17 * plan.WorkEnvelope.MaximumRetriesPerUnit
+		}
+		if unsupportedSubtotal > 64<<20 {
+			t.Fatal("unsupported family exceeds retained output bound", producer, unsupportedSubtotal)
+		}
+		t.Logf("producer=%d starts=%d prior_families=%d unsupported_family=%d", producer, starts, total, unsupportedSubtotal)
 	}
 	// At most one retry per emitted start in the same held owner turn. This
 	// proves only source/index/attempt/parse/lifecycle/cache/publication/resolver/relationship fit;

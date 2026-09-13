@@ -88,6 +88,15 @@ func bindT422SourceReports(ctx context.Context, fail func(error)) (context.Conte
 	if err != nil {
 		return nil, err
 	}
+	// Unsupported-source coverage belongs only to the selected semantic server
+	// phases. Offline backup/restore producers share the source-read bridge but
+	// their parser deliberately reserves and rejects the UF family.
+	if state.Mode == dispatchadmission.ProductionSemanticV3 {
+		ctx, err = bindT422UnsupportedSourceReports(ctx, state, fail)
+		if err != nil {
+			return nil, err
+		}
+	}
 	return readaccounting.WithSourceObserver(ctx, func() error {
 		current, err := dispatchadmission.ProductionWorkState()
 		if err == nil {

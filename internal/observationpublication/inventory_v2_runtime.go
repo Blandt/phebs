@@ -166,6 +166,9 @@ func (runtime *Runtime) HandleInventoryV2(ctx context.Context, chunk store.Gener
 	root := filepath.Join(runtime.DataDir, "observations")
 	if current, currentErr := CurrentInventoryDownstreamAuthorityV2(ctx, root, chunk.Repository); currentErr == nil {
 		if current.SourceGenerationDigest == source.Digest {
+			if err := observeUnsupportedSourceCount(ctx, current.RecordCount-current.ObservedCount); err != nil {
+				return terminalInventoryFailure(err)
+			}
 			return runtime.notifyPublished(ctx, chunk.Repository)
 		}
 	} else if !errors.Is(currentErr, os.ErrNotExist) {
@@ -187,11 +190,12 @@ func (runtime *Runtime) HandleInventoryV2(ctx context.Context, chunk store.Gener
 	if err != nil {
 		return terminalInventoryFailure(err)
 	}
-	if _, err := BuildInventoryStageV2(ctx, InventoryBuildRequestV2{
+	inventory, err := BuildInventoryStageV2(ctx, InventoryBuildRequestV2{
 		OutputDirectory:     transition.InventoryDirectory,
 		RepositoryDirectory: repositoryDirectory,
 		Plan:                plan, PriorDirectory: priorInventory,
-	}); err != nil {
+	})
+	if err != nil {
 		return terminalInventoryFailure(err)
 	}
 	release, err := runtime.acquireInventoryV2Fence(ctx, chunk, source.Digest)
@@ -204,6 +208,9 @@ func (runtime *Runtime) HandleInventoryV2(ctx context.Context, chunk store.Gener
 	release()
 	if publishErr != nil {
 		return terminalInventoryFailure(publishErr)
+	}
+	if err := observeUnsupportedSourceCount(ctx, inventory.UnsupportedCount); err != nil {
+		return terminalInventoryFailure(err)
 	}
 	return runtime.notifyPublished(ctx, chunk.Repository)
 }

@@ -8781,6 +8781,23 @@ lifecycle fixture ceilings in `TestT422WorkspaceNativeComposition`,
 `TestT422WorkspaceAllOwnersNativeComposition`; it is not recorded green and
 does not replace the combined T42.2l exact-tree gate.
 
+The next prospective V3 prerequisite closes the frozen-zero unsupported-source
+gap from the fully validated inventory-v2 authority. Confirmed-current reuse
+derives the count from its already-read authority; fresh, prior-member and
+completed-root replay report the validated returned root after publication and
+before notification. Every report must be zero, every owned parsing phase needs
+one, optional non-parsing reports must also be zero, and a sixth report in one
+phase refuses. Offline archive producers reject the server-only family. Applied
+review of the member-level precursor reported critical 0, high 1, medium 2 and
+low 1; this aggregate correction removes the legacy path and member hot-loop
+state. The applied aggregate correction and its production-used nonzero-write
+test passed focused normal/race selectors, complete affected
+`internal/{readaccounting,dispatchadmission,observationpublication}` normal and
+race packages, pinned static checks, documentation, glossary and whitespace.
+Fresh independent no-OCR re-review reports critical, high, medium and low all
+zero. This is joined-work prerequisite evidence only; no phase metric, receipt,
+issuer, freeze, whole-log fit or expanded source claim is made.
+
 The output audit keeps scopes separate. Epoch four plus backup/restore has a
 46,642,240-byte compact subtotal; epoch five separately has 15,149,846 bytes
 of compact records and its own WB stream. The later five WB positions add

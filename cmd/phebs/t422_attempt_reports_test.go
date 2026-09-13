@@ -14,6 +14,7 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -60,7 +61,7 @@ const t422AttemptHelperMode = "PHEBS_T422_ATTEMPT_HELPER_TEST"
 // real phase change. Reports are supplied native-shaped test inputs, not real
 // queue work, protected tool admission, or a phase measurement result.
 func TestT422AttemptInheritedPhase(t *testing.T) {
-	for _, mode := range []string{"events", "zero_observations", "cache_events", "publication_events", "publication_canceled", "resolver_events", "resolver_canceled", "resolver_zero", "relationship_events", "relationship_canceled", "reference_events", "reference_canceled", "reference_zero", "census_events", "census_zero", "catalog_events", "catalog_zero"} {
+	for _, mode := range []string{"events", "zero_observations", "unsupported_source", "cache_events", "publication_events", "publication_canceled", "resolver_events", "resolver_canceled", "resolver_zero", "relationship_events", "relationship_canceled", "reference_events", "reference_canceled", "reference_zero", "census_events", "census_zero", "catalog_events", "catalog_zero"} {
 		t.Run(mode, func(t *testing.T) { testT422AttemptInheritedPhase(t, mode) })
 	}
 }
@@ -218,6 +219,18 @@ func testT422AttemptInheritedPhase(t *testing.T, mode string) {
 	}
 	if strings.Count(diagnostic.String(), "GCB1:5:sha256:") != 1 {
 		t.Fatal("catalog census binding missing", diagnostic.String())
+	}
+	if strings.Count(diagnostic.String(), "UFB1:5:sha256:") != 1 {
+		t.Fatal("unsupported-source binding missing", diagnostic.String())
+	}
+	unsupportedEvents := 0
+	if mode == "unsupported_source" {
+		unsupportedEvents = 4
+	}
+	for _, phase := range []string{"8", "9"} {
+		if strings.Count(diagnostic.String(), "UF1:5:"+phase+":00000000\n") != unsupportedEvents {
+			t.Fatal("actual selected unsupported-source records missing or split", diagnostic.String())
+		}
 	}
 	for _, phase := range []uint32{8, 9} {
 		want := 0
@@ -479,6 +492,22 @@ func TestT422AttemptInheritedHelper(t *testing.T) {
 			}
 		}
 	}
+	unsupportedSourceEvents := func() {
+		if os.Getenv(t422AttemptHelperMode) != "unsupported_source" {
+			return
+		}
+		var group sync.WaitGroup
+		for range 4 {
+			group.Add(1)
+			go func() {
+				defer group.Done()
+				if _, err := dispatchadmission.ObserveProductionUnsupportedSource(ctx, readaccounting.UnsupportedSourceObservation{}); err != nil {
+					t.Error(err)
+				}
+			}()
+		}
+		group.Wait()
+	}
 	censusEvents := func() {
 		mode := os.Getenv(t422AttemptHelperMode)
 		if !strings.HasPrefix(mode, "census_") {
@@ -505,6 +534,7 @@ func TestT422AttemptInheritedHelper(t *testing.T) {
 	}
 	censusEvents()
 	catalogEvents()
+	unsupportedSourceEvents()
 	// Supplied event exercises the actual selected stream, not native parsing.
 	if os.Getenv(t422AttemptHelperMode) != "zero_observations" {
 		if err := dispatchadmission.ObserveProductionParsedBlob(ctx); err != nil {
@@ -533,6 +563,7 @@ func TestT422AttemptInheritedHelper(t *testing.T) {
 	referenceEvents()
 	censusEvents()
 	catalogEvents()
+	unsupportedSourceEvents()
 	if os.Getenv(t422AttemptHelperMode) != "zero_observations" {
 		if err := dispatchadmission.ObserveProductionParsedBlob(ctx); err != nil {
 			t.Fatal(err)
@@ -569,6 +600,9 @@ func TestT422AttemptInheritedHelper(t *testing.T) {
 	}
 	if dispatchadmission.ObserveProductionRelationship(ctx, readaccounting.RelationshipReferences, 0) == nil {
 		t.Fatal("zero references bypassed closed producer coverage")
+	}
+	if _, err := dispatchadmission.ObserveProductionUnsupportedSource(ctx, readaccounting.UnsupportedSourceObservation{}); err == nil {
+		t.Fatal("closed producer emitted guessed unsupported-source phase")
 	}
 	if runner.LifecycleReports(job) == nil {
 		t.Fatal("closed producer emitted guessed phase")

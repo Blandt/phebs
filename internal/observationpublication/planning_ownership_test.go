@@ -12,6 +12,7 @@ import (
 
 	"github.com/bmeddeb/phebs/internal/focusedindex"
 	"github.com/bmeddeb/phebs/internal/pipelinerefusal"
+	"github.com/bmeddeb/phebs/internal/readaccounting"
 	"github.com/bmeddeb/phebs/internal/repositoryindex"
 	"github.com/bmeddeb/phebs/internal/repowork"
 	"github.com/bmeddeb/phebs/internal/store"
@@ -1046,6 +1047,17 @@ func TestInventoryV2ReplacesPriorSourceGeneration(t *testing.T) {
 		DataDir: dataDirectory, Store: state, Cache: &Cache{}, InventoryV2: true,
 		AcquireTransition: noopPlanningTransition,
 	}
+	unsupportedReports := 0
+	ctx, err := readaccounting.WithUnsupportedSourceObserver(t.Context(), func(event readaccounting.UnsupportedSourceObservation) (uint32, error) {
+		if event.Unsupported != 0 {
+			t.Fatal("unexpected unsupported source", event.Unsupported)
+		}
+		unsupportedReports++
+		return 2, nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
 	currentObserved := 0
 	runtime.OnPlanningCurrent = func(_ context.Context, currentRepository string) error {
 		if currentRepository != repository {
@@ -1065,7 +1077,7 @@ func TestInventoryV2ReplacesPriorSourceGeneration(t *testing.T) {
 		inventories := state.specsFor(InventoryScheduleStageV2)
 		inventorySpec := inventories[len(inventories)-1]
 		if err := runtime.HandleInventoryV2(
-			t.Context(), planningChunkForSpec(t, inventorySpec),
+			ctx, planningChunkForSpec(t, inventorySpec),
 		); err != nil {
 			t.Fatalf("publish v2 %s: %v", label, err)
 		}
@@ -1111,6 +1123,9 @@ func TestInventoryV2ReplacesPriorSourceGeneration(t *testing.T) {
 		len(state.specsFor(InventoryScheduleStageV2)) != 2 {
 		t.Fatalf("inventory replacement A=%+v B=%+v specs=%+v", a, b,
 			state.specsFor(InventoryScheduleStageV2))
+	}
+	if unsupportedReports != 2 {
+		t.Fatalf("fresh/prior inventory unsupported reports = %d", unsupportedReports)
 	}
 }
 
@@ -1266,11 +1281,66 @@ func TestInventoryV2PublicationInvokesDownstreamCallback(t *testing.T) {
 		t.Fatalf("inventory enqueue = %q, %v", disposition, err)
 	}
 	spec := state.specsFor(InventoryScheduleStageV2)[0]
-	if err := runtime.HandleInventoryV2(t.Context(), planningChunkForSpec(t, spec)); err != nil {
+	var unsupported []uint64
+	ctx, err := readaccounting.WithUnsupportedSourceObserver(t.Context(), func(event readaccounting.UnsupportedSourceObservation) (uint32, error) {
+		unsupported = append(unsupported, event.Unsupported)
+		return 2, nil
+	})
+	if err != nil {
 		t.Fatal(err)
 	}
-	if len(published) != 1 || published[0] != repository {
-		t.Fatalf("v2 publication callbacks = %+v", published)
+	if err := runtime.HandleInventoryV2(ctx, planningChunkForSpec(t, spec)); err != nil {
+		t.Fatal(err)
+	}
+	if len(published) != 1 || published[0] != repository || len(unsupported) != 1 || unsupported[0] != 0 {
+		t.Fatalf("v2 publication callbacks = %+v, unsupported=%+v", published, unsupported)
+	}
+	if err := runtime.HandleInventoryV2(ctx, planningChunkForSpec(t, spec)); err != nil {
+		t.Fatal("current-root replay", err)
+	}
+	if len(published) != 2 || len(unsupported) != 2 || unsupported[1] != 0 {
+		t.Fatalf("v2 current replay = callbacks=%+v unsupported=%+v", published, unsupported)
+	}
+}
+
+func TestInventoryV2UnsupportedAggregateRefusesNotification(t *testing.T) {
+	dataDirectory, repositoryDirectory, repository, _ := planningOwnershipFixture(t)
+	if err := os.WriteFile(filepath.Join(repositoryDirectory, "main.go"), []byte("not go\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	runObservationGit(t, repositoryDirectory, "add", "main.go")
+	runObservationGit(t, repositoryDirectory, "commit", "-m", "unsupported")
+	commit := strings.TrimSpace(runObservationGit(t, repositoryDirectory, "rev-parse", "HEAD"))
+	publishPlanningOwnershipSource(t, dataDirectory, repositoryDirectory, repository, commit)
+	state := &planningOwnershipStore{}
+	called := false
+	runtime := &Runtime{
+		DataDir: dataDirectory, Store: state, Cache: &Cache{}, InventoryV2: true,
+		AcquireTransition: noopPlanningTransition,
+		OnPublished:       func(context.Context, string) error { called = true; return nil },
+	}
+	if disposition, err := runtime.EnqueuePlanning(t.Context(), repository); err != nil || disposition != PlanningEnqueued {
+		t.Fatal(disposition, err)
+	}
+	var unsupported uint64
+	reports := 0
+	ctx, err := readaccounting.WithUnsupportedSourceObserver(t.Context(), func(event readaccounting.UnsupportedSourceObservation) (uint32, error) {
+		reports++
+		unsupported = event.Unsupported
+		if unsupported != 0 {
+			return 2, errors.New("selected zero-unsupported refusal")
+		}
+		return 2, nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	spec := state.specsFor(InventoryScheduleStageV2)[0]
+	if err := runtime.HandleInventoryV2(ctx, planningChunkForSpec(t, spec)); err == nil || unsupported == 0 || called {
+		t.Fatal("unsupported inventory notification", unsupported, called, err)
+	}
+	if err := runtime.HandleInventoryV2(ctx, planningChunkForSpec(t, spec)); err == nil || reports != 2 || called {
+		t.Fatal("current unsupported inventory notification", reports, called, err)
 	}
 }
 

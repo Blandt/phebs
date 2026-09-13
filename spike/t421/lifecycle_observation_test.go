@@ -16,9 +16,16 @@ func lifecycleTestBindings(producer uint32) string {
 	input := "sha256:01" + strings.Repeat("00", 31) + "\n"
 	raw := fmt.Sprintf("ATB1:%d:%sSRB1:%d:%sOPB1:%d:%sLCB1:%d:%sCCB1:%d:%sEPB1:%d:%sRMB1:%d:%sRLB1:%d:%sSBB2:%d:%sGCB1:%d:%sRUB1:%d:%s", producer, input, producer, input, producer, input, producer, input, producer, input, producer, input, producer, input, producer, input, producer, input, producer, input, producer, input)
 	if producer <= 6 {
+		raw += fmt.Sprintf("UFB1:%d:%s", producer, input)
 		for _, phase := range executionProducerPhases(producer) {
 			raw += fmt.Sprintf("RU1:%X:%X:00000\n", producer, phase)
 		}
+	}
+	switch producer {
+	case 2:
+		raw += "UF1:2:2:00000000\nUF1:2:4:00000000\n"
+	case 4:
+		raw += "UF1:4:6:00000000\n"
 	}
 	return raw
 }

@@ -7487,3 +7487,11 @@ phase's final-authority report completes; product queries use the second final
 read. These private records are incomplete evidence until the later phase
 measurement author consumes them, and do not by themselves establish reuse or
 authorize a freeze.
+
+Prospective V3 also proves the frozen zero unsupported-source count from the
+fully validated inventory-v2 authority. Confirmed-current reuse derives the
+count from its already-read authority; fresh, prior-member and completed-root
+replay report the validated root after publication and before notification.
+Every report must be zero, every parsing phase needs one, and a sixth report in
+one phase refuses. This does not mean all source languages are supported, and
+the record is not a phase metric or freeze authorization by itself.

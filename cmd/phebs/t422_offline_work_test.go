@@ -31,7 +31,7 @@ func assertT422OfflineBindings(t *testing.T, raw string, producer uint32, digest
 			t.Fatal("missing/duplicate actual offline binding", family, raw)
 		}
 	}
-	for _, family := range []string{"ATB", "LCB", "IXB"} {
+	for _, family := range []string{"ATB", "LCB", "IXB", "UFB", "UF1"} {
 		if strings.Contains(raw, family) {
 			t.Fatal("offline command acquired server-only coverage", family)
 		}

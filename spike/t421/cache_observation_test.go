@@ -16,7 +16,7 @@ func TestExecutionCacheJoinedDecisions(t *testing.T) {
 		t.Fatal(got.Cache, err)
 	}
 	for producer := uint32(2); producer <= 6; producer++ {
-		bindings := strings.ReplaceAll(attemptTestBindings(), ":2:", ":"+string(rune('0'+producer))+":")
+		bindings := lifecycleTestBindings(producer)
 		zero, err := observeExecutionAttempts([]byte(bindings), plan, producer, [32]byte{1}, true)
 		if err != nil || !zero.Cache.Complete || zero.Cache.Phases != ([15]ExecutionCacheCount{}) {
 			t.Fatal("mandatory native bound zero", producer, zero, err)
