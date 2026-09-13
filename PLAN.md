@@ -3062,8 +3062,20 @@ in [docs/ROADMAP.md](./docs/ROADMAP.md).
   attempt holds seal/key/claim/signer/namespace locks in that order over seven
   serial supervised ssh-keygen commands and bounded encoding/hash passes. Each
   child retains its existing 30-second command deadline, one-second pipe drain
-  and up-to-five-second session cleanup. Two at-most-4-KiB signature files and
-  held descriptors add two file syncs and four directory syncs; failed attempts
+  and up-to-five-second session cleanup. `DecodePlan` also reconstructs the
+  frozen V3 plan without a production cache: the 31,600-file overlay,
+  10,000-service catalog controls and logical generations, authored/independent
+  oracles, and both legacy and Go-only A/B identities. This includes four
+  complete structural-record traversals of roughly two million records, two
+  combined-additions inventories and two short reader-probe traversals.
+  Structural records stream without disk authoring; overlay, catalog,
+  membership and tree-frame allocations are additional to the archive byte
+  limits. Reconstruction and comparison retain all five locks. These generator
+  APIs receive no caller context, and authored projection uses
+  `context.Background()`: cancellation cannot interrupt reconstruction, and
+  signing-child deadlines do not bound it. The next signer authority check
+  rejects cancellation after reconstruction. Two at-most-4-KiB signature files
+  and held descriptors add two file syncs and four directory syncs; failed attempts
   retain their registry custody and cannot retry. The fixed archive limits are
   four MiB compressed and expanded, with several bounded in-memory copies.
   Query/request, sync, ordinary startup/restart, retry/no-op, publication,

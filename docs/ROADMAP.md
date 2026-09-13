@@ -71,8 +71,10 @@ pressure/archive identities and incomplete success/stopped receipt wiring.
 Those drafts are preserved outside the compiled checkpoint; the existing
 post-AuthorA pending-authority stop remains. Bounded commits cover signed
 in-memory packaging, detached native observations and controller acceptance
-ordinals. Their checks do not establish returned-package delivery or a full
-ceremony. The owning [backlog record](./BACKLOG.md) lists the remaining native
+ordinals. Scoped normal/race checks and the native signed-package fixture pass;
+package lint retains ten inherited findings. These checks do not establish
+returned-package delivery or a full ceremony. The owning
+[backlog record](./BACKLOG.md) lists the remaining native
 evidence, receipt and transport work before T42.2n acceptance and T42.2o
 reviewed integration into `main`, sealing and exact-main freeze.
 

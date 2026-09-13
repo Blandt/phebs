@@ -4489,12 +4489,13 @@ not claim native callback occurrence times or durations. The retained archive
 manifest remains archive-only evidence. Each checkpoint owns its tests and
 PLAN cost record.
 
-The three implementation checkpoints are independently source/docs/cost reviewed
-with critical/high/medium/low `0/0/0/0` for each exact commit:
+The three implementation checkpoints received initial independent
+source/docs/cost reviews with critical/high/medium/low `0/0/0/0` for each exact
+commit. A follow-up package cost review and its correction are recorded below:
 
 | Commit | Component validation |
 | --- | --- |
-| `27c740c8f8ae4366d2ad9430c86155ddb0f16ead` | Malformed-header, signer-key and claim/collision normal selector passed in 0.948s. Complete native package validation remains separately recorded below. |
+| `27c740c8f8ae4366d2ad9430c86155ddb0f16ead` | Malformed-header, signer-key and claim/collision normal selector passed in 0.948s. The native signed-package result is recorded below. |
 | `ae61782fde206ec63f9d6f60682dd3bc29591550` | Capture-only source applied independently over `adc0f887` passed detached-observation and existing inspection snapshot tests: normal 0.639s, race 1.829s. |
 | `aaad49ddc713d43ac23f91fa4fd7689f8a4aad3a` | Sixteen selected event/runtime, health, native-wire, retention, pressure and teardown tests passed: normal 1.086s, race 7.420s. |
 
@@ -4511,10 +4512,25 @@ The first isolated signer/package normal command used an insufficient
 ten-minute package allowance and timed out during the existing native resolver
 fixture, before package construction (662.602s total). Its original diagnostic
 lineage is retained and its test/database processes exited. This failed attempt
-is not a signer failure or a pass. The exact signer commit's serial race
-confirmation uses the existing fixture's longer sixty-minute package allowance;
-its result must be recorded before claiming that component's native package
-acceptance.
+is not a signer failure or a pass. The serial race confirmation at exact clean
+signer commit `27c740c8f8ae4366d2ad9430c86155ddb0f16ead` then passed all fourteen
+selected tests in 3434.691s under the existing sixty-minute package allowance,
+with no skips or race reports. The native returned-package test passed in
+3115.68s, including exact eleven-entry inventory authentication and single-use
+refusal; the signer-seal regression passed in 314.68s. The checkout remained
+clean, and no test, SurrealDB or signer process survives. The fixture uses real
+production identity constructors and actual signing, with modeled receipt
+measurements and search leaf; this is component validation, not executor
+delivery, a complete package test suite or ceremony evidence. The terminal log
+is retained with the local recovery artifacts.
+
+Follow-up review identified one low omission in the package cost record:
+`DecodePlan` regenerates the frozen plan under all five signer locks, with
+allocations beyond the archive byte limits and no caller-context interruption.
+The owning PLAN checkpoint now enumerates those generator traversals and the
+deferred cancellation check. Source-identical documentation re-review closed
+critical/high/medium/low at `0/0/0/0`; no implementation finding remains in the
+three accepted checkpoints.
 
 Remaining work is explicit: native caller counters; separately observed
 pressure and archive identities; complete phase-one/teardown and disk metric
@@ -4522,8 +4538,8 @@ owners with coverage enforcement; both successful and stopped receipt
 composition; bounded package delivery through the outer firewall; then T42.2n
 exact-source acceptance/independent review and T42.2o integration, seal and
 exact-main freeze. Historical full-package failures/timeouts remain retained.
-No full package, rehearsal, T42.2l/m/n/o closure, merge, push or ceremony is
-established by these component reviews.
+No complete package test suite, rehearsal, T42.2l/m/n/o closure, merge, push or
+ceremony is established by these component reviews.
 
 **T42.2l measurement track — phase-bound attempt reports (2026-09-07).**
 Replace selected job/chunk report writes with genuine producer/input/phase-bound
