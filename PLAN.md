@@ -3219,3 +3219,12 @@ in [docs/ROADMAP.md](./docs/ROADMAP.md).
   allocations, traversal and cancellation limits, actual caller-held locks and
   three repeated Go-inventory metadata scans. No authority predicate, native
   admission bound, persistent cache or ordinary-runtime behavior changes.
+
+- **2026-09-13 — T42.2n detached recovery-workspace correction.** Copy both
+  optional stale/checkpoint workspace structs when retaining or returning
+  transition observations. Each clone adds at most two 16-byte values, plus
+  allocator overhead, under the existing inspection or result mutex; absent
+  pointers allocate nothing. Repeated `Wait` results can no longer mutate the
+  retained observations through those pointers. No native read, I/O, child,
+  retry, new lock or ordinary-runtime work is added. The existing detached
+  snapshot regression now mutates both returned workspace values.

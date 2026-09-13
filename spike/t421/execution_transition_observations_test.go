@@ -10,7 +10,9 @@ import (
 
 func TestExecutionTransitionObservationsWaitDetached(t *testing.T) {
 	observed := executionTransitionObservations{
-		collectionCycle: lifecycle.CycleObservation{Owners: []lifecycle.CycleOwnerObservation{{Name: "collection"}}},
+		stalePreparation:      epochStalePreparation{Workspace: &epochRecoveryWorkspaceSample{LogicalBytes: 1, AllocatedBytes: 2}},
+		checkpointPreparation: epochStalePreparation{Workspace: &epochRecoveryWorkspaceSample{LogicalBytes: 3, AllocatedBytes: 4}},
+		collectionCycle:       lifecycle.CycleObservation{Owners: []lifecycle.CycleOwnerObservation{{Name: "collection"}}},
 		archiveManifest: &recovery.ArchiveTransitionManifest{
 			Components: []recovery.ArchiveTransitionComponent{{Name: "component"}},
 			Reports:    []recovery.ArchiveTransitionReport{{Name: "report"}},
@@ -30,6 +32,8 @@ func TestExecutionTransitionObservationsWaitDetached(t *testing.T) {
 	first.transitionObservations.pressure.recovery.Owners[0].Name = "changed"
 	first.transitionObservations.archiveManifest.Components[0].Name = "changed"
 	first.transitionObservations.archiveManifest.Reports[0].Name = "changed"
+	first.transitionObservations.stalePreparation.Workspace.LogicalBytes++
+	first.transitionObservations.checkpointPreparation.Workspace.AllocatedBytes++
 	second, err := run.Wait(t.Context())
 	if err != nil || !reflect.DeepEqual(second.transitionObservations, observed) {
 		t.Fatal("returned snapshot changed retained native observations", err)

@@ -26,6 +26,14 @@ type executionTransitionObservations struct {
 }
 
 func cloneExecutionTransitionObservations(value executionTransitionObservations) executionTransitionObservations {
+	if value.stalePreparation.Workspace != nil {
+		workspace := *value.stalePreparation.Workspace
+		value.stalePreparation.Workspace = &workspace
+	}
+	if value.checkpointPreparation.Workspace != nil {
+		workspace := *value.checkpointPreparation.Workspace
+		value.checkpointPreparation.Workspace = &workspace
+	}
 	value.pressure.normal.Owners = slices.Clone(value.pressure.normal.Owners)
 	value.pressure.recovery.Owners = slices.Clone(value.pressure.recovery.Owners)
 	value.collectionCycle.Owners = slices.Clone(value.collectionCycle.Owners)
