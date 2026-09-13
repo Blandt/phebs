@@ -15,20 +15,23 @@ const (
 )
 
 // executionSignerSealCustody retains the exact candidate and promoted
-// signature after the first verification. It is not a returned package,
-// launcher capability, checkout handoff, or receipt binding.
+// signatures. It is not a launcher capability, checkout handoff, or receipt
+// binding.
 type executionSignerSealCustody struct {
-	mu              sync.Mutex
-	key             *executionSignerKeyCustody
-	candidate       *executionSignerHeldFile
-	signatureStage  *executionSignerHeldFile
-	signature       *executionSignerHeldFile
-	candidateRaw    []byte
-	signatureRaw    []byte
-	freeze          ExecutionFreeze
-	firstVerifiedAt time.Time
-	admissionUsed   bool
-	closed          bool
+	mu                sync.Mutex
+	key               *executionSignerKeyCustody
+	candidate         *executionSignerHeldFile
+	signatureStage    *executionSignerHeldFile
+	signature         *executionSignerHeldFile
+	candidateRaw      []byte
+	signatureRaw      []byte
+	freeze            ExecutionFreeze
+	firstVerifiedAt   time.Time
+	admissionUsed     bool
+	packageUsed       bool
+	sourceSignature   *executionSignerHeldFile
+	returnedSignature *executionSignerHeldFile
+	closed            bool
 }
 
 func sealExecutionFreezeCandidate(

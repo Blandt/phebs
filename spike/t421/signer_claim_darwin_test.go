@@ -73,6 +73,10 @@ func TestExecutionSignerCeremonyRefusesKnownDestinationsBeforeClaim(t *testing.T
 		{"candidate", func(n executionSignerRegistryNames) string { return n.candidate }},
 		{"signature stage", func(n executionSignerRegistryNames) string { return n.signatureStage }},
 		{"signature final", func(n executionSignerRegistryNames) string { return n.signature }},
+		{"source signature stage", func(n executionSignerRegistryNames) string { return n.sourceSignatureStage }},
+		{"source signature final", func(n executionSignerRegistryNames) string { return n.sourceSignature }},
+		{"returned signature stage", func(n executionSignerRegistryNames) string { return n.returnedSignatureStage }},
+		{"returned signature final", func(n executionSignerRegistryNames) string { return n.returnedSignature }},
 	} {
 		t.Run(field.name, func(t *testing.T) {
 			namespace := newExecutionSignerNamespaceTestBinding(t)

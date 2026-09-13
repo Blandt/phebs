@@ -27,23 +27,28 @@ type executionSignerCeremonyClaimV1 struct {
 }
 
 type executionSignerRegistryNames struct {
-	idSHA256        string
-	claim           string
-	temporaryKey    string
-	temporaryPublic string
-	privateKey      string
-	generatedPublic string
-	allowlist       string
-	candidate       string
-	signatureStage  string
-	signature       string
+	idSHA256               string
+	claim                  string
+	temporaryKey           string
+	temporaryPublic        string
+	privateKey             string
+	generatedPublic        string
+	allowlist              string
+	candidate              string
+	signatureStage         string
+	signature              string
+	sourceSignatureStage   string
+	sourceSignature        string
+	returnedSignatureStage string
+	returnedSignature      string
 }
 
 func (names executionSignerRegistryNames) absentBeforeClaim() []string {
 	return []string{
 		names.temporaryKey, names.temporaryPublic, names.privateKey,
 		names.generatedPublic, names.allowlist, names.candidate,
-		names.signatureStage, names.signature,
+		names.signatureStage, names.signature, names.sourceSignatureStage,
+		names.sourceSignature, names.returnedSignatureStage, names.returnedSignature,
 	}
 }
 
@@ -117,16 +122,20 @@ func executionSignerNames(ceremonyID string) executionSignerRegistryNames {
 	id := hex.EncodeToString(digest[:])
 	temporary := ".t422-keygen-" + id + ".key.tmp"
 	return executionSignerRegistryNames{
-		idSHA256:        id,
-		claim:           "ceremony-" + id + ".claim.json",
-		temporaryKey:    temporary,
-		temporaryPublic: temporary + ".pub",
-		privateKey:      "signer-" + id + ".key",
-		generatedPublic: "signer-" + id + ".key.pub",
-		allowlist:       "allowed-signers-" + id + ".txt",
-		candidate:       "execution-freeze-" + id + ".json",
-		signatureStage:  "execution-freeze-" + id + ".sig.stage",
-		signature:       "execution-freeze-" + id + ".sig",
+		idSHA256:               id,
+		claim:                  "ceremony-" + id + ".claim.json",
+		temporaryKey:           temporary,
+		temporaryPublic:        temporary + ".pub",
+		privateKey:             "signer-" + id + ".key",
+		generatedPublic:        "signer-" + id + ".key.pub",
+		allowlist:              "allowed-signers-" + id + ".txt",
+		candidate:              "execution-freeze-" + id + ".json",
+		signatureStage:         "execution-freeze-" + id + ".sig.stage",
+		signature:              "execution-freeze-" + id + ".sig",
+		sourceSignatureStage:   "source-verification-" + id + ".sig.stage",
+		sourceSignature:        "source-verification-" + id + ".sig",
+		returnedSignatureStage: "returned-package-" + id + ".sig.stage",
+		returnedSignature:      "returned-package-" + id + ".sig",
 	}
 }
 

@@ -112,16 +112,27 @@ func verifyExecutionSignerCandidateLocked(
 	if err != nil || !bytes.Equal(candidateRaw, raw) {
 		return ErrExecutionEpochOne
 	}
-	_, _, err = runExecutionSignerPayloadCommandLocked(ctx, key,
-		[]*executionSignerHeldFile{key.privateKey, key.canonicalFile, key.allowlist, candidate, signature},
-		raw, maxExecutionSignerSignatureBytes,
-		"-Y", "verify", "-f", key.allowlist.path, "-I", executionSignerIdentity,
-		"-n", executionFreezeSignatureNamespace, "-s", signature.path,
-	)
+	err = verifyExecutionSignerPayloadLocked(ctx, key, signature, raw, executionFreezeSignatureNamespace, candidate)
 	if err != nil {
 		return errors.New("T42.2 execution freeze signature verification failed")
 	}
 	return nil
+}
+
+func verifyExecutionSignerPayloadLocked(
+	ctx context.Context,
+	key *executionSignerKeyCustody,
+	signature *executionSignerHeldFile,
+	raw []byte,
+	namespace string,
+	extra ...*executionSignerHeldFile,
+) error {
+	inputs := []*executionSignerHeldFile{key.privateKey, key.canonicalFile, key.allowlist, signature}
+	inputs = append(inputs, extra...)
+	_, _, err := runExecutionSignerPayloadCommandLocked(ctx, key, inputs, raw, maxExecutionSignerSignatureBytes,
+		"-Y", "verify", "-f", key.allowlist.path, "-I", executionSignerIdentity,
+		"-n", namespace, "-s", signature.path)
+	return err
 }
 
 func sealCandidateBytes(candidate *executionSignerHeldFile, expected []byte) []byte {
@@ -198,7 +209,10 @@ func verifyExecutionSignerSealAndIssue(
 }
 
 func closeExecutionSignerSeal(seal *executionSignerSealCustody) error {
-	for _, held := range []*executionSignerHeldFile{seal.candidate, seal.signatureStage, seal.signature} {
+	for _, held := range []*executionSignerHeldFile{
+		seal.candidate, seal.signatureStage, seal.signature,
+		seal.sourceSignature, seal.returnedSignature,
+	} {
 		if held != nil && held.file != nil && held.file.Close() != nil {
 			return ErrExecutionEpochOne
 		}
