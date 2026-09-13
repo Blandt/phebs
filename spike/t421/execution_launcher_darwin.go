@@ -1,0 +1,520 @@
+//go:build darwin
+
+package t421
+
+import (
+	"context"
+	"encoding/base64"
+	"encoding/json"
+	"errors"
+	"io"
+	"math"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strconv"
+	"strings"
+	"sync"
+	"syscall"
+	"time"
+
+	"github.com/bmeddeb/phebs/spike/t4013"
+	"golang.org/x/sys/unix"
+)
+
+func runExecutionOuter(ctx context.Context, started time.Time, executable, selection string, _ []string) (retErr error) {
+	startedNano := started.UnixNano()
+	maximumWall := executionMaximumWall.Nanoseconds()
+	if startedNano <= 0 || startedNano > math.MaxInt64-maximumWall || ctx.Err() != nil {
+		return ErrExecutionLauncher
+	}
+	deadlineNano := startedNano + maximumWall
+	deadline := time.Unix(0, deadlineNano)
+	if selected, exists := ctx.Deadline(); exists && selected.Before(deadline) {
+		deadline = selected
+	}
+	ctx, cancel := context.WithDeadline(ctx, deadline)
+	defer cancel()
+	_, err := executionSelection(selection)
+	if err != nil || !time.Now().Before(time.Unix(0, deadlineNano)) || !validExecutionLauncherPath(executable) {
+		return ErrExecutionLauncher
+	}
+	image, err := holdExecutionImage(ctx, executable, 0, 0)
+	if err != nil {
+		return ErrExecutionLauncher
+	}
+	defer func() { retErr = errors.Join(retErr, image.Close()) }()
+	rows, err := t4013.ObserveProcessTreeRecords(ctx, os.Getpid())
+	if err != nil || len(rows) == 0 || rows[0].PID != os.Getpid() || rows[0].StartIdentity == "" {
+		return ErrExecutionLauncher
+	}
+	reader, writer, err := os.Pipe()
+	if err != nil {
+		return ErrExecutionLauncher
+	}
+	defer func() {
+		retErr = errors.Join(retErr, closeExecutionFile(reader), closeExecutionFile(writer))
+	}()
+	readRow, err := executionPipeRow(reader, unix.O_RDONLY)
+	if err != nil {
+		return ErrExecutionLauncher
+	}
+	writeRow, err := executionPipeRow(writer, unix.O_WRONLY)
+	if err != nil || reader.Fd() == writer.Fd() {
+		return ErrExecutionLauncher
+	}
+	binding := executionParentLivenessV1{
+		Schema: executionParentLivenessSchema, OuterPID: os.Getpid(), OuterStartToken: rows[0].StartIdentity,
+		OuterStartedUnixNano: startedNano, OuterDeadlineUnixNano: deadlineNano, ReadFD: 3,
+		ReadDevice: readRow.device, ReadInode: readRow.inode, ReadMode: readRow.mode,
+		WriteDevice: writeRow.device, WriteInode: writeRow.inode, WriteMode: writeRow.mode,
+		ExecutePathSHA256: image.pathSHA256, ExecuteDevice: image.device, ExecuteInode: image.inode,
+		ExecuteMode: image.mode, ExecuteSize: image.size, ExecuteCTimeUnixNano: image.ctimeUnixNano,
+		ExecuteImageSHA256: image.digest,
+	}
+	raw, err := json.Marshal(binding)
+	if err != nil || len(raw) == 0 || len(raw) > maxExecutionLivenessBytes {
+		return ErrExecutionLauncher
+	}
+	liveness := base64.RawURLEncoding.EncodeToString(raw)
+	input, err := os.Open(os.DevNull)
+	if err != nil {
+		return ErrExecutionLauncher
+	}
+	defer func() { retErr = errors.Join(retErr, closeExecutionFile(input)) }()
+	command := exec.Command(executable, executionInnerMode, "--selection-base64url", selection)
+	command.Env = []string{executionLivenessEnvironment + "=" + liveness}
+	command.Stdin, command.Stdout, command.Stderr = input, io.Discard, io.Discard
+	command.ExtraFiles = []*os.File{reader}
+	command.WaitDelay = 5 * time.Second
+	prepareProductionSession(command)
+	if image.Check(ctx) != nil || !time.Now().Before(time.Unix(0, deadlineNano)) || command.Start() != nil {
+		return ErrExecutionLauncher
+	}
+	pid := command.Process.Pid
+	waited := make(chan error, 1)
+	go func() { waited <- command.Wait() }()
+	if reader.Close() != nil {
+		reader = nil
+		stoppedWriter := writer
+		writer = nil
+		return stopExecutionInner(command, waited, stoppedWriter, time.Unix(0, deadlineNano))
+	}
+	reader = nil
+	if current, err := executionPipeRow(writer, unix.O_WRONLY); err != nil || current != writeRow {
+		stoppedWriter := writer
+		writer = nil
+		return stopExecutionInner(command, waited, stoppedWriter, time.Unix(0, deadlineNano))
+	}
+	startedInner, startErr := executionStartedInner(ctx, pid, os.Getpid())
+	if image.Check(ctx) != nil || startErr != nil {
+		stoppedWriter := writer
+		writer = nil
+		return stopExecutionInner(command, waited, stoppedWriter, time.Unix(0, deadlineNano))
+	}
+	var waitErr error
+	joined := false
+	select {
+	case waitErr = <-waited:
+		joined = true
+	case <-ctx.Done():
+		stoppedWriter := writer
+		writer = nil
+		return stopExecutionInner(command, waited, stoppedWriter, time.Unix(0, deadlineNano))
+	}
+	if waitErr != nil {
+		_ = closeExecutionFile(writer)
+		writer = nil
+	}
+	stopDeadline := executionFinishDeadline(time.Unix(0, deadlineNano))
+	joined, empty, finishErr := finishExecutionProcessSession(pid, waited, joined, waitErr, stopDeadline)
+	if !joined || !empty || finishErr != nil || ctx.Err() != nil {
+		return errors.Join(ErrExecutionLauncher, finishErr, ctx.Err())
+	}
+	if startedInner.PID != pid || startedInner.ParentPID != os.Getpid() || startedInner.StartIdentity == "" {
+		return ErrExecutionLauncher
+	}
+	if current, err := executionPipeRow(writer, unix.O_WRONLY); err != nil || current != writeRow {
+		return ErrExecutionLauncher
+	}
+	if ctx.Err() != nil || !time.Now().Before(time.Unix(0, deadlineNano)) {
+		return ErrExecutionLauncher
+	}
+	return nil
+}
+
+func stopExecutionInner(command *exec.Cmd, waited <-chan error, writer *os.File, outerDeadline time.Time) error {
+	if command == nil || command.Process == nil {
+		return ErrExecutionLauncher
+	}
+	closeErr := closeExecutionFile(writer)
+	signalErr := signalProductionStop(command.Process)
+	_, _, err := finishExecutionProcessSession(command.Process.Pid, waited, false, nil, executionFinishDeadline(outerDeadline))
+	return errors.Join(ErrExecutionLauncher, closeErr, signalErr, err)
+}
+
+func executionFinishDeadline(outerDeadline time.Time) time.Time {
+	grace := time.Now().Add(5 * time.Second)
+	if outerDeadline.Before(grace) {
+		return outerDeadline
+	}
+	return grace
+}
+
+func executionStartedInner(ctx context.Context, pid, parentPID int) (t4013.NativeProcessRecord, error) {
+	rows, err := t4013.ObserveProcessTreeRecords(ctx, pid)
+	if err != nil || len(rows) == 0 || rows[0].PID != pid || rows[0].ParentPID != parentPID || rows[0].StartIdentity == "" {
+		return t4013.NativeProcessRecord{}, ErrExecutionLauncher
+	}
+	session, sessionErr := unix.Getsid(pid)
+	group, groupErr := syscall.Getpgid(pid)
+	if sessionErr != nil || groupErr != nil || session != pid || group != pid {
+		return t4013.NativeProcessRecord{}, ErrExecutionLauncher
+	}
+	return rows[0], nil
+}
+
+func runExecutionInner(ctx context.Context, entered time.Time, executable, selection string, environment []string) (retErr error) {
+	liveness, livenessErr := executionLiveness(environment)
+	if livenessErr != nil || entered.UnixNano() <= 0 || os.Getppid() != liveness.OuterPID {
+		return ErrExecutionLauncher
+	}
+	outerDeadline := time.Unix(0, liveness.OuterDeadlineUnixNano)
+	deadlineCtx, cancel := context.WithDeadline(ctx, outerDeadline)
+	defer cancel()
+	if deadlineCtx.Err() != nil || !time.Now().Before(outerDeadline) {
+		return ErrExecutionLauncher
+	}
+	parent, innerCtx, err := adoptExecutionParentLiveness(deadlineCtx, entered, executable, liveness, 3)
+	if err != nil {
+		return ErrExecutionLauncher
+	}
+	defer func() { retErr = errors.Join(retErr, parent.Close()) }()
+	if innerCtx.Err() != nil {
+		return ErrExecutionLauncher
+	}
+	if _, err := executionSelection(selection); err != nil {
+		return ErrExecutionLauncher
+	}
+	if err := os.Unsetenv(executionLivenessEnvironment); err != nil {
+		return ErrExecutionLauncher
+	}
+	if innerCtx.Err() != nil || !time.Now().Before(outerDeadline) {
+		return ErrExecutionLauncher
+	}
+	// The launcher is real and fail-closed at the next missing authority: the
+	// later slice supplies protected input custody before any ceremony work.
+	return errExecutionAuthorityPending
+}
+
+func validExecutionLauncherPath(path string) bool {
+	return len(path) > 0 && len(path) <= 1_023 && filepath.IsAbs(path) && filepath.Clean(path) == path && !strings.ContainsRune(path, 0)
+}
+
+type executionPipeIdentity struct {
+	device int64
+	inode  uint64
+	mode   uint32
+}
+
+func executionPipeRow(file *os.File, access int) (executionPipeIdentity, error) {
+	if file == nil {
+		return executionPipeIdentity{}, ErrExecutionLauncher
+	}
+	fd := int(file.Fd())
+	syscall.CloseOnExec(fd)
+	flags, err := unix.FcntlInt(uintptr(fd), unix.F_GETFL, 0)
+	descriptorFlags, descriptorErr := unix.FcntlInt(uintptr(fd), unix.F_GETFD, 0)
+	var stat unix.Stat_t
+	statErr := unix.Fstat(fd, &stat)
+	if err != nil || descriptorErr != nil || statErr != nil || flags&unix.O_ACCMODE != access || descriptorFlags&unix.FD_CLOEXEC == 0 ||
+		stat.Uid != uint32(os.Getuid()) || stat.Mode&unix.S_IFMT != unix.S_IFIFO {
+		return executionPipeIdentity{}, ErrExecutionLauncher
+	}
+	return executionPipeIdentity{device: int64(stat.Dev), inode: stat.Ino, mode: uint32(stat.Mode)}, nil
+}
+
+func executionLiveness(environment []string) (executionParentLivenessV1, error) {
+	if len(environment) != 1 {
+		return executionParentLivenessV1{}, ErrExecutionLauncher
+	}
+	var encoded string
+	found := 0
+	for _, entry := range environment {
+		name, value, ok := strings.Cut(entry, "=")
+		if ok && name == executionLivenessEnvironment {
+			found++
+			encoded = value
+		}
+	}
+	if found != 1 {
+		return executionParentLivenessV1{}, ErrExecutionLauncher
+	}
+	return decodeExecutionLivenessDarwin(encoded)
+}
+
+func decodeExecutionLivenessDarwin(encoded string) (executionParentLivenessV1, error) {
+	value, err := decodeExecutionLiveness(encoded)
+	if err != nil || value.Schema != executionParentLivenessSchema || value.OuterPID <= 0 || value.OuterStartToken == "" ||
+		value.OuterStartedUnixNano <= 0 || value.OuterDeadlineUnixNano <= 0 || value.ReadFD != 3 ||
+		value.ReadMode&unix.S_IFMT != unix.S_IFIFO || value.WriteMode&unix.S_IFMT != unix.S_IFIFO ||
+		!validExecutionHexSHA256(value.ExecutePathSHA256) || value.ExecuteDevice < 0 || value.ExecuteInode == 0 ||
+		value.ExecuteMode&unix.S_IFMT != unix.S_IFREG || value.ExecuteMode&0o7777 != 0o500 || value.ExecuteSize <= 0 ||
+		value.ExecuteCTimeUnixNano <= 0 || !validExecutionSHA256(value.ExecuteImageSHA256) {
+		return executionParentLivenessV1{}, ErrExecutionLauncher
+	}
+	return value, nil
+}
+
+func adoptExecutionParentLiveness(ctx context.Context, entered time.Time, executable string, binding executionParentLivenessV1, fd int) (*executionParentLiveness, context.Context, error) {
+	if ctx == nil || ctx.Err() != nil || fd != binding.ReadFD || os.Getppid() != binding.OuterPID ||
+		entered.UnixNano() <= 0 || entered.UnixNano() >= binding.OuterDeadlineUnixNano {
+		return nil, nil, ErrExecutionLauncher
+	}
+	flags, err := unix.FcntlInt(uintptr(fd), unix.F_GETFL, 0)
+	if err != nil || flags&unix.O_ACCMODE != unix.O_RDONLY {
+		return nil, nil, ErrExecutionLauncher
+	}
+	if _, err := unix.FcntlInt(uintptr(fd), unix.F_SETFL, flags|unix.O_NONBLOCK); err != nil {
+		return nil, nil, ErrExecutionLauncher
+	}
+	syscall.CloseOnExec(fd)
+	flags, flagsErr := unix.FcntlInt(uintptr(fd), unix.F_GETFL, 0)
+	descriptorFlags, descriptorErr := unix.FcntlInt(uintptr(fd), unix.F_GETFD, 0)
+	var stat unix.Stat_t
+	statErr := unix.Fstat(fd, &stat)
+	if flagsErr != nil || descriptorErr != nil || statErr != nil || flags&unix.O_ACCMODE != unix.O_RDONLY || flags&unix.O_NONBLOCK == 0 ||
+		descriptorFlags&unix.FD_CLOEXEC == 0 || !binding.matchesRead(stat) {
+		_ = unix.Close(fd)
+		return nil, nil, ErrExecutionLauncher
+	}
+	file := os.NewFile(uintptr(fd), "t422-parent-liveness")
+	if file == nil {
+		_ = unix.Close(fd)
+		return nil, nil, ErrExecutionLauncher
+	}
+	if err := unix.Fstat(fd, &stat); err != nil || !binding.matchesRead(stat) {
+		_ = file.Close()
+		return nil, nil, ErrExecutionLauncher
+	}
+	rows, err := t4013.ObserveProcessTreeRecords(ctx, binding.OuterPID)
+	parentStarted, parseErr := parseExecutionStartToken(binding.OuterStartToken)
+	maximumWall := executionMaximumWall.Nanoseconds()
+	selfPID := os.Getpid()
+	if err != nil || parseErr != nil || len(rows) != 2 || rows[0].PID != binding.OuterPID || rows[0].StartIdentity != binding.OuterStartToken ||
+		rows[1].PID != selfPID || rows[1].ParentPID != binding.OuterPID || rows[1].StartIdentity == "" ||
+		parentStarted > binding.OuterStartedUnixNano || binding.OuterStartedUnixNano > entered.UnixNano() ||
+		binding.OuterStartedUnixNano > math.MaxInt64-maximumWall || binding.OuterDeadlineUnixNano != binding.OuterStartedUnixNano+maximumWall ||
+		!time.Now().Before(time.Unix(0, binding.OuterDeadlineUnixNano)) {
+		_ = file.Close()
+		return nil, nil, ErrExecutionLauncher
+	}
+	if !executionSessionIsolated(binding.OuterPID) {
+		_ = file.Close()
+		return nil, nil, ErrExecutionLauncher
+	}
+	image, err := holdExecutionImage(ctx, executable, binding.OuterPID, parentStarted)
+	if err != nil || !image.matchesBinding(binding) {
+		if image != nil {
+			_ = image.Close()
+		}
+		_ = file.Close()
+		return nil, nil, ErrExecutionLauncher
+	}
+	watchCtx, cancel := context.WithCancel(ctx)
+	liveness := &executionParentLiveness{file: file, image: image, outer: rows[0], inner: rows[1], cancel: cancel, done: make(chan error, 1)}
+	if file.SetReadDeadline(time.Unix(0, binding.OuterDeadlineUnixNano)) != nil {
+		_ = file.Close()
+		_ = image.Close()
+		cancel()
+		return nil, nil, ErrExecutionLauncher
+	}
+	go liveness.watch()
+	return liveness, watchCtx, nil
+}
+
+func (value executionParentLivenessV1) matchesRead(stat unix.Stat_t) bool {
+	return stat.Uid == uint32(os.Getuid()) && int64(stat.Dev) == value.ReadDevice && stat.Ino == value.ReadInode && uint32(stat.Mode) == value.ReadMode &&
+		stat.Mode&unix.S_IFMT == unix.S_IFIFO
+}
+
+type executionParentLiveness struct {
+	file   *os.File
+	image  *executionHeldImage
+	outer  t4013.NativeProcessRecord
+	inner  t4013.NativeProcessRecord
+	cancel context.CancelFunc
+	done   chan error
+	once   sync.Once
+}
+
+func (value *executionParentLiveness) watch() {
+	var one [1]byte
+	count, err := value.file.Read(one[:])
+	if count != 0 || err == nil {
+		err = ErrExecutionLauncher
+	} else if errors.Is(err, io.EOF) {
+		err = ErrExecutionLauncher
+	}
+	value.cancel()
+	value.done <- err
+}
+
+func (value *executionParentLiveness) Close() error {
+	if value == nil || value.file == nil || value.cancel == nil || value.done == nil {
+		return ErrExecutionLauncher
+	}
+	var closeErr error
+	value.once.Do(func() {
+		closeErr = value.file.Close()
+		value.cancel()
+	})
+	watchErr := <-value.done
+	if errors.Is(watchErr, os.ErrClosed) {
+		watchErr = nil
+	}
+	return errors.Join(closeErr, watchErr, value.image.Close())
+}
+
+type executionHeldImage struct {
+	file          *os.File
+	info          os.FileInfo
+	path          string
+	pathSHA256    string
+	device        int64
+	inode         uint64
+	mode          uint32
+	size          int64
+	ctimeUnixNano int64
+	digest        string
+}
+
+func holdExecutionImage(ctx context.Context, expected string, parentPID int, parentStarted int64) (*executionHeldImage, error) {
+	canonical, err := filepath.EvalSymlinks(expected)
+	pids := []int{os.Getpid()}
+	if parentPID > 0 {
+		pids = []int{parentPID, os.Getpid()}
+	}
+	observedPaths, observedErr := t4013.ObserveProcessExecutablePaths(ctx, pids)
+	actual, actualErr := os.Executable()
+	actualPath, actualPathErr := filepath.EvalSymlinks(actual)
+	if err != nil || observedErr != nil || actualErr != nil || actualPathErr != nil || canonical != expected ||
+		len(observedPaths) != len(pids) || observedPaths[len(observedPaths)-1] != canonical || actualPath != canonical {
+		return nil, ErrExecutionLauncher
+	}
+	if parentPID > 0 {
+		if observedPaths[0] != canonical {
+			return nil, ErrExecutionLauncher
+		}
+	}
+	file, err := t4013.OpenHostImage(canonical)
+	if err != nil {
+		return nil, ErrExecutionLauncher
+	}
+	info, infoErr := file.Stat()
+	pathInfo, pathErr := os.Lstat(canonical)
+	parentInfo, parentErr := os.Lstat(filepath.Dir(canonical))
+	stat, statOK := info.Sys().(*syscall.Stat_t)
+	if infoErr != nil || pathErr != nil || parentErr != nil || !statOK || stat == nil ||
+		!inputCustodyProtected(info) || info.Mode().Perm() != 0o500 || !inputCustodySame(info, pathInfo) ||
+		!inputCustodyProtected(parentInfo) || parentInfo.Mode().Perm() != 0o700 {
+		_ = file.Close()
+		return nil, ErrExecutionLauncher
+	}
+	changed, changedOK := executionTimespecNano(stat.Ctimespec)
+	if !changedOK || !validExecutionImageCTime(changed, parentStarted) {
+		_ = file.Close()
+		return nil, ErrExecutionLauncher
+	}
+	digest, err := t4013.DigestHostExecutable(ctx, canonical)
+	image := &executionHeldImage{file: file, info: info, path: canonical,
+		pathSHA256: strings.TrimPrefix(SHA256([]byte(canonical)), "sha256:"), device: int64(stat.Dev), inode: stat.Ino,
+		mode: uint32(stat.Mode), size: stat.Size, ctimeUnixNano: changed, digest: digest}
+	if err != nil || !validExecutionSHA256(digest) || image.Check(ctx) != nil {
+		_ = file.Close()
+		return nil, ErrExecutionLauncher
+	}
+	return image, nil
+}
+
+func (image *executionHeldImage) Check(ctx context.Context) error {
+	if image == nil || image.file == nil || image.info == nil || ctx == nil || ctx.Err() != nil {
+		return ErrExecutionLauncher
+	}
+	pathInfo, pathErr := os.Lstat(image.path)
+	heldInfo, heldErr := image.file.Stat()
+	if pathErr != nil || heldErr != nil || !validExecutionHexSHA256(image.pathSHA256) || !validExecutionSHA256(image.digest) ||
+		!inputCustodyProtected(pathInfo) || !inputCustodySame(image.info, pathInfo) || !inputCustodySame(pathInfo, heldInfo) {
+		return ErrExecutionLauncher
+	}
+	return nil
+}
+
+func (image *executionHeldImage) matchesBinding(value executionParentLivenessV1) bool {
+	return image != nil && image.pathSHA256 == value.ExecutePathSHA256 && image.device == value.ExecuteDevice &&
+		image.inode == value.ExecuteInode && image.mode == value.ExecuteMode && image.size == value.ExecuteSize &&
+		image.ctimeUnixNano == value.ExecuteCTimeUnixNano && image.digest == value.ExecuteImageSHA256
+}
+
+func (image *executionHeldImage) Close() error {
+	if image == nil || image.file == nil {
+		return ErrExecutionLauncher
+	}
+	err := image.file.Close()
+	image.file = nil
+	return err
+}
+
+func executionSessionIsolated(parent int) bool {
+	pid := os.Getpid()
+	session, sessionErr := unix.Getsid(pid)
+	group, groupErr := syscall.Getpgid(pid)
+	parentSession, parentSessionErr := unix.Getsid(parent)
+	parentGroup, parentGroupErr := syscall.Getpgid(parent)
+	return sessionErr == nil && groupErr == nil && parentSessionErr == nil && parentGroupErr == nil &&
+		session == pid && group == pid && parentSession != session && parentGroup != group
+}
+
+func executionTimespecNano(value syscall.Timespec) (int64, bool) {
+	if value.Sec < 0 || value.Nsec < 0 || value.Nsec >= 1_000_000_000 || value.Sec > (math.MaxInt64-value.Nsec)/1_000_000_000 {
+		return 0, false
+	}
+	return value.Sec*1_000_000_000 + value.Nsec, true
+}
+
+func validExecutionImageCTime(changed, parentStarted int64) bool {
+	return changed > 0 && (parentStarted <= 0 || changed < parentStarted)
+}
+
+func parseExecutionStartToken(value string) (int64, error) {
+	secondsRaw, microsRaw, ok := strings.Cut(value, ":")
+	if !ok || !executionDecimal(secondsRaw) || !executionDecimal(microsRaw) || len(secondsRaw) > 19 || len(microsRaw) > 6 ||
+		len(secondsRaw) > 1 && secondsRaw[0] == '0' || len(microsRaw) > 1 && microsRaw[0] == '0' {
+		return 0, ErrExecutionLauncher
+	}
+	seconds, err := strconv.ParseInt(secondsRaw, 10, 64)
+	micros, microsErr := strconv.ParseInt(microsRaw, 10, 64)
+	if err != nil || microsErr != nil || seconds <= 0 || micros < 0 || micros >= 1_000_000 || seconds > (math.MaxInt64-micros*1_000)/1_000_000_000 {
+		return 0, ErrExecutionLauncher
+	}
+	return seconds*1_000_000_000 + micros*1_000, nil
+}
+
+func executionDecimal(value string) bool {
+	if value == "" {
+		return false
+	}
+	for _, digit := range []byte(value) {
+		if digit < '0' || digit > '9' {
+			return false
+		}
+	}
+	return true
+}
+
+func closeExecutionFile(file *os.File) error {
+	if file == nil {
+		return nil
+	}
+	return file.Close()
+}

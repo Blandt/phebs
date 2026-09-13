@@ -1,0 +1,435 @@
+//go:build darwin
+
+package t421
+
+import (
+	"context"
+	"encoding/base64"
+	"encoding/json"
+	"errors"
+	"io"
+	"os"
+	"os/exec"
+	"os/signal"
+	"path/filepath"
+	"strings"
+	"syscall"
+	"testing"
+	"time"
+
+	"github.com/bmeddeb/phebs/spike/t4013"
+	"golang.org/x/sys/unix"
+)
+
+func TestMain(m *testing.M) {
+	if len(os.Args) == 4 && os.Args[2] == "--selection-base64url" && os.Args[1] == executionInnerMode {
+		selected, _ := executionSelection(os.Args[3])
+		if selected.CeremonyID == "t422-cancel-test" {
+			liveness, err := executionLiveness(os.Environ())
+			if err != nil {
+				os.Exit(55)
+			}
+			entered := time.Now()
+			parent, innerCtx, adoptErr := adoptExecutionParentLiveness(context.Background(), entered, os.Args[0], liveness, 3)
+			if adoptErr != nil {
+				os.Exit(55)
+			}
+			signal.Ignore(syscall.SIGTERM)
+			marker, markerErr := os.OpenFile(selected.RepositoryRoot, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
+			if markerErr != nil || marker.Close() != nil {
+				_ = parent.Close()
+				os.Exit(55)
+			}
+			select {
+			case <-innerCtx.Done():
+				if closeErr := parent.Close(); !errors.Is(closeErr, ErrExecutionLauncher) {
+					os.Exit(56)
+				}
+				joined, joinedErr := os.OpenFile(selected.RepositoryRoot+".post-eof", os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
+				if joinedErr != nil || joined.Close() != nil {
+					os.Exit(57)
+				}
+				os.Exit(58)
+			case <-time.After(15 * time.Second):
+				_ = parent.Close()
+				os.Exit(59)
+			}
+		}
+		err := RunExecutionCommand(context.Background(), os.Args, os.Environ())
+		if errors.Is(err, errExecutionAuthorityPending) {
+			if _, present := os.LookupEnv(executionLivenessEnvironment); present {
+				os.Exit(52)
+			}
+			os.Exit(43)
+		}
+		os.Exit(44)
+	}
+	if len(os.Args) == 4 && os.Args[2] == "--selection-base64url" && os.Args[1] == executionOuterMode {
+		ctx := context.Background()
+		selected, _ := executionSelection(os.Args[3])
+		var cancel context.CancelFunc
+		adopted := make(chan bool, 1)
+		if selected.CeremonyID == "t422-cancel-test" {
+			ctx, cancel = context.WithCancel(ctx)
+			defer cancel()
+			go func() {
+				deadline := time.Now().Add(10 * time.Second)
+				for time.Now().Before(deadline) {
+					if info, err := os.Lstat(selected.RepositoryRoot); err == nil && info.Mode().IsRegular() {
+						adopted <- true
+						cancel()
+						return
+					} else if err != nil && !errors.Is(err, os.ErrNotExist) {
+						break
+					}
+					time.Sleep(10 * time.Millisecond)
+				}
+				adopted <- false
+				cancel()
+			}()
+		}
+		err := RunExecutionCommand(ctx, os.Args, os.Environ())
+		if selected.CeremonyID == "t422-cancel-test" {
+			rows, observeErr := t4013.ObserveProcessTreeRecords(context.Background(), os.Getpid())
+			var exit *exec.ExitError
+			post, postErr := os.Lstat(selected.RepositoryRoot + ".post-eof")
+			if errors.Is(err, ErrExecutionLauncher) && errors.As(err, &exit) && exit.ExitCode() == 58 && <-adopted &&
+				postErr == nil && post.Mode().IsRegular() && observeErr == nil && len(rows) == 1 {
+				os.Exit(51)
+			}
+			os.Exit(53)
+		}
+		var exit *exec.ExitError
+		if errors.Is(err, ErrExecutionLauncher) && errors.As(err, &exit) && exit.ExitCode() == 43 {
+			os.Exit(45)
+		}
+		os.Exit(46)
+	}
+	if len(os.Args) == 4 && os.Args[1] == "t422-wrong-parent-test" {
+		var exit *exec.ExitError
+		if errors.As(runExecutionParentTest(os.Args[2], os.Args[3], true), &exit) && exit.ExitCode() == 44 {
+			os.Exit(47)
+		}
+		os.Exit(48)
+	}
+	if len(os.Args) == 4 && os.Args[1] == "t422-nonisolated-parent-test" {
+		var exit *exec.ExitError
+		if errors.As(runExecutionParentTest(os.Args[2], os.Args[3], false), &exit) && exit.ExitCode() == 44 {
+			os.Exit(49)
+		}
+		os.Exit(50)
+	}
+	if len(os.Args) == 2 && os.Args[1] == "t422-session-row-test" {
+		time.Sleep(30 * time.Second)
+		os.Exit(0)
+	}
+	os.Exit(m.Run())
+}
+
+func TestExecutionOuterCancellationCleansPrivateSession(t *testing.T) {
+	selection, _ := testExecutionSelection(t)
+	selection.CeremonyID = "t422-cancel-test"
+	selection.RepositoryRoot = filepath.Join(t.TempDir(), "inner-adopted")
+	executable := protectedExecutionTestImage(t)
+	command := exec.Command(executable, executionOuterMode, "--selection-base64url", encodeExecutionSelection(t, selection))
+	command.Env = []string{"AMBIENT_IGNORED=1"}
+	if code := exitCode(t, command.Run()); code != 51 {
+		t.Fatalf("canceled outer exit = %d", code)
+	}
+	if info, err := os.Lstat(selection.RepositoryRoot); err != nil || !info.Mode().IsRegular() {
+		t.Fatalf("inner did not prove FD3 adoption: %v", err)
+	}
+	if info, err := os.Lstat(selection.RepositoryRoot + ".post-eof"); err != nil || !info.Mode().IsRegular() {
+		t.Fatalf("inner did not prove post-EOF watcher join: %v", err)
+	}
+}
+
+func TestExecutionStartedInnerRequiresExactParentAndSession(t *testing.T) {
+	command := exec.Command(os.Args[0], "t422-session-row-test")
+	prepareProductionSession(command)
+	if err := command.Start(); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		_ = command.Process.Kill()
+		_ = command.Wait()
+	})
+	if row, err := executionStartedInner(t.Context(), command.Process.Pid, os.Getpid()); err != nil || row.PID != command.Process.Pid || row.StartIdentity == "" {
+		t.Fatal("started private-session child was not observed")
+	}
+	if _, err := executionStartedInner(t.Context(), command.Process.Pid, os.Getppid()); err == nil {
+		t.Fatal("started child admitted a wrong parent")
+	}
+}
+
+func TestExecutionOuterStartsClosedInnerWithoutStartingAuthority(t *testing.T) {
+	selection, _ := testExecutionSelection(t)
+	authorityRoot := t.TempDir()
+	selection.RepositoryRoot = filepath.Join(authorityRoot, "repository")
+	selection.GoRoot = filepath.Join(authorityRoot, "goroot")
+	selection.ModuleCache = filepath.Join(authorityRoot, "module-cache")
+	selection.GitBinary = filepath.Join(authorityRoot, "git")
+	selection.SurrealBinary = filepath.Join(authorityRoot, "surreal")
+	selection.SignerControlRoot = filepath.Join(authorityRoot, "signer")
+	encoded := encodeExecutionSelection(t, selection)
+	executable := protectedExecutionTestImage(t)
+	ctx, cancel := context.WithTimeout(t.Context(), 20*time.Second)
+	defer cancel()
+	command := exec.CommandContext(ctx, executable, executionOuterMode, "--selection-base64url", encoded)
+	command.Env = []string{"AMBIENT_IGNORED=1"}
+	err := command.Run()
+	var exit *exec.ExitError
+	if !errors.As(err, &exit) || exit.ExitCode() != 45 {
+		t.Fatalf("outer did not reach protected inner authority boundary: %v", err)
+	}
+	for _, path := range []string{selection.RepositoryRoot, selection.GoRoot, selection.ModuleCache, selection.GitBinary, selection.SurrealBinary, selection.SignerControlRoot} {
+		if _, err := os.Lstat(path); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("pending launcher started selected authority at %q: %v", path, err)
+		}
+	}
+}
+
+func TestExecutionInnerRefusesWrongParentAndDirectInvocation(t *testing.T) {
+	_, selection := testExecutionSelection(t)
+	executable := protectedExecutionTestImage(t)
+	ctx, cancel := context.WithTimeout(t.Context(), 20*time.Second)
+	defer cancel()
+	direct := exec.CommandContext(ctx, executable, executionInnerMode, "--selection-base64url", selection)
+	direct.Env = []string{executionLivenessEnvironment + "=invalid"}
+	if exitCode(t, direct.Run()) != 44 {
+		t.Fatal("direct inner invocation did not refuse")
+	}
+	wrongParent := protectedExecutionTestImage(t)
+	wrongImage := exec.CommandContext(ctx, wrongParent, "t422-wrong-parent-test", executable, selection)
+	wrongImage.Env = []string{"IGNORED_TEST_ENV=1"}
+	if exitCode(t, wrongImage.Run()) != 47 {
+		t.Fatal("inner admitted a parent running a different executable image")
+	}
+	nonisolated := exec.CommandContext(ctx, executable, "t422-nonisolated-parent-test", executable, selection)
+	nonisolated.Env = []string{"IGNORED_TEST_ENV=1"}
+	if exitCode(t, nonisolated.Run()) != 49 {
+		t.Fatal("inner admitted a process that was not its session and group leader")
+	}
+}
+
+func runExecutionParentTest(executable, selection string, isolated bool) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	reader, writer, err := os.Pipe()
+	if err != nil {
+		return err
+	}
+	defer func() { _ = reader.Close(); _ = writer.Close() }()
+	readRow, readErr := executionPipeRow(reader, unix.O_RDONLY)
+	writeRow, writeErr := executionPipeRow(writer, unix.O_WRONLY)
+	rows, observeErr := t4013.ObserveProcessTreeRecords(ctx, os.Getpid())
+	started := time.Now()
+	image, imageErr := holdExecutionImage(ctx, os.Args[0], 0, 0)
+	if readErr != nil || writeErr != nil || observeErr != nil || imageErr != nil || len(rows) == 0 {
+		return errors.Join(readErr, writeErr, observeErr, ErrExecutionLauncher)
+	}
+	defer func() { _ = image.Close() }()
+	binding := executionParentLivenessV1{
+		Schema: executionParentLivenessSchema, OuterPID: os.Getpid(), OuterStartToken: rows[0].StartIdentity,
+		OuterStartedUnixNano: started.UnixNano(), OuterDeadlineUnixNano: started.Add(executionMaximumWall).UnixNano(), ReadFD: 3,
+		ReadDevice: readRow.device, ReadInode: readRow.inode, ReadMode: readRow.mode,
+		WriteDevice: writeRow.device, WriteInode: writeRow.inode, WriteMode: writeRow.mode,
+		ExecutePathSHA256: image.pathSHA256, ExecuteDevice: image.device, ExecuteInode: image.inode,
+		ExecuteMode: image.mode, ExecuteSize: image.size, ExecuteCTimeUnixNano: image.ctimeUnixNano,
+		ExecuteImageSHA256: image.digest,
+	}
+	raw, err := json.Marshal(binding)
+	if err != nil {
+		return err
+	}
+	wrongParent := exec.CommandContext(ctx, executable, executionInnerMode, "--selection-base64url", selection)
+	wrongParent.Env = []string{executionLivenessEnvironment + "=" + base64.RawURLEncoding.EncodeToString(raw)}
+	wrongParent.Stdin, wrongParent.Stdout, wrongParent.Stderr = nil, io.Discard, io.Discard
+	wrongParent.ExtraFiles = []*os.File{reader}
+	if isolated {
+		prepareProductionSession(wrongParent)
+	}
+	return wrongParent.Run()
+}
+
+func TestExecutionOuterRefusesReplacedExecutablePath(t *testing.T) {
+	_, selection := testExecutionSelection(t)
+	protected := protectedExecutionTestImage(t)
+	err := RunExecutionCommand(t.Context(), []string{protected, executionOuterMode, "--selection-base64url", selection}, nil)
+	var exit *exec.ExitError
+	if err != ErrExecutionLauncher || errors.As(err, &exit) {
+		t.Fatalf("non-current executable path was admitted: %v", err)
+	}
+}
+
+func protectedExecutionTestImage(t *testing.T) string {
+	t.Helper()
+	base, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	parent := filepath.Join(base, "parent")
+	if err := os.Mkdir(parent, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	source, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	source, err = filepath.EvalSymlinks(source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	digest, err := t4013.DigestHostExecutable(t.Context(), source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	input := ExecutionInputCopy{Name: "t422-execute", Path: source, SHA256: digest, Executable: true}
+	custody, err := ProtectExecutionInputs(t.Context(), parent, []ExecutionInputCopy{input})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { inputCustodyTestCleanup(t, custody, []ExecutionInputCopy{input}) })
+	path, err := custody.Check(t.Context(), input.Name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
+
+func exitCode(t *testing.T, err error) int {
+	t.Helper()
+	var exit *exec.ExitError
+	if !errors.As(err, &exit) {
+		t.Fatal("child did not exit with a refusal", err)
+	}
+	return exit.ExitCode()
+}
+
+func TestExecutionStartTokenIsCanonicalAndOverflowSafe(t *testing.T) {
+	for _, value := range []string{"", "0:0", "+1:0", "01:0", "1:+0", "1:00", "1:1000000", "9223372036854775807:0", "1:-1", "1"} {
+		if _, err := parseExecutionStartToken(value); err != ErrExecutionLauncher {
+			t.Fatalf("invalid token admitted: %q, %v", value, err)
+		}
+	}
+	if value, err := parseExecutionStartToken("1:0"); err != nil || value != 1_000_000_000 {
+		t.Fatalf("valid token = %d, %v", value, err)
+	}
+}
+
+func TestExecutionLivenessRejectsHeldImageFieldMutations(t *testing.T) {
+	baseline := executionParentLivenessV1{
+		Schema: executionParentLivenessSchema, OuterPID: 1, OuterStartToken: "1:0",
+		OuterStartedUnixNano: 1, OuterDeadlineUnixNano: 2, ReadFD: 3,
+		ReadMode: unix.S_IFIFO | 0o600, WriteMode: unix.S_IFIFO | 0o600,
+		ExecutePathSHA256: strings.Repeat("a", 64), ExecuteDevice: 1, ExecuteInode: 2,
+		ExecuteMode: unix.S_IFREG | 0o500, ExecuteSize: 3, ExecuteCTimeUnixNano: 4,
+		ExecuteImageSHA256: "sha256:" + strings.Repeat("b", 64),
+	}
+	encode := func(value executionParentLivenessV1) string {
+		raw, err := json.Marshal(value)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return base64.RawURLEncoding.EncodeToString(raw)
+	}
+	if _, err := decodeExecutionLivenessDarwin(encode(baseline)); err != nil {
+		t.Fatal(err)
+	}
+	mutations := []func(*executionParentLivenessV1){
+		func(value *executionParentLivenessV1) { value.ExecutePathSHA256 = "sha256:" + strings.Repeat("a", 64) },
+		func(value *executionParentLivenessV1) { value.ExecutePathSHA256 = strings.Repeat("A", 64) },
+		func(value *executionParentLivenessV1) { value.ExecuteDevice = -1 },
+		func(value *executionParentLivenessV1) { value.ExecuteInode = 0 },
+		func(value *executionParentLivenessV1) { value.ExecuteMode = unix.S_IFDIR | 0o500 },
+		func(value *executionParentLivenessV1) { value.ExecuteMode = unix.S_IFREG | 0o700 },
+		func(value *executionParentLivenessV1) { value.ExecuteSize = 0 },
+		func(value *executionParentLivenessV1) { value.ExecuteCTimeUnixNano = 0 },
+		func(value *executionParentLivenessV1) { value.ExecuteImageSHA256 = strings.Repeat("b", 64) },
+		func(value *executionParentLivenessV1) { value.ExecuteImageSHA256 = "sha256:" + strings.Repeat("B", 64) },
+	}
+	for index, mutate := range mutations {
+		candidate := baseline
+		mutate(&candidate)
+		if _, err := decodeExecutionLivenessDarwin(encode(candidate)); err != ErrExecutionLauncher {
+			t.Fatalf("held-image mutation %d admitted: %v", index, err)
+		}
+	}
+}
+
+func TestExecutionHeldImageMatchesEveryLivenessField(t *testing.T) {
+	image := &executionHeldImage{
+		pathSHA256: strings.Repeat("a", 64), device: 1, inode: 2, mode: unix.S_IFREG | 0o500,
+		size: 3, ctimeUnixNano: 4, digest: "sha256:" + strings.Repeat("b", 64),
+	}
+	baseline := executionParentLivenessV1{
+		ExecutePathSHA256: image.pathSHA256, ExecuteDevice: image.device, ExecuteInode: image.inode,
+		ExecuteMode: image.mode, ExecuteSize: image.size, ExecuteCTimeUnixNano: image.ctimeUnixNano,
+		ExecuteImageSHA256: image.digest,
+	}
+	if !image.matchesBinding(baseline) {
+		t.Fatal("exact image binding refused")
+	}
+	mutations := []func(*executionParentLivenessV1){
+		func(value *executionParentLivenessV1) { value.ExecutePathSHA256 = strings.Repeat("c", 64) },
+		func(value *executionParentLivenessV1) { value.ExecuteDevice++ },
+		func(value *executionParentLivenessV1) { value.ExecuteInode++ },
+		func(value *executionParentLivenessV1) { value.ExecuteMode++ },
+		func(value *executionParentLivenessV1) { value.ExecuteSize++ },
+		func(value *executionParentLivenessV1) { value.ExecuteCTimeUnixNano++ },
+		func(value *executionParentLivenessV1) { value.ExecuteImageSHA256 = "sha256:" + strings.Repeat("d", 64) },
+	}
+	for index, mutate := range mutations {
+		candidate := baseline
+		mutate(&candidate)
+		if image.matchesBinding(candidate) {
+			t.Fatalf("image-binding mutation %d admitted", index)
+		}
+	}
+}
+
+func TestExecutionParentLivenessWatcherRejectsByteEOFAndDeadline(t *testing.T) {
+	for _, test := range []struct {
+		name string
+		act  func(*os.File, *os.File)
+	}{
+		{"byte", func(_ *os.File, writer *os.File) { _, _ = writer.Write([]byte{1}) }},
+		{"eof", func(_ *os.File, writer *os.File) { _ = writer.Close() }},
+		{"deadline", func(reader *os.File, _ *os.File) { _ = reader.SetReadDeadline(time.Now().Add(20 * time.Millisecond)) }},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			reader, writer, err := os.Pipe()
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer func() { _ = reader.Close() }()
+			defer func() { _ = writer.Close() }()
+			ctx, cancel := context.WithCancel(t.Context())
+			liveness := &executionParentLiveness{file: reader, cancel: cancel, done: make(chan error, 1)}
+			test.act(reader, writer)
+			go liveness.watch()
+			select {
+			case err := <-liveness.done:
+				if err == nil {
+					t.Fatal("liveness refusal was nil")
+				}
+			case <-time.After(time.Second):
+				t.Fatal("liveness watcher did not finish")
+			}
+			if ctx.Err() == nil {
+				t.Fatal("liveness refusal did not cancel context")
+			}
+		})
+	}
+}
+
+func TestExecutionImageCTimeStrictlyPrecedesParent(t *testing.T) {
+	for _, pair := range [][2]int64{{0, 2}, {2, 2}, {3, 2}} {
+		if validExecutionImageCTime(pair[0], pair[1]) {
+			t.Fatalf("ctime %d admitted for parent %d", pair[0], pair[1])
+		}
+	}
+	if !validExecutionImageCTime(1, 2) || !validExecutionImageCTime(1, 0) {
+		t.Fatal("valid ctime ordering refused")
+	}
+}

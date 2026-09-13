@@ -9664,6 +9664,24 @@ diagnostics still need coverage before complete output fit can be claimed.
 The focused existing output-bound selectors passed in 0.751s; this is neither
 a representative replay census nor a native traversal-cost measurement.
 
+**T42.2lm r17 command-seam review correction (2026-09-13).** The bounded
+executor seam now clips inner work to the decoded outer deadline before its
+first process census or image hash, retains independently observed outer/inner
+native rows, performs the final writer Fstat before a fresh strict
+context/deadline success check, and makes cancellation wait for an explicit
+FD3-adopted test handshake before writer EOF. Its exact per-launch accounting
+is two bounded `kern.argmax` reads, three bounded `kern.procargs2`
+acquisitions, three bounded native censuses and two bounded executable-image
+hashes; the prior one/two/one/one shorthand is superseded. Ordinary execution
+adds none of this work. The seam remains fail-closed at the named pending input
+authority and issues no AuthorA transition, ordinal, signer mutation or
+ceremony claim. Focused normal/race, vet, pinned lint, Linux compilation and
+exact-diff gates remain required before this isolated correction may land. The
+cancel regression waits until FD3 adoption, makes only its test child ignore
+`SIGTERM`, and requires both the joined post-EOF marker and dedicated child
+exit status, so neither default signal death nor the forced sweep can satisfy
+the cooperative-cleanup assertion.
+
 **Pressure headroom refusal after c7db1d21 (2026-09-11).** The exact-source
 rehearsal failed in 5,519.79s (package 5,520.627s), after 672 contiguous normal
 cleanup owner turns, 33,769 deletions, zero failed lifecycle turns and a
