@@ -129,10 +129,13 @@ func validExecutionAuthorizationSessionBinding(value executionAuthorizationSessi
 		value.FinalAdmissionDeadlineUnixNano <= value.OuterDeadlineUnixNano
 }
 
-func projectExecutionAuthorizationHandoff(executePath, socketPath, executeImageSHA256 string, outerDeadlineUnixNano, finalDeadlineUnixNano int64) (executionAuthorizationHandoffProjection, error) {
+// projectExecutionAuthorizationHandoff builds the pre-claim maximum witness.
+// The later final-admission deadline is no greater than the outer deadline, so
+// using the outer value in both slots conservatively bounds its decimal JSON.
+func projectExecutionAuthorizationHandoff(executePath, socketPath, executeImageSHA256 string, outerDeadlineUnixNano int64) (executionAuthorizationHandoffProjection, error) {
 	placeholder := strings.Repeat("0", 64)
 	_, _, frame, err := assembleExecutionAuthorizationHandoff(executePath, socketPath, executeImageSHA256,
-		outerDeadlineUnixNano, finalDeadlineUnixNano, placeholder, placeholder)
+		outerDeadlineUnixNano, outerDeadlineUnixNano, placeholder, placeholder)
 	if err != nil || len(frame) > maxExecutionAuthorizationHandoffFrameBytes {
 		return executionAuthorizationHandoffProjection{}, errExecutionAuthorization
 	}
@@ -145,8 +148,7 @@ func buildExecutionAuthorizationHandoff(
 	freezeSHA256, sessionBindingSHA256 string,
 	projection executionAuthorizationHandoffProjection,
 ) (executionAuthorizationHandoff, error) {
-	wantProjection, err := projectExecutionAuthorizationHandoff(executePath, socketPath, executeImageSHA256,
-		outerDeadlineUnixNano, finalDeadlineUnixNano)
+	wantProjection, err := projectExecutionAuthorizationHandoff(executePath, socketPath, executeImageSHA256, outerDeadlineUnixNano)
 	if err != nil || projection != wantProjection || projection.frameBytes == 0 || projection.frameBytes > maxExecutionAuthorizationHandoffFrameBytes ||
 		!validExecutionHexSHA256(projection.frameSHA256) {
 		return executionAuthorizationHandoff{}, errExecutionAuthorization

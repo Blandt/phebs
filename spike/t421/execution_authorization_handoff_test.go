@@ -41,7 +41,7 @@ func TestExecutionAuthorizationHandoffProjectionAndFrameAreExact(t *testing.T) {
 	executePath := "/tmp/t422 'execute"
 	socketPath := "/tmp/t422 socket/auth.sock"
 	image := "sha256:" + strings.Repeat("e", 64)
-	projection, err := projectExecutionAuthorizationHandoff(executePath, socketPath, image, 20, 19)
+	projection, err := projectExecutionAuthorizationHandoff(executePath, socketPath, image, 20)
 	if err != nil {
 		t.Fatal(err)
 	}
