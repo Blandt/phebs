@@ -55,6 +55,34 @@ func TestT422QueryEvidenceClosedRequests(t *testing.T) {
 	}
 }
 
+func TestT422QueryTerminalIsOnlyBoundFinalRequest(t *testing.T) {
+	for _, test := range []struct {
+		name, method, path, evidence, terminal string
+		duplicate, want                        bool
+	}{
+		{"complete", http.MethodGet, t421ExactFinalAuthorityPath, t422QueryEvidenceValue, t422QueryTerminalValue, false, true},
+		{"missing evidence", http.MethodGet, t421ExactFinalAuthorityPath, "", t422QueryTerminalValue, false, false},
+		{"wrong route", http.MethodGet, t422EvidenceSearch, t422QueryEvidenceValue, t422QueryTerminalValue, false, false},
+		{"wrong method", http.MethodPost, t421ExactFinalAuthorityPath, t422QueryEvidenceValue, t422QueryTerminalValue, false, false},
+		{"wrong value", http.MethodGet, t421ExactFinalAuthorityPath, t422QueryEvidenceValue, "other", false, false},
+		{"duplicate", http.MethodGet, t421ExactFinalAuthorityPath, t422QueryEvidenceValue, t422QueryTerminalValue, true, false},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			request := httptest.NewRequest(test.method, test.path, nil)
+			if test.evidence != "" {
+				request.Header.Set(t422QueryEvidenceHeader, test.evidence)
+			}
+			request.Header.Set(t422QueryTerminalHeader, test.terminal)
+			if test.duplicate {
+				request.Header.Add(t422QueryTerminalHeader, test.terminal)
+			}
+			if got := t422QueryTerminalRoute(request); got != test.want {
+				t.Fatal("terminal route", got)
+			}
+		})
+	}
+}
+
 // Actual authentication and exact handler; the downstream observations are
 // explicitly supplied values, not a native index or selected bootstrap proof.
 func TestT422QueryEvidenceReportPresence(t *testing.T) {

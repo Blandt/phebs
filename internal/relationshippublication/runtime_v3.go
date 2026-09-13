@@ -134,6 +134,11 @@ func (runtime *Runtime) ReconcileV3(ctx context.Context, repository string) (boo
 					"relationship v3 catalog/state changed", err,
 				)
 			}
+			if runtime.OnV3Current != nil {
+				if err := runtime.OnV3Current(ctx, repository); err != nil {
+					return false, fmt.Errorf("observe current relationship v3: %w", err)
+				}
+			}
 			return true, nil
 		}
 	} else if !errors.Is(openErr, ErrNotFound) {

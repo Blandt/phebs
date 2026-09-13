@@ -40,6 +40,7 @@ type ExecutionAttemptObservation struct {
 	SourceCensus      ExecutionSourceCensusObservation
 	CatalogCensus     ExecutionCatalogCensusObservation
 	WorkspaceBytes    ExecutionWorkspaceByteObservation
+	Reuse             ExecutionReuseObservation
 	Complete          bool
 	SourceBound       bool
 	AttemptBound      bool
@@ -55,6 +56,7 @@ type ExecutionAttemptObservation struct {
 func observeExecutionAttempts(raw []byte, plan Plan, producer uint32, input [32]byte, joined bool) (out ExecutionAttemptObservation, err error) {
 	defer func() {
 		if err != nil {
+			out.Reuse.Complete = false
 			out.WorkspaceBytes.Complete = false
 			if out.WorkspaceBytes.Bound && !out.WorkspaceBytes.LimitExceeded {
 				out.WorkspaceBytes.Unavailable = true
@@ -79,7 +81,7 @@ func observeExecutionAttempts(raw []byte, plan Plan, producer uint32, input [32]
 		line, readErr := reader.ReadSlice('\n')
 		consumed += len(line)
 		if len(line) == 0 && errors.Is(readErr, io.EOF) {
-			if !out.SourceBound || producer <= 6 && !out.AttemptBound || !out.ObservationBound || !out.PublicationBound || !out.ResolverBound || !out.RelationshipBound {
+			if !out.SourceBound || producer <= 6 && (!out.AttemptBound || !out.Reuse.Bound) || !out.ObservationBound || !out.PublicationBound || !out.ResolverBound || !out.RelationshipBound {
 				return out, errExecutionAttempts
 			}
 			for _, phase := range out.Phases {
@@ -87,7 +89,15 @@ func observeExecutionAttempts(raw []byte, plan Plan, producer uint32, input [32]
 					return out, errExecutionAttempts
 				}
 			}
+			if producer <= 6 {
+				for _, phase := range executionProducerPhases(producer) {
+					if !out.Reuse.Phases[phase-1].Complete {
+						return out, errExecutionAttempts
+					}
+				}
+			}
 			out.Complete = true
+			out.Reuse.Complete = producer <= 6 && out.Reuse.Bound
 			out.Lifecycle.Complete = out.Lifecycle.Bound
 			out.Cache.Complete = out.Cache.complete()
 			out.SourceCensus.Complete = out.SourceCensus.complete()
@@ -108,7 +118,7 @@ func observeExecutionAttempts(raw []byte, plan Plan, producer uint32, input [32]
 		}
 		// Offline archive commands install context observers, not server job or
 		// lifecycle sinks. A server-only stream cannot fill their measured zero.
-		if producer >= 10 && (reservedCompactAttempt(line) || reservedLifecycleEvent(line)) {
+		if producer >= 10 && (reservedCompactAttempt(line) || reservedLifecycleEvent(line) || reservedReuseEvent(line)) {
 			return out, errExecutionAttempts
 		}
 		if observed, err := observeWorkspaceByteEvent(line, plan, producer, wantInput, &out.WorkspaceBytes); observed {
@@ -124,6 +134,12 @@ func observeExecutionAttempts(raw []byte, plan Plan, producer uint32, input [32]
 			continue
 		}
 		if observed, err := observeCatalogCensusEvent(line, plan, producer, wantInput, &out); observed {
+			if err != nil || readErr != nil {
+				return out, errExecutionAttempts
+			}
+			continue
+		}
+		if observed, err := observeReuseEvent(line, plan, producer, wantInput, &out.Reuse); observed {
 			if err != nil || readErr != nil {
 				return out, errExecutionAttempts
 			}
@@ -174,7 +190,7 @@ func observeExecutionAttempts(raw []byte, plan Plan, producer uint32, input [32]
 		}
 		// Scan the original immutable line without copying: markers split
 		// across reader fragments must not turn into unrelated output.
-		if long && (reservedBlobEvent(raw[start:consumed], "SR") || reservedBlobEvent(raw[start:consumed], "OP") || reservedBlobEvent(raw[start:consumed], "EP") || reservedCompactAttempt(raw[start:consumed]) || reservedLifecycleEvent(raw[start:consumed]) || reservedCacheEvent(raw[start:consumed]) || reservedResolverEvent(raw[start:consumed]) || reservedRelationshipEvent(raw[start:consumed]) || reservedCensusEvent(raw[start:consumed]) || reservedCatalogCensusEvent(raw[start:consumed]) || reservedWorkspaceByteEvent(raw[start:consumed])) {
+		if long && (reservedBlobEvent(raw[start:consumed], "SR") || reservedBlobEvent(raw[start:consumed], "OP") || reservedBlobEvent(raw[start:consumed], "EP") || reservedCompactAttempt(raw[start:consumed]) || reservedLifecycleEvent(raw[start:consumed]) || reservedCacheEvent(raw[start:consumed]) || reservedResolverEvent(raw[start:consumed]) || reservedRelationshipEvent(raw[start:consumed]) || reservedCensusEvent(raw[start:consumed]) || reservedCatalogCensusEvent(raw[start:consumed]) || reservedWorkspaceByteEvent(raw[start:consumed]) || reservedReuseEvent(raw[start:consumed])) {
 			return out, errExecutionAttempts
 		}
 		if readErr != nil {
@@ -230,6 +246,7 @@ func (run *ExecutionEpochOneRun) finishAttemptObservation(ctx context.Context, r
 		result.Attempts.SourceCensus.Complete = false
 		result.Attempts.CatalogCensus.Complete = false
 		result.Attempts.WorkspaceBytes.Complete = false
+		result.Attempts.Reuse.Complete = false
 		if (requireWorkspace || result.Attempts.WorkspaceBytes.Bound) && !result.Attempts.WorkspaceBytes.LimitExceeded {
 			result.Attempts.WorkspaceBytes.Unavailable = true
 		}
@@ -270,7 +287,7 @@ func executionTerminalFooter(raw []byte, input [32]byte) (seen bool, err error) 
 		}
 		index := reservedTerminalIndex(line)
 		if seen && (reservedBlobEvent(line, "SR") || reservedCompactAttempt(line) || index ||
-			bytes.Contains(line, []byte("OPB")) || reservedBlobEvent(line, "OP") || reservedBlobEvent(line, "EP") || reservedLifecycleEvent(line) || reservedCacheEvent(line) || reservedResolverEvent(line) || reservedRelationshipEvent(line) || reservedCensusEvent(line) || reservedCatalogCensusEvent(line) || reservedWorkspaceByteEvent(line)) ||
+			bytes.Contains(line, []byte("OPB")) || reservedBlobEvent(line, "OP") || reservedBlobEvent(line, "EP") || reservedLifecycleEvent(line) || reservedCacheEvent(line) || reservedResolverEvent(line) || reservedRelationshipEvent(line) || reservedCensusEvent(line) || reservedCatalogCensusEvent(line) || reservedWorkspaceByteEvent(line) || reservedReuseEvent(line)) ||
 			index && line[0] != 'I' && !bytes.HasPrefix(line, []byte("ZI")) {
 			return seen, errExecutionAttempts
 		}

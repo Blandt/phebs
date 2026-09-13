@@ -39,6 +39,8 @@ func TestArchiveWorkJoinedProfile(t *testing.T) {
 			{"legacy-byte", fmt.Sprintf("RL1:%c:CP\n", byte('0'+producer)), true, true, false, 0},
 			{"server-profile", lifecycleTestBindings(6), true, true, false, 0},
 			{"server-attempt", "ACj1\n", true, true, false, 0},
+			{"server-reuse-binding", fmt.Sprintf("RUB1:%d:sha256:01%s\n", producer, strings.Repeat("00", 31)), true, true, false, 0},
+			{"server-reuse-terminal", fmt.Sprintf("RU1:%X:C:00000\n", producer), true, true, false, 0},
 			{"duplicate", binding, true, true, false, 0},
 			{"split-marker", strings.Repeat("z", maxExecutionAttemptLine-2) + fmt.Sprintf("RL1:%X:CP\n", producer), true, true, false, 0},
 		} {

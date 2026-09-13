@@ -25,6 +25,15 @@ const t422QueryEvidenceInheritedMode = "PHEBS_T422_QUERY_EVIDENCE_INHERITED"
 
 func t422QueryEvidenceInheritedRecord(t *testing.T, mode string) (dispatchadmission.ProductionBootstrap, []byte) {
 	t.Helper()
+	if mode == "reuse_prior" {
+		raw, _ := t422SemanticTestRequest(t)
+		record := t422ServeFlagsRecord()
+		record.Producer.ID, record.Phase, record.Limits.Phases = 2, 2, 3
+		record.SemanticMode, record.InputSHA256 = dispatchadmission.ProductionSemanticV3, sha256.Sum256(raw)
+		record.Control.OwnerControl = true
+		record.Control.Phases, record.Control.InitialPhase, record.Control.MaximumPhases = []uint32{2, 3, 4}, 2, 3
+		return record, raw
+	}
 	record, raw := t422LifecycleBootstrapRecord(t)
 	if mode != "wrong_epoch" {
 		raw = bytes.Replace(raw, []byte(`"server_epoch":4`), []byte(`"server_epoch":5`), 1)
@@ -38,7 +47,7 @@ func t422QueryEvidenceInheritedRecord(t *testing.T, mode string) (dispatchadmiss
 // Real inherited DA/PC, owner/request admission and auth are exercised here.
 // Only the F body is supplied: this is not an engine/catalog or phase pass.
 func TestT422QueryEvidenceInheritedRouting(t *testing.T) {
-	for _, mode := range []string{"complete", "wrong_phase", "wrong_epoch"} {
+	for _, mode := range []string{"complete", "wrong_phase", "wrong_epoch", "reuse_complete", "reuse_cancel", "reuse_write", "reuse_phase", "reuse_request", "reuse_prior"} {
 		t.Run(mode, func(t *testing.T) {
 			ctx, cancel := context.WithTimeout(t.Context(), 20*time.Second)
 			defer cancel()
@@ -119,7 +128,7 @@ func TestT422QueryEvidenceInheritedRouting(t *testing.T) {
 				t.Fatal(err)
 			}
 			advances := 2
-			if mode == "wrong_phase" {
+			if mode == "wrong_phase" || mode == "reuse_phase" || mode == "reuse_prior" {
 				advances = 1
 			}
 			if mode == "wrong_epoch" {
@@ -143,7 +152,7 @@ func TestT422QueryEvidenceInheritedRouting(t *testing.T) {
 				t.Fatal(err)
 			}
 			if !scanner.Scan() || scanner.Text() != "checked" {
-				t.Fatal("selected request", scanner.Text(), scanner.Err())
+				t.Fatal("selected request", scanner.Text(), scanner.Err(), diagnostic.buffer.String())
 			}
 			for _, operation := range []func() error{
 				func() error { return control.FenceRequests(ctx) }, func() error { return control.Pause(ctx) }, controller.Fence,
@@ -180,6 +189,24 @@ func TestT422QueryEvidenceInheritedRouting(t *testing.T) {
 	}
 }
 
+type t422ReuseOrderWriter struct {
+	output *bytes.Buffer
+	events *[]string
+	prior  func() bool
+}
+
+func (writer t422ReuseOrderWriter) Write(raw []byte) (int, error) {
+	event := "reuse"
+	if writer.prior != nil {
+		event = "reuse_after_prior"
+		if !writer.prior() {
+			event = "reuse_before_prior"
+		}
+	}
+	*writer.events = append(*writer.events, event)
+	return writer.output.Write(raw)
+}
+
 func TestT422QueryEvidenceInheritedHelper(t *testing.T) {
 	mode := os.Getenv(t422QueryEvidenceInheritedMode)
 	if mode == "" {
@@ -207,15 +234,49 @@ func TestT422QueryEvidenceInheritedHelper(t *testing.T) {
 	failures, calls := 0, 0
 	launch.fail = func(error) { failures++ }
 	var report t421ExactReadReport
-	state := t421NewExactReadAccountingState(func(raw []byte) error { return json.Unmarshal(raw, &report) }, launch.fail,
+	var reports int
+	var cancelTerminal context.CancelFunc
+	events := []string{}
+	reportSink := func(raw []byte) error {
+		reports++
+		events = append(events, "report")
+		if mode == "reuse_cancel" && reports == 2 && cancelTerminal != nil {
+			cancelTerminal()
+		}
+		return json.Unmarshal(raw, &report)
+	}
+	finalBody := []byte(`{"supplied_fixture":true}`)
+	if mode == "reuse_prior" {
+		finalBody = []byte(`{"schema":"t421-final-authority-source-free-v1","authority":{"search_generation_sha256":"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","search_inventory":{"records":1},"current":true}}`)
+	}
+	state := t421NewExactReadAccountingState(reportSink, launch.fail,
 		t421ExactFinalAuthorityRead{Read: func(ctx context.Context) ([]byte, func() error, error) {
 			calls++
-			if selected, _ := ctx.Value(t422QueryEvidenceKey{}).(bool); !selected {
+			if selected, _ := ctx.Value(t422QueryEvidenceKey{}).(bool); !selected && mode != "reuse_prior" {
 				t.Error("selected F extension context absent")
 			}
-			return []byte(`{"supplied_fixture":true}`), nil, nil
+			return finalBody, nil, nil
 		}})
 	state.semantic = launch
+	var reuseOutput bytes.Buffer
+	var reuse *t422ReuseControl
+	if mode == "reuse_complete" || mode == "reuse_cancel" || mode == "reuse_write" || mode == "reuse_phase" || mode == "reuse_request" || mode == "reuse_prior" {
+		reuse, err = newT422ReuseControl(launch, launch.fail)
+		if err != nil {
+			t.Fatal("reuse control", err)
+		}
+		reuse.writer = t422ReuseOrderWriter{output: &reuseOutput, events: &events}
+		state.reuse = reuse
+	}
+	if mode == "reuse_prior" {
+		retention := &t422RetentionControl{ctx: ctx, launch: launch}
+		state.retention = retention
+		reuse.writer = t422ReuseOrderWriter{output: &reuseOutput, events: &events, prior: func() bool {
+			retention.mu.Lock()
+			defer retention.mu.Unlock()
+			return retention.step == 1 && !retention.busy
+		}}
+	}
 	authCtx, cancelAuth := context.WithCancel(ctx)
 	defer cancelAuth()
 	authService, err := auth.New(authCtx, auth.Options{Store: &t422LifecycleAuthFixture{}, Owners: owners, Config: config.Auth{APIKey: t421ExactReadTestCredential}})
@@ -229,13 +290,63 @@ func TestT422QueryEvidenceInheritedHelper(t *testing.T) {
 	if !scanner.Scan() || scanner.Text() == "" {
 		t.Fatal("request token missing", scanner.Err())
 	}
+	token := scanner.Text()
 	request := exactT421ReadRequest(http.MethodGet, t421ExactFinalAuthorityPath, 1).WithContext(ctx)
-	request.Header.Set(dispatchadmission.ProductionRequestHeader, scanner.Text())
-	request.Header.Set(t422QueryEvidenceHeader, t422QueryEvidenceValue)
+	request.Header.Set(dispatchadmission.ProductionRequestHeader, token)
+	if mode != "reuse_prior" {
+		request.Header.Set(t422QueryEvidenceHeader, t422QueryEvidenceValue)
+	}
+	if mode == "reuse_phase" {
+		request.Header.Set(t422QueryTerminalHeader, t422QueryTerminalValue)
+	}
+	if mode == "reuse_request" {
+		request.Header.Add(t422QueryTerminalHeader, t422QueryTerminalValue)
+		request.Header.Add(t422QueryTerminalHeader, t422QueryTerminalValue)
+	}
 	response := serveT421ExactReadRequest(t, handler, request)
-	if mode == "complete" {
+	if mode == "reuse_complete" || mode == "reuse_cancel" || mode == "reuse_write" {
+		if response.status != http.StatusOK || calls != 1 || failures != 0 || reports != 1 || reuseOutput.Len() != 0 || len(events) != 1 || events[0] != "report" {
+			t.Fatal("first F completed reuse", response.status, calls, failures, reports, reuseOutput.String(), events)
+		}
+		requestCtx, cancelRequest := context.WithCancel(ctx)
+		cancelTerminal = cancelRequest
+		defer cancelRequest()
+		if mode == "reuse_write" {
+			reuse.writer = t422ReuseFailWriter{}
+		}
+		terminal := exactT421ReadRequest(http.MethodGet, t421ExactFinalAuthorityPath, 2).WithContext(requestCtx)
+		terminal.Header.Set(dispatchadmission.ProductionRequestHeader, token)
+		terminal.Header.Set(t422QueryEvidenceHeader, t422QueryEvidenceValue)
+		terminal.Header.Set(t422QueryTerminalHeader, t422QueryTerminalValue)
+		response = serveT421ExactReadRequest(t, handler, terminal)
+		wantFailure := 0
+		if mode != "reuse_complete" {
+			wantFailure = 1
+		}
+		if response.status != http.StatusOK || calls != 2 || reports != 2 || failures != wantFailure {
+			t.Fatal("terminal F outcome", response.status, calls, reports, failures, report)
+		}
+		if mode == "reuse_complete" {
+			if reuseOutput.String() != "RU1:6:E:00000\n" || len(events) != 3 || events[0] != "report" || events[1] != "report" || events[2] != "reuse" {
+				t.Fatal("reuse did not follow the exact report", reuseOutput.String(), events)
+			}
+		} else {
+			if reuseOutput.Len() != 0 || len(events) != 2 || events[0] != "report" || events[1] != "report" {
+				t.Fatal("failed terminal emitted reuse", reuseOutput.String(), events)
+			}
+		}
+	} else if mode == "reuse_prior" {
+		if response.status != http.StatusOK || calls != 1 || failures != 0 || reports != 1 ||
+			reuseOutput.String() != "RU1:2:3:00000\n" || len(events) != 2 || events[0] != "report" || events[1] != "reuse_after_prior" {
+			t.Fatal("reuse did not follow prior/report", response.status, calls, failures, reports, reuseOutput.String(), events)
+		}
+	} else if mode == "complete" {
 		if response.status != http.StatusOK || calls != 1 || failures != 0 || report.Status != "complete" || report.VisibleRepositories != nil {
 			t.Fatal("selected F failed", response.status, calls, failures, report)
+		}
+	} else if mode == "reuse_phase" || mode == "reuse_request" {
+		if response.status != http.StatusConflict || calls != 0 || failures != 1 || reports != 1 || report.Status != "admission_refused" || reuseOutput.Len() != 0 {
+			t.Fatal("mismatched terminal reached reuse", response.status, calls, failures, reports, report, reuseOutput.String())
 		}
 	} else if response.status != http.StatusConflict || calls != 0 || failures != 1 || report.Status != "admission_refused" {
 		t.Fatal("wrong epoch/phase reached supplied reader", response.status, calls, failures, report)

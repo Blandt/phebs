@@ -89,8 +89,16 @@ func TestV3ReconcilerCommittedCensusNoopAndVersionRefusal(t *testing.T) {
 			},
 		},
 	}
+	currentObserved := 0
+	reconciler.OnCurrent = func(_ context.Context, currentRepository string) error {
+		if currentRepository != repository {
+			t.Fatalf("current catalog repository = %q", currentRepository)
+		}
+		currentObserved++
+		return nil
+	}
 	outcome, err := reconciler.ReconcileRepository(t.Context(), repository)
-	if err != nil || outcome != OutcomePublished {
+	if err != nil || outcome != OutcomePublished || currentObserved != 0 {
 		t.Fatalf("first v3 reconcile = %q, %v", outcome, err)
 	}
 	root := state.current[repository].Root
@@ -112,7 +120,7 @@ func TestV3ReconcilerCommittedCensusNoopAndVersionRefusal(t *testing.T) {
 		t.Fatal(err)
 	}
 	outcome, err = reconciler.ReconcileRepository(t.Context(), repository)
-	if err != nil || outcome != OutcomeCurrent || state.revisions[repository] != 1 {
+	if err != nil || outcome != OutcomeCurrent || state.revisions[repository] != 1 || currentObserved != 1 {
 		t.Fatalf("metadata-only v3 no-op = %q, %v, revision %d", outcome, err, state.revisions[repository])
 	}
 	catalog.Services[0].DisplayName = "Orders API"

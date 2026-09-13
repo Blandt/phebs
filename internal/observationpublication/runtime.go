@@ -44,6 +44,8 @@ type Runtime struct {
 	// failure keeps the scheduler chunk retryable without rolling back the
 	// already-complete content-addressed observation publication.
 	OnPublished func(context.Context, string) error
+	// OnPlanningCurrent observes the successful closed current disposition.
+	OnPlanningCurrent func(context.Context, string) error
 
 	mu             sync.Mutex
 	plans          map[string]*sourcepartition.Plan

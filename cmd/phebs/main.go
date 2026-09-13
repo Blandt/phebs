@@ -739,6 +739,13 @@ func serve(args []string) (retErr error) {
 			}
 		}
 	}
+	reuseControl, err := newT422ReuseControl(semanticLaunch, failExactReport)
+	if err != nil {
+		return err
+	}
+	if exactReadState != nil {
+		exactReadState.reuse = reuseControl
+	}
 
 	if err := os.MkdirAll(cfg.Server.DataDir, 0o755); err != nil {
 		return fmt.Errorf("create data dir: %w", err)
@@ -895,6 +902,9 @@ func serve(args []string) (retErr error) {
 			return admissionErr
 		},
 	}
+	if reuseControl != nil {
+		observationRuntime.OnPlanningCurrent = reuseControl.observeObservation
+	}
 	var relationshipRuntime *relationshippublication.Runtime
 	var reconcileRelationship func(context.Context, string) error
 	if resolverRegistry.Enabled() {
@@ -913,6 +923,9 @@ func serve(args []string) (retErr error) {
 				lifecycleStatus.ObserveCapacity(capacity, admissionErr)
 				return admissionErr
 			},
+		}
+		if reuseControl != nil {
+			relationshipRuntime.OnV3Current = reuseControl.observeRelationship
 		}
 		reconcileRelationship = func(reconcileCtx context.Context, repository string) error {
 			err := relationshipRuntime.Reconcile(reconcileCtx, repository)
@@ -1208,6 +1221,9 @@ func serve(args []string) (retErr error) {
 	v3CatalogReconciler := &servicecatalogingest.V3Reconciler{
 		DataDir: cfg.Server.DataDir, Store: st,
 		Selections: cfg.ServiceCatalogs,
+	}
+	if reuseControl != nil {
+		v3CatalogReconciler.OnCurrent = reuseControl.observeCatalog
 	}
 	if semanticLaunch != nil {
 		v3CatalogReconciler.RequiredIndexedCommit = semanticLaunch.request.ReturnSourceCommit
@@ -1998,6 +2014,9 @@ func serve(args []string) (retErr error) {
 				}
 				return admissionErr
 			},
+		}
+		if reuseControl != nil {
+			ix.OnReuse = reuseControl.observeIndex
 		}
 		ixRunner := &store.Runner{Store: st, Kind: store.JobIndex, Handle: ix.Handle, Owners: owners,
 			Interval: cfg.Sync.Interval(), Diagnostics: cfg.Diagnostics.Jobs}

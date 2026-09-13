@@ -45,7 +45,7 @@ func (runtime *Runtime) enqueueInventoryV2(
 		ctx, filepath.Join(runtime.DataDir, "observations"), repository,
 	); currentErr == nil {
 		if current.SourceGenerationDigest == source.Digest {
-			return PlanningCurrent, nil
+			return runtime.planningCurrent(ctx, repository)
 		}
 	} else if !errors.Is(currentErr, os.ErrNotExist) {
 		return "", planningFailure(currentErr)
@@ -82,7 +82,7 @@ func (runtime *Runtime) enqueueInventoryV2(
 			if selected, selectedErr := CurrentInventoryDownstreamAuthorityV2(
 				ctx, filepath.Join(runtime.DataDir, "observations"), repository,
 			); selectedErr == nil && selected.SourceGenerationDigest == source.Digest {
-				return PlanningCurrent, nil
+				return runtime.planningCurrent(ctx, repository)
 			} else if selectedErr != nil && !errors.Is(selectedErr, os.ErrNotExist) {
 				return "", planningFailure(selectedErr)
 			}

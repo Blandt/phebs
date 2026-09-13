@@ -1046,6 +1046,14 @@ func TestInventoryV2ReplacesPriorSourceGeneration(t *testing.T) {
 		DataDir: dataDirectory, Store: state, Cache: &Cache{}, InventoryV2: true,
 		AcquireTransition: noopPlanningTransition,
 	}
+	currentObserved := 0
+	runtime.OnPlanningCurrent = func(_ context.Context, currentRepository string) error {
+		if currentRepository != repository {
+			t.Fatalf("current planning repository = %q", currentRepository)
+		}
+		currentObserved++
+		return nil
+	}
 	publishPlanningOwnershipSource(t, dataDirectory, repositoryDirectory, repository, commitA)
 
 	publish := func(label string) InventoryAuthorityV2 {
@@ -1071,6 +1079,10 @@ func TestInventoryV2ReplacesPriorSourceGeneration(t *testing.T) {
 	}
 
 	a := publish("A")
+	if disposition, err := runtime.EnqueuePlanning(t.Context(), repository); err != nil ||
+		disposition != PlanningCurrent || currentObserved != 1 {
+		t.Fatalf("current v2 planning = %q, observed=%d, %v", disposition, currentObserved, err)
+	}
 	if planning := state.specsFor(PlanningScheduleStage); len(planning) != 0 {
 		t.Fatalf("selected v2 path enqueued legacy planning: %+v", planning)
 	}

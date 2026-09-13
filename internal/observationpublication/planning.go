@@ -76,7 +76,7 @@ func (runtime *Runtime) EnqueuePlanning(
 			if err := runtime.afterPublish(ctx, repository); err != nil {
 				return "", workFailure(err)
 			}
-			return PlanningCurrent, nil
+			return runtime.planningCurrent(ctx, repository)
 		}
 		return runtime.enqueuePlanning(ctx, planningBinding{
 			Schema: PlanningBindingSchema, Repository: repository,
@@ -98,7 +98,7 @@ func (runtime *Runtime) EnqueuePlanning(
 			if err := runtime.afterPublish(ctx, repository); err != nil {
 				return "", workFailure(err)
 			}
-			return PlanningCurrent, nil
+			return runtime.planningCurrent(ctx, repository)
 		}
 		switch {
 		case current.Status == store.GenerationScheduleActive:
@@ -113,7 +113,7 @@ func (runtime *Runtime) EnqueuePlanning(
 				if err := runtime.afterPublish(ctx, repository); err != nil {
 					return "", workFailure(err)
 				}
-				return PlanningCurrent, nil
+				return runtime.planningCurrent(ctx, repository)
 			}
 			owned, ownedErr := runtime.executionOwnsSource(ctx, repository, source.Digest)
 			if ownedErr != nil {
@@ -240,7 +240,7 @@ func (runtime *Runtime) enqueuePlanning(
 				if err := runtime.afterPublish(ctx, binding.Repository); err != nil {
 					return "", workFailure(err)
 				}
-				return PlanningCurrent, nil
+				return runtime.planningCurrent(ctx, binding.Repository)
 			}
 			owned, ownedErr := runtime.executionOwnsSource(
 				ctx, binding.Repository, binding.SourceGenerationDigest,
@@ -272,6 +272,15 @@ func (runtime *Runtime) enqueuePlanning(
 		return "", planningFailure(err)
 	}
 	return PlanningEnqueued, nil
+}
+
+func (runtime *Runtime) planningCurrent(ctx context.Context, repository string) (PlanningEnqueue, error) {
+	if runtime.OnPlanningCurrent != nil {
+		if err := runtime.OnPlanningCurrent(ctx, repository); err != nil {
+			return "", workFailure(err)
+		}
+	}
+	return PlanningCurrent, nil
 }
 
 func (runtime *Runtime) executionOwnsSource(

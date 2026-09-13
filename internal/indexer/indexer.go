@@ -317,7 +317,17 @@ type Indexer struct {
 	// after a prior index commit, the retried index job can repair the missing
 	// chain without rebuilding the shard.
 	OnIndexed func(ctx context.Context, repoName, commit string) error
+	// OnReuse observes only a fully successful current short circuit or prior
+	// generation reactivation. Fresh publication never calls it.
+	OnReuse func(context.Context, string, string, IndexReuseDecision) error
 }
+
+type IndexReuseDecision string
+
+const (
+	IndexReuseCurrent     IndexReuseDecision = "current"
+	IndexReuseReactivated IndexReuseDecision = "reactivated"
+)
 
 // Handle adapts Index to the store.Runner: the job target is the repo name.
 func (ix *Indexer) Handle(ctx context.Context, job store.Job) error {
@@ -389,7 +399,10 @@ func (ix *Indexer) Index(ctx context.Context, repo store.Repo, force bool) error
 		analysisunit.EqualState(unit, repo.IndexedAnalysisUnit) &&
 		!focusedindex.IsPublishing(filepath.Join(ix.DataDir, "index"), repo.Name) {
 		ix.verbosef("index %s: already current at %s; skipping child", repo.Name, head)
-		return ix.afterIndexed(ctx, repo.Name, head) // T3.2: shards current; repair/confirm the chain
+		if err := ix.afterIndexed(ctx, repo.Name, head); err != nil {
+			return err
+		}
+		return ix.observeReuse(ctx, repo.Name, head, IndexReuseCurrent)
 	}
 	if ix.AdmitDerived != nil {
 		if err := ix.AdmitDerived(ctx, 0); err != nil {
@@ -405,7 +418,10 @@ func (ix *Indexer) Index(ctx context.Context, repo store.Repo, force bool) error
 		}
 		if reactivated {
 			ix.verbosef("index %s: reactivated retained prior search generation", repo.Name)
-			return ix.commitPublishedIndex(ctx, repo, head, revisions, unit, indexDir)
+			if err := ix.commitPublishedIndex(ctx, repo, head, revisions, unit, indexDir); err != nil {
+				return err
+			}
+			return ix.observeReuse(ctx, repo.Name, head, IndexReuseReactivated)
 		}
 	}
 
@@ -883,6 +899,16 @@ func (ix *Indexer) afterIndexed(ctx context.Context, repoName, commit string) er
 	}
 	if err := ix.OnIndexed(ctx, repoName, commit); err != nil {
 		return fmt.Errorf("index %s: chain post-index work: %w", repoName, err)
+	}
+	return nil
+}
+
+func (ix *Indexer) observeReuse(ctx context.Context, repository, commit string, decision IndexReuseDecision) error {
+	if ix.OnReuse == nil {
+		return nil
+	}
+	if err := ix.OnReuse(ctx, repository, commit, decision); err != nil {
+		return fmt.Errorf("observe index reuse: %w", err)
 	}
 	return nil
 }

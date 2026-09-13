@@ -959,21 +959,29 @@ func TestOnIndexedChainsFreshAndCurrentCommit(t *testing.T) {
 	name, head := fixture(t, ctx, st, dataDir)
 
 	var fired []string
+	var reused []indexer.IndexReuseDecision
 	ix.OnIndexed = func(_ context.Context, repo, commit string) error {
 		fired = append(fired, repo+"@"+commit)
+		return nil
+	}
+	ix.OnReuse = func(_ context.Context, repository, commit string, decision indexer.IndexReuseDecision) error {
+		if repository != name || commit != head {
+			t.Fatalf("reuse authority = %q@%q", repository, commit)
+		}
+		reused = append(reused, decision)
 		return nil
 	}
 	if err := ix.Index(ctx, store.Repo{Name: name}, false); err != nil {
 		t.Fatalf("index: %v", err)
 	}
-	if len(fired) != 1 || fired[0] != name+"@"+head {
+	if len(fired) != 1 || fired[0] != name+"@"+head || len(reused) != 0 {
 		t.Fatalf("OnIndexed after fresh index = %v", fired)
 	}
 	// Unchanged HEAD avoids the shard rebuild but confirms/repairs the chain.
 	if err := ix.Index(ctx, store.Repo{Name: name}, false); err != nil {
 		t.Fatalf("short-circuit index: %v", err)
 	}
-	if len(fired) != 2 || fired[1] != name+"@"+head {
+	if len(fired) != 2 || fired[1] != name+"@"+head || len(reused) != 1 || reused[0] != indexer.IndexReuseCurrent {
 		t.Fatalf("OnIndexed after short-circuit = %v", fired)
 	}
 	// A failed state commit must not fire the chain.
@@ -981,8 +989,73 @@ func TestOnIndexedChainsFreshAndCurrentCommit(t *testing.T) {
 	if err := ix.Index(ctx, store.Repo{Name: name}, true); err == nil {
 		t.Fatal("forced index with failing state commit succeeded")
 	}
-	if len(fired) != 2 {
+	if len(fired) != 2 || len(reused) != 1 {
 		t.Fatalf("OnIndexed fired despite state-commit failure: %v", fired)
+	}
+}
+
+func TestOnReuseObservesPriorReactivationAfterCommittedState(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 180*time.Second)
+	defer cancel()
+	ix, st, dataDir := newIndexer(t, ctx)
+	name, headA := fixture(t, ctx, st, dataDir)
+	if err := ix.Index(ctx, store.Repo{Name: name}, false); err != nil {
+		t.Fatal("index A", err)
+	}
+	repo, err := st.GetRepo(ctx, name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	origin := strings.TrimPrefix(repo.CloneURL, "file://")
+	if origin == repo.CloneURL {
+		t.Fatal("fixture origin is not local")
+	}
+	if err := os.WriteFile(filepath.Join(origin, "main.go"), []byte("package main\n\nfunc generationB() {}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	gitc(t, origin, "add", "main.go")
+	gitc(t, origin, "commit", "-m", "two")
+	headB := gitc(t, origin, "rev-parse", "HEAD")
+	if err := sync.Mirror(ctx, repo.CloneURL, sync.RepoDir(dataDir, name)); err != nil {
+		t.Fatal("mirror B", err)
+	}
+	if err := ix.Index(ctx, store.Repo{Name: name}, false); err != nil {
+		t.Fatal("index B", err)
+	}
+	rootB, err := focusedindex.ReadSearchGenerationRoot(filepath.Join(dataDir, "index"), name)
+	if err != nil || rootB.Prior == nil || len(rootB.Current.Revisions) != 1 || len(rootB.Prior.Revisions) != 1 ||
+		rootB.Current.Revisions[0].Commit != headB || rootB.Prior.Revisions[0].Commit != headA {
+		t.Fatal("A/B retained generations", rootB, err)
+	}
+	wantGeneration := rootB.Prior.GenerationDigest
+	gitc(t, origin, "reset", "--hard", headA)
+	if err := sync.Mirror(ctx, repo.CloneURL, sync.RepoDir(dataDir, name)); err != nil {
+		t.Fatal("mirror return A", err)
+	}
+
+	wantErr := errors.New("injected reuse callback failure")
+	calls := 0
+	ix.OnReuse = func(callCtx context.Context, repository, commit string, decision indexer.IndexReuseDecision) error {
+		calls++
+		if repository != name || commit != headA || decision != indexer.IndexReuseReactivated {
+			t.Fatalf("reuse decision = %q %q %q", repository, commit, decision)
+		}
+		committed, getErr := st.GetRepo(callCtx, name)
+		current, rootErr := focusedindex.ReadSearchGenerationRoot(filepath.Join(dataDir, "index"), name)
+		if getErr != nil || committed.IndexedCommitHash != headA || rootErr != nil ||
+			current.Current.GenerationDigest != wantGeneration || focusedindex.IsPublishing(filepath.Join(dataDir, "index"), name) {
+			t.Fatalf("callback preceded committed reactivation: repo=%+v root=%+v get=%v root=%v", committed, current, getErr, rootErr)
+		}
+		return wantErr
+	}
+	if err := ix.Index(ctx, store.Repo{Name: name}, false); !errors.Is(err, wantErr) {
+		t.Fatalf("reactivation callback error = %v", err)
+	}
+	committed, err := st.GetRepo(ctx, name)
+	current, rootErr := focusedindex.ReadSearchGenerationRoot(filepath.Join(dataDir, "index"), name)
+	if calls != 1 || err != nil || committed.IndexedCommitHash != headA || rootErr != nil ||
+		current.Current.GenerationDigest != wantGeneration || focusedindex.IsPublishing(filepath.Join(dataDir, "index"), name) {
+		t.Fatalf("reactivation result calls=%d repo=%+v root=%+v get=%v root=%v", calls, committed, current, err, rootErr)
 	}
 }
 

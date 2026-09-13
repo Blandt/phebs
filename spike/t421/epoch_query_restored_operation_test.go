@@ -121,6 +121,11 @@ func TestEpochQueryRestoredModeledOperation(t *testing.T) {
 					if r.Header.Get("X-Phebs-T422-Query-Evidence") != "bound-v1" {
 						t.Error("F omitted actual query-proof request")
 					}
+					finalOrdinal := finals.Load() + 1
+					terminal := r.Header.Values("X-Phebs-T422-Query-Terminal")
+					if (len(terminal) == 1 && terminal[0] == "complete-v1") != (finalOrdinal == 2) || len(terminal) > 1 {
+						t.Error("query terminal did not distinguish the two F reads")
+					}
 					response := value
 					if finals.Add(1) == 2 && mode == "changed_F2" {
 						proof := *value.QueryAuthority

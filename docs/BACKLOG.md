@@ -8758,6 +8758,29 @@ reached its 30-minute bound while constructing the unrelated production-derived
 ordinary-pass fixture. Complete package acceptance remains part of the combined
 T42.2l exact-tree gate; this bounded vocabulary slice adds no unreviewed failure.
 
+The next prospective V3 prerequisite retains actual generation reuse at the
+existing fully fenced index, observation, catalog and relationship current
+exits. A fixed terminal makes absent lanes known zero only after the exact F
+body, ledger and report finish; product phase 14 emits it only on the existing
+authenticated second F after query completion. Offline archive producers reject
+the server-only records, and ordinary construction stays nil. Independent
+review of corrected patch
+`f8da725eb64a07765753e997e6f184806d587f508995b713df2d8bb1a9a863f0`
+reported critical/high/medium/low zero after tracing the real selected handler
+tail and A-to-B-to-A prior reactivation. The retained value is joined-work
+prerequisite evidence only; no signed phase metric, issuer, receipt or freeze is
+claimed. Final applied review covered all 25 source/test paths plus three owning
+documentation paths and found one low final-F cost wording issue; the PLAN row
+now records its four semantic snapshots, three brief locks and terminal write.
+The corrected applied record re-review reports all severity counts zero.
+Focused normal/race selectors, the four affected internal packages, pinned
+static checks, documentation, glossary and whitespace pass. The complete
+`cmd/phebs` attempt reached the retained three-, ten- and ten-minute native
+lifecycle fixture ceilings in `TestT422WorkspaceNativeComposition`,
+`TestT422WorkspaceCleanupNativeComposition` and
+`TestT422WorkspaceAllOwnersNativeComposition`; it is not recorded green and
+does not replace the combined T42.2l exact-tree gate.
+
 The output audit keeps scopes separate. Epoch four plus backup/restore has a
 46,642,240-byte compact subtotal; epoch five separately has 15,149,846 bytes
 of compact records and its own WB stream. The later five WB positions add

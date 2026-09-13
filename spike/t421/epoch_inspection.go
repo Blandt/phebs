@@ -333,6 +333,10 @@ func (reader *executionEpochInspection) readRequest(ctx context.Context, path st
 	if repositories || path == "/api/t421/final-authority" && reader.plan.Schema == PlanV3Schema && run.epoch.Epoch == 5 && reader.projection.Phase == "product_queries" {
 		request.Header.Set("X-Phebs-T422-Query-Evidence", "bound-v1")
 	}
+	if path == "/api/t421/final-authority" && reader.plan.Schema == PlanV3Schema && run.epoch.Epoch == 5 &&
+		reader.projection.Phase == "product_queries" && reader.productFinalCalls == 1 && reader.productQueriesComplete {
+		request.Header.Set("X-Phebs-T422-Query-Terminal", "complete-v1")
+	}
 	if !fence.IsZero() {
 		request.Header.Set("X-Phebs-T422-Ballast-Unix-Nano", strconv.FormatInt(fence.UnixNano(), 10))
 	}

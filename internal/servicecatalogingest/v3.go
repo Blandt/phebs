@@ -28,6 +28,8 @@ type V3Reconciler struct {
 	// until indexing reaches the authenticated source. Empty leaves ordinary
 	// reconciliation unchanged. The check uses the existing repository read.
 	RequiredIndexedCommit string
+	// OnCurrent observes only the exact V3 current outcome.
+	OnCurrent func(context.Context, string) error
 }
 
 func (r *V3Reconciler) Reconcile(ctx context.Context) (Report, error) {
@@ -122,6 +124,11 @@ func (r *V3Reconciler) reconcile(
 			current.Root.Binding.Source.Path == selection.Path &&
 			current.Root.Binding.Source.Commit == repository.IndexedCommitHash &&
 			candidate.Root.Digest == current.Root.Digest {
+			if r.OnCurrent != nil {
+				if err := r.OnCurrent(ctx, repository.Name); err != nil {
+					return "", fmt.Errorf("observe current service catalog v3: %w", err)
+				}
+			}
 			return OutcomeCurrent, nil
 		}
 	}

@@ -96,8 +96,8 @@ func TestExecutionSetupTokenDiagnosticBoundary(t *testing.T) {
 
 func terminalPrefixTestBytes() (string, string) {
 	input := "sha256:01" + strings.Repeat("00", 31) + "\n"
-	return "ATB1:4:" + input + "SRB1:4:" + input + "OPB1:4:" + input + "EPB1:4:" + input + "RMB1:4:" + input + "RLB1:4:" + input + "IXB1:4:" + input +
-		"A6j1\nSR1:4:6\nOP1:4:6\nIb6\nI6\nIe6:1\n", "TFE1:4:8:" + input
+	return "ATB1:4:" + input + "SRB1:4:" + input + "OPB1:4:" + input + "EPB1:4:" + input + "RMB1:4:" + input + "RLB1:4:" + input + "RUB1:4:" + input + "IXB1:4:" + input +
+		"RU1:4:6:00000\nRU1:4:7:00000\nRU1:4:8:00000\nA6j1\nSR1:4:6\nOP1:4:6\nIb6\nI6\nIe6:1\n", "TFE1:4:8:" + input
 }
 
 func TestExecutionTerminalFooterFraming(t *testing.T) {

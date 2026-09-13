@@ -75,6 +75,8 @@ type Runtime struct {
 	Admit                func(context.Context) error
 	Acquire              func(context.Context) (func(), error)
 	AfterV3MarkerInstall PublicationTransitionObserverV3
+	// OnV3Current observes only the fully fenced ReconcileV3 current result.
+	OnV3Current func(context.Context, string) error
 
 	transition sync.Mutex
 }

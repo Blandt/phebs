@@ -37,6 +37,8 @@ const (
 	t421ExactReadReportSchema     = "t421-source-free-read-accounting-v1"
 	t422QueryEvidenceHeader       = "X-Phebs-T422-Query-Evidence"
 	t422QueryEvidenceValue        = "bound-v1"
+	t422QueryTerminalHeader       = "X-Phebs-T422-Query-Terminal"
+	t422QueryTerminalValue        = "complete-v1"
 	t421ExactFinalAuthorityPath   = "/api/t421/final-authority"
 	t421ExactTailReadinessPath    = "/api/t421/tail-readiness"
 	t421ExactMCPPath              = "/api/mcp"
@@ -100,6 +102,7 @@ type t421ExactReadAccountingState struct {
 	checkpoint         *t422CheckpointControl
 	checkpointRecovery *t422CheckpointRecoveryControl
 	archive            *t422ArchiveControl
+	reuse              *t422ReuseControl
 
 	mu           sync.Mutex
 	nextOrdinal  uint64
@@ -284,6 +287,7 @@ func (handler *t421ExactReadAccountingHandler) ServeHTTP(
 		nativeFailureStatus, nativeFailure = "retention_observation_refused", errT422RetentionControl
 	}
 	queryEvidence := len(request.Header.Values(t422QueryEvidenceHeader)) != 0
+	queryTerminal := len(request.Header.Values(t422QueryTerminalHeader)) != 0
 	// Native route overrides above must not admit this opt-in on another route.
 	if queryEvidence && !t422QueryEvidenceRoute(request) {
 		target = false
@@ -291,6 +295,13 @@ func (handler *t421ExactReadAccountingHandler) ServeHTTP(
 	if queryEvidence && handler.state.semantic != nil {
 		admitted, present := request.Context().Value(t422SemanticRequestKey{}).(dispatchadmission.ProductionSemanticSnapshot)
 		if !present || handler.state.semantic.request.ServerEpoch != 5 || admitted.Phase != 14 {
+			target = false
+		}
+	}
+	if queryTerminal {
+		admitted, present := request.Context().Value(t422SemanticRequestKey{}).(dispatchadmission.ProductionSemanticSnapshot)
+		if !t422QueryTerminalRoute(request) || handler.state.semantic == nil || !present ||
+			handler.state.semantic.request.ServerEpoch != 5 || admitted.Phase != 14 {
 			target = false
 		}
 	}
@@ -350,6 +361,9 @@ func (handler *t421ExactReadAccountingHandler) ServeHTTP(
 			}
 			if readErr == nil && handler.state.selectorCleanup != nil && request.URL.Path == t421ExactFinalAuthorityPath {
 				afterReport, readErr = handler.state.selectorCleanup.finalTail(ctx, afterReport)
+			}
+			if readErr == nil && handler.state.reuse != nil && request.URL.Path == t421ExactFinalAuthorityPath {
+				afterReport, readErr = handler.state.reuse.finalTail(ctx, queryTerminal, afterReport)
 			}
 		}
 		if readErr != nil || !json.Valid(canonical) {
@@ -464,6 +478,17 @@ func t422QueryEvidenceRoute(request *http.Request) bool {
 	return len(values) == 1 && values[0] == t422QueryEvidenceValue &&
 		(request.URL.Path == api.SearchPath || request.URL.Path == t421ExactMCPPath ||
 			request.URL.Path == t421ExactFinalAuthorityPath)
+}
+
+func t422QueryTerminalRoute(request *http.Request) bool {
+	if request == nil || request.URL == nil {
+		return false
+	}
+	values := request.Header.Values(t422QueryTerminalHeader)
+	return len(values) == 1 && values[0] == t422QueryTerminalValue &&
+		request.Method == http.MethodGet && request.URL.Path == t421ExactFinalAuthorityPath &&
+		request.URL.RawQuery == "" && !request.URL.ForceQuery &&
+		t422QueryEvidenceRoute(request)
 }
 
 func t421ExactReadLimits(

@@ -201,6 +201,17 @@ func TestRuntimeV3DirectBuildDoesNotRequireV2Relationship(t *testing.T) {
 	); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("direct v3 build recreated v2 relationship = %v", err)
 	}
+	currentObserved := 0
+	fixture.runtime.OnV3Current = func(_ context.Context, repository string) error {
+		if repository != fixture.chunk.Repository {
+			t.Fatalf("current relationship repository = %q", repository)
+		}
+		currentObserved++
+		return nil
+	}
+	if current, err := fixture.runtime.ReconcileV3(t.Context(), fixture.chunk.Repository); err != nil || !current || currentObserved != 1 {
+		t.Fatalf("direct v3 current=%t observed=%d err=%v", current, currentObserved, err)
+	}
 }
 
 func TestBuildV3AcceptsSparseSuccessorWithMixedCatalogProvenance(t *testing.T) {

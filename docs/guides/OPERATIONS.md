@@ -7480,3 +7480,10 @@ execution profile admits the selected five chunk attempts and 56 target
 aggregate partitions; protected runtime facts separately report native
 capacities eight and 131,072. A cross-substitution is a refusal, not permission
 to raise a bound. Historical V1/V2 profile bytes are unchanged.
+
+Prospective V3 also retains current-generation and retained-prior reuse only
+from fenced production exits. An empty reuse lane is known zero only after that
+phase's final-authority report completes; product queries use the second final
+read. These private records are incomplete evidence until the later phase
+measurement author consumes them, and do not by themselves establish reuse or
+authorize a freeze.
