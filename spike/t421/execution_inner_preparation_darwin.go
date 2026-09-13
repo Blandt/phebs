@@ -288,6 +288,7 @@ func (prepared *executionInnerPreparation) authorizeAndAuthorA(ctx context.Conte
 	if err != nil || !reflect.DeepEqual(checkedCandidate, prepared.candidate) {
 		return ExecutionAuthorResult{}, ErrExecutionLauncher
 	}
+	prepared.candidate = checkedCandidate
 	freezeAdmission, err := prepared.seal.verifyAndIssueAdmission(finalCtx, prepared.flow.plan)
 	if err != nil || finalCtx.Err() != nil || !time.Now().Before(prepared.finalAdmissionDeadline) {
 		return ExecutionAuthorResult{}, ErrExecutionLauncher
