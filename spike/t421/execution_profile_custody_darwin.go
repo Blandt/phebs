@@ -54,6 +54,15 @@ type executionOperationalHandoffCapabilityState struct {
 	admission ExecutionProfileAdmissionBinding
 }
 
+type executionFreezeCandidatePreparation struct {
+	raw              []byte
+	commits          ExecutionCommits
+	checkout         CheckoutAdmissionBinding
+	profile          ExecutionProfile
+	profileAdmission ExecutionProfileAdmissionBinding
+	namespace        executionSignerNamespaceBinding
+}
+
 // bindProfileExecutor retains the independently reference-admitted executor
 // only when it is the exact image held by the live protected launcher.
 func (flow *ExecutionEpochOne) bindProfileExecutor(ctx context.Context, launcher *executionParentLiveness) error {
@@ -226,6 +235,57 @@ func (capability *executionOperationalHandoffCapability) consumeProfile(ctx cont
 	return cloneExecutionProfile(profile), cloneExecutionProfileAdmission(admission), nil
 }
 
+// prepareFreezeCandidate re-observes the held profile authorities and issues
+// the checkout/build binding needed by the signer. It does not consume the
+// operational handoff; only the later verified-signature transition may do so.
+func (capability *executionOperationalHandoffCapability) prepareFreezeCandidate(ctx context.Context, signerFingerprint string) (executionFreezeCandidatePreparation, error) {
+	var prepared executionFreezeCandidatePreparation
+	if capability == nil || capability.state == nil {
+		return prepared, errPressureVolume
+	}
+	capability.state.mu.Lock()
+	defer capability.state.mu.Unlock()
+	proof, profile, admission := capability.state.proof, capability.state.profile, capability.state.admission
+	if proof == nil || profile.Schema == "" || admission.schema == "" {
+		return prepared, errPressureVolume
+	}
+	err := proof.withProfileLocks(ctx, func(v *executionPressureVolume, flow *ExecutionEpochOne) error {
+		observed, err := profilePreimagesLocked(ctx, proof, v, flow)
+		if err != nil {
+			return err
+		}
+		current, currentAdmission, err := issueExecutionProfileLocked(ctx, v, flow, observed)
+		if err != nil || !reflect.DeepEqual(current, profile) || !reflect.DeepEqual(currentAdmission, admission) {
+			return errPressureVolume
+		}
+		tools, _, err := observedExecutionProfileToolsLocked(ctx, v, flow)
+		if err != nil {
+			return errPressureVolume
+		}
+		commits, checkout, err := flow.epochs.author.request.Builds.bindCheckout(ctx, flow.plan.ToolPolicy, tools)
+		if err != nil {
+			return errPressureVolume
+		}
+		namespace, err := flow.profileSignerNamespace.check(ctx)
+		if err != nil {
+			return errPressureVolume
+		}
+		raw, err := assembleExecutionFreezeCandidate(flow.plan, commits, tools, flow.profileHost.Host, signerFingerprint,
+			namespace, current, currentAdmission)
+		if err != nil {
+			return errPressureVolume
+		}
+		prepared = executionFreezeCandidatePreparation{
+			raw: slices.Clone(raw), commits: commits, checkout: checkout,
+			profile: cloneExecutionProfile(current), profileAdmission: cloneExecutionProfileAdmission(currentAdmission), namespace: namespace,
+		}
+		return nil
+	})
+	if err != nil {
+		return executionFreezeCandidatePreparation{}, err
+	}
+	return prepared, nil
+}
 func (proof *executionWorkspaceCustodyProof) issueProfile(ctx context.Context) (executionObservedProfilePreimages, error) {
 	var zero executionObservedProfilePreimages
 	if proof == nil || proof.volume == nil || proof.flow == nil || ctx == nil || ctx.Err() != nil {
