@@ -325,7 +325,9 @@ func (flow *ExecutionEpochOne) authorAAdmitted(
 	binding ExecutionFreezeBinding,
 	ordinals *executionEventOrdinals,
 ) (ExecutionAuthorResult, error) {
-	if flow == nil || ctx == nil || ctx.Err() != nil || !time.Now().Before(finalAdmissionDeadline) || ordinals == nil {
+	outerDeadline, hasOuterDeadline := ctx.Deadline()
+	if flow == nil || ctx == nil || ctx.Err() != nil || !hasOuterDeadline ||
+		finalAdmissionDeadline.After(outerDeadline) || !time.Now().Before(finalAdmissionDeadline) || ordinals == nil {
 		return ExecutionAuthorResult{}, ErrExecutionEpochOne
 	}
 	flow.mu.Lock()
@@ -342,8 +344,7 @@ func (flow *ExecutionEpochOne) authorAAdmitted(
 		return ExecutionAuthorResult{}, ErrExecutionEpochOne
 	}
 	started := time.Now()
-	deadline := started.Add(time.Duration(flow.plan.SafetyEnvelope.MaximumTotalWallMS) * time.Millisecond)
-	recorder, err := newExecutionPhaseEventRecorder(admitted, flow.plan.PhaseOrder, started, deadline)
+	recorder, err := newExecutionPhaseEventRecorder(admitted, flow.plan.PhaseOrder, started, outerDeadline)
 	if err != nil || recorder.beginAt(flow.plan.PhaseOrder[0], started) != nil {
 		return ExecutionAuthorResult{}, ErrExecutionEpochOne
 	}
