@@ -20,6 +20,13 @@ func createExecutionSignerSeal(
 	defer key.claim.mu.Unlock()
 	key.signer.mu.Lock()
 	defer key.signer.mu.Unlock()
+	freeze, err := validateExecutionFreezeCandidate(
+		prepared.raw, plan, prepared.commits, key.fingerprint, key.namespace,
+		prepared.profile, prepared.profileAdmission,
+	)
+	if err != nil {
+		return ExecutionFreeze{}, err
+	}
 	owner := key.namespace.owner
 	owner.mu.Lock()
 	defer owner.mu.Unlock()
@@ -42,7 +49,6 @@ func createExecutionSignerSeal(
 			return refuse(errors.New("T42.2 signer seal destination already exists or cannot be inspected"))
 		}
 	}
-	var err error
 	key.canonicalFile, err = createExecutionSignerHeldFileLocked(ctx, owner, canonicalName, key.canonicalPublic, maxExecutionSignerKeyBytes)
 	if err != nil {
 		return refuse(err)
@@ -53,13 +59,6 @@ func createExecutionSignerSeal(
 		return refuse(err)
 	}
 	if err := checkExecutionSignerKeyLocked(ctx, key); err != nil {
-		return refuse(err)
-	}
-	freeze, err := validateExecutionFreezeCandidate(
-		prepared.raw, plan, prepared.commits, key.fingerprint, key.namespace,
-		prepared.profile, prepared.profileAdmission,
-	)
-	if err != nil {
 		return refuse(err)
 	}
 	seal.candidate, err = createExecutionSignerHeldFileLocked(ctx, owner, key.claim.names.candidate,
