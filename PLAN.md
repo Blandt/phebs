@@ -3183,3 +3183,15 @@ in [docs/ROADMAP.md](./docs/ROADMAP.md).
   pack bytes, and require their unchanged bundle-neutral semantic identity.
   T32.3 still verifies exact commits, trees and bundle fetchability. No retained
   evidence, production code, admission limit or steady-state cost changes.
+
+- **2026-09-13 — T42.2n authorization-client cancellation correction.** Keep
+  the connected Unix socket within the caller's cancellation lifetime after
+  dialing. Reuse the joined `context.AfterFunc` pattern to advance its existing
+  I/O deadline on cancellation, and reject EOF success after cancellation or
+  expiry. This adds one short-lived callback/channel pair per authorization
+  client, at most one cancellation deadline update, and no child, retry, extra
+  socket, corpus read or persistent work. Normal request/query, sync, startup,
+  publication and locks are unchanged. The socket regression cancels after
+  the actual request half-close, with both a held peer and later EOF. This
+  closes a component cancellation defect; launcher/readiness acceptance stays
+  open.

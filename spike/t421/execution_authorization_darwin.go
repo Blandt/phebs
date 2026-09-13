@@ -322,13 +322,23 @@ func sendExecutionAuthorization(ctx context.Context, path string, raw []byte, de
 		return errExecutionAuthorization
 	}
 	defer func() {
-		if err := unixConnection.Close(); err != nil {
+		if err := unixConnection.Close(); err != nil || ctx.Err() != nil || !time.Now().Before(deadline) {
 			retErr = errExecutionAuthorization
 		}
 	}()
 	if unixConnection.SetDeadline(deadline) != nil {
 		return errExecutionAuthorization
 	}
+	interrupted := make(chan struct{})
+	stop := context.AfterFunc(ctx, func() {
+		defer close(interrupted)
+		_ = unixConnection.SetDeadline(time.Now())
+	})
+	defer func() {
+		if !stop() {
+			<-interrupted
+		}
+	}()
 	frame := make([]byte, len(raw)+1)
 	copy(frame, raw)
 	frame[len(raw)] = '\n'
@@ -345,7 +355,7 @@ func sendExecutionAuthorization(ctx context.Context, path string, raw []byte, de
 	// The server sends no response. Waiting for its EOF keeps Darwin peer
 	// metadata live through the server's mandatory credential observation.
 	var response [1]byte
-	if n, err := unixConnection.Read(response[:]); n != 0 || !errors.Is(err, io.EOF) {
+	if n, err := unixConnection.Read(response[:]); n != 0 || !errors.Is(err, io.EOF) || ctx.Err() != nil || !time.Now().Before(deadline) {
 		return errExecutionAuthorization
 	}
 	return nil

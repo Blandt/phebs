@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"io"
 	"net"
 	"os"
 	"path/filepath"
@@ -138,6 +139,63 @@ func TestExecutionAuthorizationFirstConnectionSpends(t *testing.T) {
 			}
 			if err := sendExecutionAuthorization(context.Background(), wait.path, raw, time.Now().Add(time.Second)); !errors.Is(err, errExecutionAuthorization) {
 				t.Fatalf("invalid first allowed retry: %v", err)
+			}
+		})
+	}
+}
+
+func TestExecutionAuthorizationClientCancellationAfterConnect(t *testing.T) {
+	for _, test := range []struct {
+		name      string
+		closePeer bool
+	}{{"held_peer", false}, {"EOF_after_cancel", true}} {
+		t.Run(test.name, func(t *testing.T) {
+			root := executionAuthorizationTestRoot(t)
+			path := filepath.Join(root.path, executionAuthorizationSocketName)
+			listener, err := net.ListenUnix("unix", &net.UnixAddr{Name: path, Net: "unix"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer listener.Close()
+			deadline := time.Now().Add(5 * time.Second)
+			if err := listener.SetDeadline(deadline); err != nil {
+				t.Fatal(err)
+			}
+			raw, err := canonicalExecutionAuthorization(executionAuthorizationTestValue("a", "b"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			ctx, cancel := context.WithCancel(t.Context())
+			defer cancel()
+			sent := make(chan error, 1)
+			go func() { sent <- sendExecutionAuthorization(ctx, path, raw, deadline) }()
+			peer, err := listener.AcceptUnix()
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer peer.Close()
+			if err := peer.SetDeadline(deadline); err != nil {
+				t.Fatal(err)
+			}
+			frame, err := io.ReadAll(io.LimitReader(peer, maxExecutionAuthorizationReadBytes))
+			if err != nil || !bytes.Equal(frame, append(bytes.Clone(raw), '\n')) {
+				t.Fatalf("client frame = %q, %v", frame, err)
+			}
+			cancel()
+			if test.closePeer {
+				if err := peer.Close(); err != nil {
+					t.Fatal(err)
+				}
+			}
+			select {
+			case err := <-sent:
+				if !errors.Is(err, errExecutionAuthorization) {
+					t.Fatalf("canceled client = %v", err)
+				}
+			case <-time.After(time.Second):
+				_ = peer.Close()
+				<-sent
+				t.Fatal("connected client ignored cancellation")
 			}
 		})
 	}
