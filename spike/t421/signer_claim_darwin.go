@@ -16,6 +16,7 @@ import (
 func createExecutionSignerCeremonyClaim(
 	ctx context.Context,
 	namespace executionSignerNamespaceBinding,
+	ceremonyID string,
 	names executionSignerRegistryNames,
 	raw []byte,
 ) (*executionSignerCeremonyClaimCustody, error) {
@@ -53,7 +54,7 @@ func createExecutionSignerCeremonyClaim(
 	}
 	claim := &executionSignerCeremonyClaimCustody{
 		file: file, path: path, name: names.claim, namespace: namespace,
-		idSHA256: names.idSHA256, raw: append([]byte(nil), raw...),
+		idSHA256: names.idSHA256, raw: append([]byte(nil), raw...), ceremonyID: ceremonyID, names: names,
 	}
 	fail := func(message string) (*executionSignerCeremonyClaimCustody, error) {
 		return claim, errors.New(message)
@@ -108,14 +109,25 @@ func checkExecutionSignerCeremonyClaim(ctx context.Context, claim *executionSign
 	return nil
 }
 
-func observeExecutionSignerClaim(ctx context.Context, file *os.File, path string, expectedSize int64) (executionSignerClaimIdentity, error) {
+func observeExecutionSignerClaim(ctx context.Context, file *os.File, path string, expectedSize int64) (executionSignerFileIdentity, error) {
 	if ctx == nil || ctx.Err() != nil || file == nil || expectedSize < 1 || expectedSize > maxExecutionSignerClaimBytes {
-		return executionSignerClaimIdentity{}, ErrExecutionEpochOne
+		return executionSignerFileIdentity{}, ErrExecutionEpochOne
+	}
+	identity, err := observeExecutionSignerFile(ctx, file, path, expectedSize, expectedSize)
+	if err != nil || identity.size != expectedSize {
+		return executionSignerFileIdentity{}, ErrExecutionEpochOne
+	}
+	return identity, nil
+}
+
+func observeExecutionSignerFile(ctx context.Context, file *os.File, path string, minimum, maximum int64) (executionSignerFileIdentity, error) {
+	if ctx == nil || ctx.Err() != nil || file == nil || minimum < 1 || maximum < minimum {
+		return executionSignerFileIdentity{}, ErrExecutionEpochOne
 	}
 	held, heldErr := file.Stat()
 	current, pathErr := os.Lstat(path)
 	if heldErr != nil || pathErr != nil || held == nil || current == nil {
-		return executionSignerClaimIdentity{}, ErrExecutionEpochOne
+		return executionSignerFileIdentity{}, ErrExecutionEpochOne
 	}
 	heldStat, heldOK := held.Sys().(*syscall.Stat_t)
 	pathStat, pathOK := current.Sys().(*syscall.Stat_t)
@@ -127,20 +139,20 @@ func observeExecutionSignerClaim(ctx context.Context, file *os.File, path string
 		descriptorErr != nil || statusErr != nil || descriptorFlags&unix.FD_CLOEXEC == 0 || statusFlags&unix.O_ACCMODE != unix.O_RDWR ||
 		uint32(heldStat.Mode) != wantMode || uint32(pathStat.Mode) != wantMode ||
 		heldStat.Uid != uint32(os.Geteuid()) || pathStat.Uid != uint32(os.Geteuid()) ||
-		heldStat.Nlink != 1 || pathStat.Nlink != 1 || held.Size() != expectedSize || current.Size() != expectedSize ||
+		heldStat.Nlink != 1 || pathStat.Nlink != 1 || held.Size() != current.Size() || held.Size() < minimum || held.Size() > maximum ||
 		int64(heldStat.Dev) < 0 || heldStat.Ino == 0 || ctx.Err() != nil {
-		return executionSignerClaimIdentity{}, ErrExecutionEpochOne
+		return executionSignerFileIdentity{}, ErrExecutionEpochOne
 	}
-	identity := executionSignerClaimIdentity{
+	identity := executionSignerFileIdentity{
 		device: int64(heldStat.Dev), inode: uint64(heldStat.Ino), mode: uint32(heldStat.Mode),
 		uid: heldStat.Uid, size: held.Size(), links: uint64(heldStat.Nlink),
 	}
-	other := executionSignerClaimIdentity{
+	other := executionSignerFileIdentity{
 		device: int64(pathStat.Dev), inode: uint64(pathStat.Ino), mode: uint32(pathStat.Mode),
 		uid: pathStat.Uid, size: current.Size(), links: uint64(pathStat.Nlink),
 	}
 	if identity != other {
-		return executionSignerClaimIdentity{}, ErrExecutionEpochOne
+		return executionSignerFileIdentity{}, ErrExecutionEpochOne
 	}
 	return identity, nil
 }

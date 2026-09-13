@@ -88,6 +88,10 @@ func (tool *ExecutionSystemToolCustody) Check(ctx context.Context, role string) 
 	}
 	tool.mu.Lock()
 	defer tool.mu.Unlock()
+	return tool.checkLocked(ctx, role)
+}
+
+func (tool *ExecutionSystemToolCustody) checkLocked(ctx context.Context, role string) (ExecutionToolIdentity, string, error) {
 	refuse := func() (ExecutionToolIdentity, string, error) {
 		tool.failed = true
 		return ExecutionToolIdentity{}, "", ErrExecutionToolCustody

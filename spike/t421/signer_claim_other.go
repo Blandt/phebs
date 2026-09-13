@@ -7,6 +7,7 @@ import "context"
 func createExecutionSignerCeremonyClaim(
 	context.Context,
 	executionSignerNamespaceBinding,
+	string,
 	executionSignerRegistryNames,
 	[]byte,
 ) (*executionSignerCeremonyClaimCustody, error) {

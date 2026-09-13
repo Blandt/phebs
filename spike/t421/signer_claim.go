@@ -51,18 +51,21 @@ func (names executionSignerRegistryNames) absentBeforeClaim() []string {
 // authority boundary. Close releases only its descriptor; the durable claim is
 // deliberately retained so a post-claim failure cannot reuse the ID.
 type executionSignerCeremonyClaimCustody struct {
-	mu        sync.Mutex
-	file      *os.File
-	path      string
-	name      string
-	identity  executionSignerClaimIdentity
-	namespace executionSignerNamespaceBinding
-	idSHA256  string
-	raw       []byte
-	closed    bool
+	mu         sync.Mutex
+	file       *os.File
+	path       string
+	name       string
+	identity   executionSignerFileIdentity
+	namespace  executionSignerNamespaceBinding
+	idSHA256   string
+	raw        []byte
+	closed     bool
+	keyUsed    bool
+	ceremonyID string
+	names      executionSignerRegistryNames
 }
 
-type executionSignerClaimIdentity struct {
+type executionSignerFileIdentity struct {
 	device int64
 	inode  uint64
 	mode   uint32
@@ -106,7 +109,7 @@ func claimExecutionSignerCeremony(
 	if err != nil || len(raw) == 0 || len(raw) > maxExecutionSignerClaimBytes {
 		return nil, errors.New("T42.2 signer ceremony claim is not bounded canonical JSON")
 	}
-	return createExecutionSignerCeremonyClaim(ctx, checked, names, raw)
+	return createExecutionSignerCeremonyClaim(ctx, checked, ceremonyID, names, raw)
 }
 
 func executionSignerNames(ceremonyID string) executionSignerRegistryNames {
