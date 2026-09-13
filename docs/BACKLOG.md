@@ -8524,6 +8524,19 @@ cannot sit in an unaccounted ordinal hole.
 Each issuance/final-handoff recheck adds one existing signer held/path/statfs
 check and two existing protected-input canonical-path/held-metadata/statfs
 checks. It adds no content hash, scan, FD, child or repository-sized work.
+
+Foundation implementation record (2026-09-12). Exact commit
+`4ebe34757cf81056cd6946cda89b1b0a1eda11b4` composes the private V3 event
+allocator, joined work/receipt prefixes, runtime facts and observed profile
+preimages/custody without issuing a freeze or starting the executor. Focused
+profile/receipt tests passed twenty normal and five race repetitions; the
+complete repository compiled with `go test ./... -run '^$'`; command/spike/store
+vet, pinned lint, documentation, glossary and whitespace checks passed. Fresh
+independent no-OCR review of the source-identical tree reported critical 0,
+high 0, medium 0 and low 0. The earlier reduced broad package run reproduced
+the inherited store-bound grouping/logical-projection assertions and timed out
+only while opening a fresh store; it is not recorded as a full package pass.
+
 Issue once inside T42.2m's finite bounded non-operational outer preparation,
 after authenticated tool/custody setup and all authorized preparation
 observations, but before T42.2o signing, AuthorA, any phase meter or operational
