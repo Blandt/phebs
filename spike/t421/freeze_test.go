@@ -128,8 +128,8 @@ func TestBuildExecutionFreezeRejectsMalformedPressureTargetsWithoutPanic(t *test
 			if _, err := BuildExecutionFreeze(
 				plan, executionFreezeTestCommits(), executionFreezeTestTools(plan, executionFreezeTestCommits()), executionFreezeTestHost(),
 				executionFreezeTestSigner(), CheckoutAdmissionBinding{}, ExecutionProfileAdmissionBinding{},
-			); err == nil {
-				t.Fatal("malformed pressure targets were accepted")
+			); err == nil || err.Error() != "T42.2 pressure volume is invalid" {
+				t.Fatal("malformed pressure targets did not retain public error precedence", err)
 			}
 		})
 	}
@@ -324,6 +324,356 @@ func TestValidateExecutionFreezeRejectsAdmittedInvalidToolProvenance(t *testing.
 				executionProfileTestAdmission(t, plan, changed.Tools, changed.Host),
 			); err == nil {
 				t.Fatal("invalid admitted tool provenance was accepted")
+			}
+		})
+	}
+}
+
+type executionFreezeCandidateTestFixture struct {
+	plan      Plan
+	commits   ExecutionCommits
+	tools     []ExecutionToolIdentity
+	host      ExecutionHost
+	signer    string
+	profile   ExecutionProfile
+	admission ExecutionProfileAdmissionBinding
+}
+
+func newExecutionFreezeCandidateTestFixture(t *testing.T) executionFreezeCandidateTestFixture {
+	t.Helper()
+	plan := accountingTestPlan(t)
+	commits := executionFreezeTestCommits()
+	tools := executionFreezeTestTools(plan, commits)
+	host := executionFreezeTestHost()
+	admission := executionProfileTestAdmission(t, plan, tools, host)
+	profile, err := expectedExecutionProfile(plan, tools, host, admission)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return executionFreezeCandidateTestFixture{
+		plan: plan, commits: commits, tools: tools, host: host,
+		signer: executionFreezeTestSigner(), profile: profile, admission: admission,
+	}
+}
+
+func (value executionFreezeCandidateTestFixture) clone() executionFreezeCandidateTestFixture {
+	value.tools = slices.Clone(value.tools)
+	value.profile = cloneExecutionProfile(value.profile)
+	value.admission.epochConfigBytesSHA256 = slices.Clone(value.admission.epochConfigBytesSHA256)
+	return value
+}
+
+func (value executionFreezeCandidateTestFixture) assemble() ([]byte, error) {
+	return assembleExecutionFreezeCandidate(
+		value.plan, value.commits, value.tools, value.host, value.signer, value.profile, value.admission,
+	)
+}
+
+func (value executionFreezeCandidateTestFixture) validate(raw []byte) (ExecutionFreeze, error) {
+	return validateExecutionFreezeCandidate(
+		raw, value.plan, value.commits, value.signer, value.profile, value.admission,
+	)
+}
+
+func (value executionFreezeCandidateTestFixture) validateAfterPlan(raw []byte) (ExecutionFreeze, error) {
+	if err := validateExecutionFreezeCandidateAuthority(value.commits, value.signer, value.plan); err != nil {
+		return ExecutionFreeze{}, err
+	}
+	freeze, err := decodeCanonicalExecutionFreeze(raw, value.plan.ToolPolicy.MaximumExecutionFreezeBytes)
+	if err != nil {
+		return ExecutionFreeze{}, err
+	}
+	if err := validateExecutionFreezeCandidateValue(
+		freeze, value.plan, value.commits, value.signer, value.profile, value.admission,
+	); err != nil {
+		return ExecutionFreeze{}, err
+	}
+	return freeze, nil
+}
+
+func (value executionFreezeCandidateTestFixture) validateInputsAfterPlan() error {
+	if err := validateExecutionFreezeCandidateAuthority(value.commits, value.signer, value.plan); err != nil {
+		return err
+	}
+	planSHA256, pressure, err := executionFreezeConstructionInputs(value.plan, value.host)
+	if err != nil {
+		return err
+	}
+	freeze := buildExecutionFreeze(
+		value.plan, value.commits, value.tools, value.host, value.signer, value.profile, planSHA256, pressure,
+	)
+	return validateExecutionFreezeCandidateValue(
+		freeze, value.plan, value.commits, value.signer, value.profile, value.admission,
+	)
+}
+
+func TestExecutionFreezeCandidateIsCanonicalDetachedAndNonauthoritative(t *testing.T) {
+	fixture := newExecutionFreezeCandidateTestFixture(t)
+	raw, err := fixture.assemble()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(raw) == 0 || len(raw) > MaxExecutionFreezeBytes ||
+		uint64(len(raw)) > fixture.plan.ToolPolicy.MaximumExecutionFreezeBytes {
+		t.Fatal("candidate freeze is not deterministic and bounded", len(raw), err)
+	}
+	freeze, err := fixture.validateAfterPlan(raw)
+	if err != nil || freeze.Schema != ExecutionFreezeV3Schema || !reflect.DeepEqual(freeze.Profile, fixture.profile) ||
+		len(freeze.Tools) != 11 || freeze.Commits != fixture.commits || freeze.SignerFingerprint != fixture.signer {
+		t.Fatal("candidate freeze did not retain exact detached inputs", freeze, err)
+	}
+	if rejectSourceBearingExecutionFreeze(raw) != nil {
+		t.Fatal("candidate freeze contains source-bearing bytes")
+	}
+	again, err := MarshalCanonical(freeze)
+	if err != nil || !bytes.Equal(raw, again) {
+		t.Fatal("candidate freeze is not its deterministic canonical representation", err)
+	}
+	// The candidate contains no private admission/binding fields and the helper
+	// returns no capability, signature, binding, or ordinal alongside its bytes.
+	if bytes.Contains(raw, []byte("verifiedBefore")) || bytes.Contains(raw, []byte("checkout")) || bytes.Contains(raw, []byte("ordinal")) {
+		t.Fatal("candidate projected private authority")
+	}
+
+	baseline := bytes.Clone(raw)
+	fixture.tools[0].Version = "caller mutation"
+	fixture.profile.Commands[0].NormalizedArgv[0] = "caller mutation"
+	if !bytes.Equal(raw, baseline) {
+		t.Fatal("caller inputs aliased returned candidate bytes")
+	}
+	raw[0] ^= 1
+	if bytes.Equal(raw, baseline) {
+		t.Fatal("test mutation did not change returned bytes")
+	}
+	if _, err := fixture.validate(raw); err == nil {
+		t.Fatal("mutated returned bytes remained valid")
+	}
+}
+
+func TestExecutionFreezeCandidateRejectsInputMutations(t *testing.T) {
+	commitTests := []struct {
+		name   string
+		mutate func(*ExecutionCommits)
+	}{
+		{"integrated commit sha256 width", func(value *ExecutionCommits) { value.IntegratedMainCommit = strings.Repeat("a", 64) }},
+		{"integrated tree", func(value *ExecutionCommits) { value.IntegratedMainTree = strings.Repeat("A", 40) }},
+		{"source commit", func(value *ExecutionCommits) { value.T422SourceCommit = strings.Repeat("d", 40) }},
+		{"source tree", func(value *ExecutionCommits) { value.T422SourceTree = "" }},
+		{"dirty", func(value *ExecutionCommits) { value.CleanTree = false }},
+		{"integration ancestry", func(value *ExecutionCommits) { value.IntegratedMainDescendsFromPlanSource = false }},
+		{"source ancestry", func(value *ExecutionCommits) { value.SourceDescendsFromIntegratedMain = false }},
+	}
+	for _, test := range commitTests {
+		t.Run("commit/"+test.name, func(t *testing.T) {
+			fixture := newExecutionFreezeCandidateTestFixture(t)
+			test.mutate(&fixture.commits)
+			if err := fixture.validateInputsAfterPlan(); err == nil {
+				t.Fatal("mutated commit authority issued candidate bytes", err)
+			}
+		})
+	}
+
+	fixture := newExecutionFreezeCandidateTestFixture(t)
+	for index, tool := range fixture.tools {
+		t.Run("tool/"+tool.Role, func(t *testing.T) {
+			changed := fixture.clone()
+			changed.tools[index].SHA256 = SHA256([]byte("changed/" + tool.Role))
+			if err := changed.validateInputsAfterPlan(); err == nil {
+				t.Fatal("mutated tool observation issued candidate bytes", err)
+			}
+		})
+	}
+
+	hostTests := []struct {
+		name   string
+		mutate func(*ExecutionHost)
+	}{
+		{"goos", func(value *ExecutionHost) { value.GOOS = "linux" }},
+		{"goarch", func(value *ExecutionHost) { value.GOARCH = "amd64" }},
+		{"product", func(value *ExecutionHost) { value.OSProductVersion = "" }},
+		{"build", func(value *ExecutionHost) { value.OSBuildVersion = "bad-version" }},
+		{"cpus", func(value *ExecutionHost) { value.LogicalCPUs = 0 }},
+		{"memory", func(value *ExecutionHost) { value.MemoryBytes = 0 }},
+		{"backing total", func(value *ExecutionHost) { value.BackingTotalDiskBytes = 0 }},
+		{"backing available", func(value *ExecutionHost) { value.BackingAvailableDiskBytes = value.BackingTotalDiskBytes + 1 }},
+		{"backing identity", func(value *ExecutionHost) { value.BackingVolumeIdentity = SHA256([]byte("other backing")) }},
+		{"pressure total", func(value *ExecutionHost) { value.PressureTotalDiskBytes++ }},
+		{"pressure available", func(value *ExecutionHost) { value.PressureAvailableDiskBytes++ }},
+		{"allocation unit", func(value *ExecutionHost) { value.PressureAllocationUnitBytes = 513 }},
+		{"data identity", func(value *ExecutionHost) { value.DataVolumeIdentity = SHA256([]byte("other data")) }},
+		{"ballast identity", func(value *ExecutionHost) { value.BallastVolumeIdentity = SHA256([]byte("other ballast")) }},
+		{"identity method", func(value *ExecutionHost) { value.VolumeIdentityMethod = "other" }},
+	}
+	for _, test := range hostTests {
+		t.Run("host/"+test.name, func(t *testing.T) {
+			changed := fixture.clone()
+			test.mutate(&changed.host)
+			if err := changed.validateInputsAfterPlan(); err == nil {
+				t.Fatal("mutated host observation issued candidate bytes", err)
+			}
+		})
+	}
+
+	for _, test := range []struct {
+		name   string
+		mutate func(*executionFreezeCandidateTestFixture)
+	}{
+		{"profile", func(value *executionFreezeCandidateTestFixture) {
+			value.profile.InvocationSHA256 = SHA256([]byte("other profile"))
+		}},
+		{"profile admission", func(value *executionFreezeCandidateTestFixture) {
+			value.admission.profileSHA256 = SHA256([]byte("other admission"))
+		}},
+		{"legacy verified state", func(value *executionFreezeCandidateTestFixture) {
+			value.admission.verifiedBeforeOperationalWork = false
+			value.admission.verifiedBeforeWork = true
+		}},
+		{"signer empty", func(value *executionFreezeCandidateTestFixture) { value.signer = "" }},
+		{"signer padded", func(value *executionFreezeCandidateTestFixture) { value.signer += "=" }},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			changed := fixture.clone()
+			test.mutate(&changed)
+			if err := changed.validateInputsAfterPlan(); err == nil {
+				t.Fatal("mutated profile/signer input issued candidate bytes", err)
+			}
+		})
+	}
+}
+
+func TestExecutionFreezeCandidateFullPathRefusals(t *testing.T) {
+	for _, test := range []struct {
+		name   string
+		mutate func(*executionFreezeCandidateTestFixture)
+	}{
+		{"v3 schema", func(value *executionFreezeCandidateTestFixture) { value.plan.Schema = PlanV2Schema }},
+		{"commit", func(value *executionFreezeCandidateTestFixture) {
+			value.commits.IntegratedMainCommit = strings.Repeat("a", 64)
+		}},
+		{"tool", func(value *executionFreezeCandidateTestFixture) { value.tools[0].SHA256 = SHA256([]byte("other tool")) }},
+		{"host", func(value *executionFreezeCandidateTestFixture) { value.host.GOOS = "linux" }},
+		{"profile", func(value *executionFreezeCandidateTestFixture) {
+			value.profile.InvocationSHA256 = SHA256([]byte("other profile"))
+		}},
+		{"admission", func(value *executionFreezeCandidateTestFixture) {
+			value.admission.profileSHA256 = SHA256([]byte("other admission"))
+		}},
+		{"signer", func(value *executionFreezeCandidateTestFixture) { value.signer = "" }},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			fixture := newExecutionFreezeCandidateTestFixture(t)
+			test.mutate(&fixture)
+			if raw, err := fixture.assemble(); err == nil || raw != nil {
+				t.Fatal("full candidate assembler accepted mutated input", err)
+			}
+		})
+	}
+}
+
+func TestExecutionFreezeCandidateRejectsMutatedWireBytes(t *testing.T) {
+	fixture := newExecutionFreezeCandidateTestFixture(t)
+	raw, err := fixture.assemble()
+	if err != nil {
+		t.Fatal(err)
+	}
+	freeze, err := fixture.validate(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tests := []struct {
+		name string
+		raw  func() []byte
+		full bool
+	}{
+		{"unknown field", func() []byte { return append([]byte(`{"unknown":true,`), raw[1:]...) }, false},
+		{"trailing value", func() []byte { return append(bytes.Clone(raw), []byte("{}")...) }, false},
+		{"oversize", func() []byte { return bytes.Repeat([]byte{'x'}, MaxExecutionFreezeBytes+1) }, false},
+		{"noncanonical", func() []byte {
+			var output bytes.Buffer
+			if err := json.Indent(&output, raw, "", "  "); err != nil {
+				t.Fatal(err)
+			}
+			return output.Bytes()
+		}, false},
+		{"source bearing", func() []byte {
+			changed := cloneExecutionFreeze(t, freeze)
+			changed.Tools[0].Version = "package neutral"
+			changedRaw, marshalErr := MarshalCanonical(changed)
+			if marshalErr != nil {
+				t.Fatal(marshalErr)
+			}
+			return changedRaw
+		}, false},
+		{"valid signer drift", func() []byte {
+			changed := cloneExecutionFreeze(t, freeze)
+			changed.SignerFingerprint = "SHA256:" + strings.Repeat("B", 43)
+			changedRaw, marshalErr := MarshalCanonical(changed)
+			if marshalErr != nil {
+				t.Fatal(marshalErr)
+			}
+			return changedRaw
+		}, true},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			var got ExecutionFreeze
+			var err error
+			if test.full {
+				got, err = fixture.validate(test.raw())
+			} else {
+				got, err = fixture.validateAfterPlan(test.raw())
+			}
+			if err == nil || !reflect.DeepEqual(got, ExecutionFreeze{}) {
+				t.Fatal("mutated candidate bytes passed private revalidation", err)
+			}
+		})
+	}
+}
+
+func TestExecutionFreezeCandidatePreservesPublicLegacyConstruction(t *testing.T) {
+	for _, plan := range lifecyclePolicyPlans(t) {
+		if plan.Schema == PlanV3Schema {
+			continue
+		}
+		t.Run(plan.Schema, func(t *testing.T) {
+			commits := executionFreezeTestCommits()
+			tools := executionFreezeTestTools(plan, commits)
+			host := executionFreezeTestHost()
+			admission := executionProfileTestAdmission(t, plan, tools, host)
+			profile, err := expectedExecutionProfile(plan, tools, host, admission)
+			if err != nil {
+				t.Fatal(err)
+			}
+			checkout := executionFreezeTestCheckout(t, commits, tools)
+			freeze, err := BuildExecutionFreeze(plan, commits, tools, host, executionFreezeTestSigner(), checkout, admission)
+			if err != nil {
+				t.Fatal(err)
+			}
+			planRaw, err := MarshalCanonical(plan)
+			if err != nil {
+				t.Fatal(err)
+			}
+			pressure, err := expectedExecutionPressureGeometry(plan, host)
+			if err != nil {
+				t.Fatal(err)
+			}
+			want := ExecutionFreeze{
+				Schema: plan.ToolPolicy.ExecutionFreezeSchema, PlanSHA256: SHA256(planRaw), SignerFingerprint: executionFreezeTestSigner(),
+				Commits: commits, DigestAlgorithm: plan.ToolPolicy.DigestAlgorithm, Tools: slices.Clone(tools), Host: host,
+				Profile: cloneExecutionProfile(profile), Pressure: pressure,
+			}
+			if !reflect.DeepEqual(freeze, want) {
+				t.Fatal("public legacy freeze construction changed")
+			}
+			raw, err := MarshalCanonical(freeze)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if decoded, err := DecodeExecutionFreeze(raw, plan, commits, executionFreezeTestSigner(), checkout, admission); err != nil || !reflect.DeepEqual(decoded, freeze) {
+				t.Fatal("public legacy freeze validation changed", err)
+			}
+			if candidate, err := assembleExecutionFreezeCandidate(plan, commits, tools, host, executionFreezeTestSigner(), profile, admission); err == nil || candidate != nil {
+				t.Fatal("legacy plan issued private V3 candidate bytes", err)
 			}
 		})
 	}

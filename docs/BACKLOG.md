@@ -8763,6 +8763,48 @@ resume; complete checkout/tool binding; post-wait signature/resource drift;
 no restart/rehydration; unique ordinal 1; and direct AuthorA handoff. This
 correction claims no implementation, signature, freeze, live handoff or gate.
 
+Candidate-freeze assembler prerequisite record (2026-09-13). The private
+V3-only pure assembler now factors the existing `ExecutionFreeze` construction
+and field validation, accepts both the actual issuer-returned profile and its
+private admission binding, validates their exact equality, and embeds a detached
+clone of that actual profile. It requires exact lowercase 40-character SHA-1
+integration/source commit and tree identities, the exact eleven trusted tool
+observations, valid host facts and signer fingerprint, then returns only
+canonical source-free bytes within the existing 64-KiB cap. Its private
+raw-byte recheck refuses unknown fields, trailing or noncanonical JSON,
+oversize, source-bearing values and external-input drift. Neither function
+accepts checkout authority or issues a signature, freeze/receipt binding,
+ordinal, capability, event or operation. Public `BuildExecutionFreeze`,
+`ValidateExecutionFreeze`, `DecodeExecutionFreeze`,
+`BindExecutionFreezeForReceipt`, and V1/V2 bytes and checkout-required behavior
+remain unchanged. Tests cover deterministic/detached bytes, all four commit/tree
+IDs and three authority flags, every one of eleven tool rows, all fifteen host
+fields, profile/admission/verified-state and signer mutations, wire mutations,
+strict SHA-1 width and legacy refusal/preservation. The candidate remains
+unsigned and nonauthoritative; actual signer custody, signing/verification,
+live sealed wait, post-authorization checkout, final binding/ordinal and AuthorA
+handoff remain required and unimplemented here.
+
+Assembly cost is one existing full bounded frozen-plan validation; two bounded
+canonical plan encodes and SHA-256 comparisons; fixed validation of commit,
+eleven-tool, fifteen-host-field, profile/admission and pressure inputs; one
+at-most-64-KiB canonical freeze encode/source-fragment scan; and one returned
+byte clone. Transient memory is bounded by the existing at-most-262,144-byte
+plan, at-most-64-KiB freeze and fixed profile/tool slices. A later private raw
+recheck separately repeats full plan validation, bounded decode/canonical
+re-encode, shared field validation and source scan. No lock, filesystem/source
+read, I/O, FD, child, timer, retry, cache, persistent state, request/query, sync
+tick, startup/restart, publication transition or steady-state work is added.
+Exhaustive same-category tests reuse shared validators after a validated
+baseline to avoid dozens of repeated full-plan passes; representative V3
+schema, commit, tool, host, profile/admission and signer refusals still run the
+complete assembler, while canonical and drift refusals run the complete raw
+recheck. Production retains no cached validation result and skips no check.
+This closes only the private pure prerequisite, not T42.2lm's complete live
+candidate: the owning later signer/authorization integration must bind the
+required signer namespace and parent image before claiming a live candidate or
+sealed handoff.
+
 **T42.2lm r17 correction — bounded canonical handoff, parent-image and
 same-directory flat signer staging,
 argv selection and nonblocking same-image private-session authorization

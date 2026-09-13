@@ -390,6 +390,45 @@ unchanged. This plan is orchestration, not evidence that any later gate passed.
   verified-before-operational-work state and cannot set or reinterpret the old
   predicate after preparation children.
 
+  **2026-09-13 — T42.2lm private V3 candidate-freeze prerequisite.** Implement
+  the pure assembler seam by factoring the existing `ExecutionFreeze` constructor
+  and field validator, not by adding a second freeze model. The private
+  checkout-free assembler accepts the actual profile issuer's detached
+  `ExecutionProfile` together with its private admission binding and requires
+  exact equality; it never recomputes and substitutes an expected profile.
+  Independently selected integration/source commit and tree identities are
+  lowercase 40-character SHA-1 object IDs at this seam, even though retained
+  public V1/V2 validation continues its historical generic commit handling.
+  The eleven tool observations, host, signer fingerprint, derived pressure
+  geometry and candidate fields pass the shared validators before canonical
+  bytes are returned. A private raw-byte recheck rejects noncanonical,
+  unknown-field, trailing, oversized, source-bearing or drifted candidates.
+  Neither path accepts checkout admission or creates a signature, binding,
+  ordinal, capability, event, child, or operational authorization. Public
+  `BuildExecutionFreeze`, `ValidateExecutionFreeze`, decode/receipt binding,
+  and retained V1/V2 bytes and checkout-required semantics remain exact.
+
+  One assembly pays the existing full bounded frozen-plan validation, two
+  bounded canonical plan encodes/SHA-256 comparisons, shared validation of
+  four commit/tree IDs and three authority flags, eleven fixed tools, fifteen
+  host fields, the actual profile/admission and derived pressure geometry, one
+  at-most-64-KiB canonical freeze encode plus source-fragment scan, and one
+  returned byte clone. Transient memory is bounded by the existing
+  at-most-262,144-byte plan, at-most-64-KiB freeze and fixed profile/tool
+  slices. A later private raw-byte recheck separately pays full plan validation,
+  one bounded decode and canonical re-encode, the same shared field validation
+  and source scan. There is no lock, I/O, file or source walk, child, timer,
+  retry, cache, persistent state, request/query, sync tick, startup/restart,
+  publication transition or steady-state work. Exhaustive mutation tests call
+  shared post-plan primitives only after one validated baseline;
+  representative schema, commit, tool, host, profile/admission and signer cases
+  still exercise the complete assembler, and canonical/drift cases exercise
+  the complete raw recheck. This is test cost control, not a production cache
+  or validation bypass. This is only the private pure prerequisite, not the
+  complete T42.2lm live candidate freeze: the owning later signer/authorization
+  integration must bind the required signer namespace and parent image before
+  it may claim a live candidate or sealed handoff.
+
   Independently select and hold one unique external Ed25519 private key,
   canonical public key, reviewed `SHA256:` fingerprint and exact single-line
   allowlist `phebs-t422-ceremony <canonical-public-key>\n`. None is authorized

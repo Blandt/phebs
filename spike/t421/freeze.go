@@ -143,11 +143,7 @@ func BuildExecutionFreeze(
 	checkout CheckoutAdmissionBinding,
 	profileAdmission ExecutionProfileAdmissionBinding,
 ) (ExecutionFreeze, error) {
-	planRaw, err := MarshalCanonical(plan)
-	if err != nil {
-		return ExecutionFreeze{}, fmt.Errorf("marshal T42.1 plan: %w", err)
-	}
-	pressure, err := expectedExecutionPressureGeometry(plan, host)
+	planSHA256, pressure, err := executionFreezeConstructionInputs(plan, host)
 	if err != nil {
 		return ExecutionFreeze{}, err
 	}
@@ -155,17 +151,83 @@ func BuildExecutionFreeze(
 	if err != nil {
 		return ExecutionFreeze{}, err
 	}
-	freeze := ExecutionFreeze{
-		Schema: plan.ToolPolicy.ExecutionFreezeSchema, PlanSHA256: SHA256(planRaw),
-		SignerFingerprint: signerFingerprint,
-		Commits:           commits, DigestAlgorithm: plan.ToolPolicy.DigestAlgorithm,
-		Tools: append([]ExecutionToolIdentity(nil), tools...),
-		Host:  host, Profile: profile, Pressure: pressure,
-	}
+	freeze := buildExecutionFreeze(
+		plan, commits, tools, host, signerFingerprint, profile, planSHA256, pressure,
+	)
 	if err := ValidateExecutionFreeze(freeze, plan, commits, signerFingerprint, checkout, profileAdmission); err != nil {
 		return ExecutionFreeze{}, err
 	}
 	return freeze, nil
+}
+
+// assembleExecutionFreezeCandidate is the checkout-free V3 preparation seam.
+// Its profile must be the actual detached output of the private profile issuer;
+// expected shape is used only to validate it, never to replace it. The returned
+// canonical bytes carry no binding, signature, ordinal, or operational authority.
+func assembleExecutionFreezeCandidate(
+	plan Plan,
+	commits ExecutionCommits,
+	tools []ExecutionToolIdentity,
+	host ExecutionHost,
+	signerFingerprint string,
+	profile ExecutionProfile,
+	profileAdmission ExecutionProfileAdmissionBinding,
+) ([]byte, error) {
+	if plan.Schema != PlanV3Schema || plan.ToolPolicy.ExecutionFreezeSchema != ExecutionFreezeV3Schema ||
+		plan.ToolPolicy.ExecutionProfileSchema != ExecutionProfileV3Schema {
+		return nil, errors.New("T42.2 candidate freeze requires the prospective V3 contract")
+	}
+	if err := ValidateFrozenPlan(plan); err != nil {
+		return nil, fmt.Errorf("validate exact T42.1 plan: %w", err)
+	}
+	if err := validateExecutionFreezeCandidateAuthority(commits, signerFingerprint, plan); err != nil {
+		return nil, err
+	}
+	planSHA256, pressure, err := executionFreezeConstructionInputs(plan, host)
+	if err != nil {
+		return nil, err
+	}
+	freeze := buildExecutionFreeze(
+		plan, commits, tools, host, signerFingerprint, cloneExecutionProfile(profile), planSHA256, pressure,
+	)
+	if err := validateExecutionFreezeCandidateValue(freeze, plan, commits, signerFingerprint, profile, profileAdmission); err != nil {
+		return nil, err
+	}
+	raw, err := canonicalExecutionFreezeBytes(freeze, plan.ToolPolicy.MaximumExecutionFreezeBytes)
+	if err != nil {
+		return nil, err
+	}
+	return bytes.Clone(raw), nil
+}
+
+func buildExecutionFreeze(
+	plan Plan,
+	commits ExecutionCommits,
+	tools []ExecutionToolIdentity,
+	host ExecutionHost,
+	signerFingerprint string,
+	profile ExecutionProfile,
+	planSHA256 string,
+	pressure ExecutionPressureGeometry,
+) ExecutionFreeze {
+	return ExecutionFreeze{
+		Schema: plan.ToolPolicy.ExecutionFreezeSchema, PlanSHA256: planSHA256,
+		SignerFingerprint: signerFingerprint,
+		Commits:           commits, DigestAlgorithm: plan.ToolPolicy.DigestAlgorithm,
+		Tools: slices.Clone(tools), Host: host, Profile: profile, Pressure: pressure,
+	}
+}
+
+func executionFreezeConstructionInputs(plan Plan, host ExecutionHost) (string, ExecutionPressureGeometry, error) {
+	planRaw, err := MarshalCanonical(plan)
+	if err != nil {
+		return "", ExecutionPressureGeometry{}, fmt.Errorf("marshal T42.1 plan: %w", err)
+	}
+	pressure, err := expectedExecutionPressureGeometry(plan, host)
+	if err != nil {
+		return "", ExecutionPressureGeometry{}, err
+	}
+	return SHA256(planRaw), pressure, nil
 }
 
 // ValidateExecutionFreeze compares a freeze with the exact plan and externally
@@ -209,6 +271,20 @@ func validateExecutionFreeze(
 	if err != nil || !checkout.verified || checkout.commits != expectedCommits || checkout.toolsSHA256 != toolsSHA256 {
 		return errors.New("T42.2 checkout and build provenance lack external admission")
 	}
+	if err := validateExecutionFreezeFields(freeze, plan, expectedCommits, expectedSignerFingerprint, profileAdmission); err != nil {
+		return err
+	}
+	_, err = canonicalExecutionFreezeBytes(freeze, plan.ToolPolicy.MaximumExecutionFreezeBytes)
+	return err
+}
+
+func validateExecutionFreezeFields(
+	freeze ExecutionFreeze,
+	plan Plan,
+	expectedCommits ExecutionCommits,
+	expectedSignerFingerprint string,
+	profileAdmission ExecutionProfileAdmissionBinding,
+) error {
 	planRaw, err := MarshalCanonical(plan)
 	if err != nil {
 		return fmt.Errorf("marshal exact T42.1 plan: %w", err)
@@ -236,14 +312,48 @@ func validateExecutionFreeze(
 	if !reflect.DeepEqual(freeze.Pressure, wantPressure) {
 		return errors.New("T42.2 pressure geometry is not the exact computed geometry")
 	}
+	return nil
+}
+
+func validateExecutionFreezeCandidateAuthority(commits ExecutionCommits, signerFingerprint string, plan Plan) error {
+	if !validGitObjectID(commits.IntegratedMainCommit, "sha1") ||
+		!validGitObjectID(commits.IntegratedMainTree, "sha1") ||
+		!validGitObjectID(commits.T422SourceCommit, "sha1") ||
+		!validGitObjectID(commits.T422SourceTree, "sha1") ||
+		!validSSHSHA256Fingerprint(signerFingerprint) ||
+		plan.ToolPolicy.RequireCleanCommit && !commits.CleanTree ||
+		!commits.IntegratedMainDescendsFromPlanSource || !commits.SourceDescendsFromIntegratedMain {
+		return errors.New("T42.2 candidate freeze authority is invalid")
+	}
+	return nil
+}
+
+func validateExecutionFreezeCandidateValue(
+	freeze ExecutionFreeze,
+	plan Plan,
+	commits ExecutionCommits,
+	signerFingerprint string,
+	profile ExecutionProfile,
+	profileAdmission ExecutionProfileAdmissionBinding,
+) error {
+	if !reflect.DeepEqual(freeze.Profile, profile) {
+		return errors.New("T42.2 candidate freeze did not retain the issued profile")
+	}
+	return validateExecutionFreezeFields(freeze, plan, commits, signerFingerprint, profileAdmission)
+}
+
+func canonicalExecutionFreezeBytes(freeze ExecutionFreeze, maximum uint64) ([]byte, error) {
 	raw, err := MarshalCanonical(freeze)
 	if err != nil {
-		return fmt.Errorf("marshal T42.2 execution freeze: %w", err)
+		return nil, fmt.Errorf("marshal T42.2 execution freeze: %w", err)
 	}
-	if uint64(len(raw)) > plan.ToolPolicy.MaximumExecutionFreezeBytes {
-		return errors.New("T42.2 execution freeze exceeds its byte bound")
+	if maximum == 0 || uint64(len(raw)) > maximum || len(raw) > MaxExecutionFreezeBytes {
+		return nil, errors.New("T42.2 execution freeze exceeds its byte bound")
 	}
-	return rejectSourceBearingExecutionFreeze(raw)
+	if err := rejectSourceBearingExecutionFreeze(raw); err != nil {
+		return nil, err
+	}
+	return raw, nil
 }
 
 // DecodeExecutionFreeze accepts only the one canonical JSON representation and
@@ -256,9 +366,49 @@ func DecodeExecutionFreeze(
 	checkout CheckoutAdmissionBinding,
 	profileAdmission ExecutionProfileAdmissionBinding,
 ) (ExecutionFreeze, error) {
-	if plan.ToolPolicy.MaximumExecutionFreezeBytes == 0 ||
-		uint64(len(raw)) > plan.ToolPolicy.MaximumExecutionFreezeBytes ||
-		len(raw) > MaxExecutionFreezeBytes {
+	freeze, err := decodeCanonicalExecutionFreeze(raw, plan.ToolPolicy.MaximumExecutionFreezeBytes)
+	if err != nil {
+		return ExecutionFreeze{}, err
+	}
+	if err := ValidateExecutionFreeze(
+		freeze, plan, expectedCommits, expectedSignerFingerprint, checkout, profileAdmission,
+	); err != nil {
+		return ExecutionFreeze{}, err
+	}
+	return freeze, nil
+}
+
+// validateExecutionFreezeCandidate is a private recheck for later signer
+// custody. It accepts canonical bytes only and still issues no authority.
+func validateExecutionFreezeCandidate(
+	raw []byte,
+	plan Plan,
+	commits ExecutionCommits,
+	signerFingerprint string,
+	profile ExecutionProfile,
+	profileAdmission ExecutionProfileAdmissionBinding,
+) (ExecutionFreeze, error) {
+	if plan.Schema != PlanV3Schema || plan.ToolPolicy.ExecutionFreezeSchema != ExecutionFreezeV3Schema {
+		return ExecutionFreeze{}, errors.New("T42.2 candidate freeze requires the prospective V3 contract")
+	}
+	if err := ValidateFrozenPlan(plan); err != nil {
+		return ExecutionFreeze{}, fmt.Errorf("validate exact T42.1 plan: %w", err)
+	}
+	if err := validateExecutionFreezeCandidateAuthority(commits, signerFingerprint, plan); err != nil {
+		return ExecutionFreeze{}, err
+	}
+	freeze, err := decodeCanonicalExecutionFreeze(raw, plan.ToolPolicy.MaximumExecutionFreezeBytes)
+	if err != nil {
+		return ExecutionFreeze{}, err
+	}
+	if err := validateExecutionFreezeCandidateValue(freeze, plan, commits, signerFingerprint, profile, profileAdmission); err != nil {
+		return ExecutionFreeze{}, err
+	}
+	return freeze, nil
+}
+
+func decodeCanonicalExecutionFreeze(raw []byte, maximum uint64) (ExecutionFreeze, error) {
+	if maximum == 0 || uint64(len(raw)) > maximum || len(raw) > MaxExecutionFreezeBytes {
 		return ExecutionFreeze{}, errors.New("T42.2 execution freeze exceeds its byte bound")
 	}
 	decoder := json.NewDecoder(bytes.NewReader(raw))
@@ -275,11 +425,6 @@ func DecodeExecutionFreeze(
 		return ExecutionFreeze{}, errors.New("T42.2 execution freeze is not canonical")
 	}
 	if err := rejectSourceBearingExecutionFreeze(raw); err != nil {
-		return ExecutionFreeze{}, err
-	}
-	if err := ValidateExecutionFreeze(
-		freeze, plan, expectedCommits, expectedSignerFingerprint, checkout, profileAdmission,
-	); err != nil {
 		return ExecutionFreeze{}, err
 	}
 	return freeze, nil
