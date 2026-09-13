@@ -68,6 +68,9 @@ type ExecutionEpochOne struct {
 	profileWorkspace *executionWorkspaceCustodyCapability
 
 	profileRuntime *executionRuntimeObservation // One actual prework process; never an operational producer.
+
+	executionFreezeBinding *ExecutionFreezeBinding
+	executionEventOrdinals *admittedExecutionEventOrdinals
 }
 
 // PrepareExecutionEpochOne starts no child. It rechecks the author's admitted
@@ -262,13 +265,22 @@ func (flow *ExecutionEpochOne) observeProfileEnvironmentCommandsLocked(ctx conte
 }
 
 func (flow *ExecutionEpochOne) AuthorA(ctx context.Context) (ExecutionAuthorResult, error) {
-	if flow == nil || ctx == nil || ctx.Err() != nil || flow.epochs == nil || flow.controller == nil || flow.parent == nil {
+	if flow == nil {
 		return ExecutionAuthorResult{}, ErrExecutionEpochOne
 	}
 	flow.mu.Lock()
 	defer flow.mu.Unlock()
-	if flow.closed || flow.used || flow.authored || flow.workspace != nil && !flow.authorStarted.IsZero() ||
-		flow.profileRuntime != nil && (!flow.profileRuntime.Complete || !flow.profileRuntime.releasable() || flow.profileRuntime.err != nil) {
+	return flow.authorALocked(ctx)
+}
+
+func (flow *ExecutionEpochOne) authorAReadyLocked(ctx context.Context) bool {
+	return ctx != nil && ctx.Err() == nil && flow.epochs != nil && flow.controller != nil && flow.parent != nil &&
+		!flow.closed && !flow.used && !flow.authored && !(flow.workspace != nil && !flow.authorStarted.IsZero()) &&
+		(flow.profileRuntime == nil || flow.profileRuntime.Complete && flow.profileRuntime.releasable() && flow.profileRuntime.err == nil)
+}
+
+func (flow *ExecutionEpochOne) authorALocked(ctx context.Context) (ExecutionAuthorResult, error) {
+	if !flow.authorAReadyLocked(ctx) {
 		return ExecutionAuthorResult{}, ErrExecutionEpochOne
 	}
 	flow.authorStarted = time.Now()
@@ -296,6 +308,38 @@ func (flow *ExecutionEpochOne) AuthorA(ctx context.Context) (ExecutionAuthorResu
 		}
 	}
 	return result, err
+}
+
+// authorAAdmitted is the sole V3 transition from verified private authority to
+// operational work. Binding transfer and reserved ordinal one are atomic with
+// entry into the existing direct AuthorA path.
+func (flow *ExecutionEpochOne) authorAAdmitted(
+	ctx context.Context,
+	finalAdmissionDeadline time.Time,
+	binding ExecutionFreezeBinding,
+	ordinals *executionEventOrdinals,
+) (ExecutionAuthorResult, error) {
+	if flow == nil || ctx == nil || ctx.Err() != nil || !time.Now().Before(finalAdmissionDeadline) || ordinals == nil {
+		return ExecutionAuthorResult{}, ErrExecutionEpochOne
+	}
+	flow.mu.Lock()
+	defer flow.mu.Unlock()
+	planRaw, planErr := MarshalCanonical(flow.plan)
+	if !flow.authorAReadyLocked(ctx) || flow.plan.Schema != PlanV3Schema || flow.executionFreezeBinding != nil ||
+		flow.executionEventOrdinals != nil || binding.freeze.Schema != ExecutionFreezeV3Schema ||
+		binding.admissionEventOrdinal != 1 || !validDigest(binding.freezeSHA256) ||
+		planErr != nil || binding.planSHA256 != SHA256(planRaw) || !time.Now().Before(finalAdmissionDeadline) {
+		return ExecutionAuthorResult{}, ErrExecutionEpochOne
+	}
+	admitted, ordinal, err := ordinals.consumeFinalAdmission()
+	if err != nil || ordinal != 1 || admitted == nil {
+		return ExecutionAuthorResult{}, ErrExecutionEpochOne
+	}
+	retained := binding
+	retained.freeze = cloneExecutionFreezeForBinding(binding.freeze)
+	flow.executionFreezeBinding = &retained
+	flow.executionEventOrdinals = admitted
+	return flow.authorALocked(ctx)
 }
 
 // Close cancels unused future lifetimes, rather than manufacturing their

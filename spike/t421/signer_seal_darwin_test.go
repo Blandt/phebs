@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 func TestExecutionSignerSealsCandidateAndIssuesAdmission(t *testing.T) {
@@ -47,9 +48,13 @@ func TestExecutionSignerSealsCandidateAndIssuesAdmission(t *testing.T) {
 		raw: raw, commits: fixture.commits, checkout: executionFreezeTestCheckout(t, fixture.commits, fixture.tools),
 		profile: fixture.profile, profileAdmission: fixture.admission, namespace: fixture.namespace,
 	}
+	verificationStarted := time.Now()
 	seal, err := sealExecutionFreezeCandidate(t.Context(), key, fixture.plan, prepared)
 	if err != nil {
 		t.Fatal(err)
+	}
+	if seal.firstVerifiedAt.Before(verificationStarted) || seal.firstVerifiedAt.After(time.Now()) {
+		t.Fatal("first successful verification completion was not retained")
 	}
 	if err := seal.check(t.Context()); err != nil {
 		t.Fatal("fresh signed-freeze custody did not revalidate", err)

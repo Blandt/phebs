@@ -5,8 +5,11 @@ package t421
 import (
 	"context"
 	"errors"
+	"io"
 	"os"
 	"path/filepath"
+	"reflect"
+	"strings"
 	"sync"
 	"time"
 )
@@ -16,26 +19,37 @@ import (
 type executionInnerPreparation struct {
 	mu sync.Mutex
 
-	operational productionRoot
-	volume      *executionPressureVolume
-	ballast     *executionPressureBallast
-	signer      *ExecutionSystemToolCustody
-	git         *ExecutionGitCustody
-	builds      *ExecutionGoBuildCustody
-	candidates  *executionReferenceCandidates
-	tools       [5]*ExecutionToolCustody
-	surreal     *ExecutionToolCustody
-	planInput   *ExecutionInputCustody
-	author      *ExecutionAuthorCustody
-	epochs      *ExecutionEpochConfigCustody
-	flow        *ExecutionEpochOne
-	profile     ExecutionProfile
-	admission   ExecutionProfileAdmissionBinding
-	handoff     *executionOperationalHandoffCapability
-	projection  executionAuthorizationHandoffProjection
-	claim       *executionSignerCeremonyClaimCustody
-	key         *executionSignerKeyCustody
-	candidate   executionFreezeCandidatePreparation
+	operational            productionRoot
+	volume                 *executionPressureVolume
+	ballast                *executionPressureBallast
+	signer                 *ExecutionSystemToolCustody
+	git                    *ExecutionGitCustody
+	builds                 *ExecutionGoBuildCustody
+	candidates             *executionReferenceCandidates
+	tools                  [5]*ExecutionToolCustody
+	surreal                *ExecutionToolCustody
+	planInput              *ExecutionInputCustody
+	author                 *ExecutionAuthorCustody
+	epochs                 *ExecutionEpochConfigCustody
+	flow                   *ExecutionEpochOne
+	profile                ExecutionProfile
+	admission              ExecutionProfileAdmissionBinding
+	handoff                *executionOperationalHandoffCapability
+	projection             executionAuthorizationHandoffProjection
+	claim                  *executionSignerCeremonyClaimCustody
+	key                    *executionSignerKeyCustody
+	candidate              executionFreezeCandidatePreparation
+	seal                   *executionSignerSealCustody
+	authorization          *executionAuthorizationWait
+	sessionBinding         executionAuthorizationSessionBinding
+	authorizationHandoff   executionAuthorizationHandoff
+	authorizationPeer      executionAuthorizationPeer
+	ordinals               *executionEventOrdinals
+	selection              executionSelectionV1
+	parent                 *executionParentLiveness
+	outerDeadline          time.Time
+	finalAdmissionDeadline time.Time
+	handoffUsed            bool
 
 	closed bool
 }
@@ -49,7 +63,10 @@ func prepareExecutionInnerPreparation(
 	parent *executionParentLiveness,
 	outerDeadline time.Time,
 ) (*executionInnerPreparation, error) {
-	prepared := &executionInnerPreparation{}
+	prepared := &executionInnerPreparation{
+		selection: selection, parent: parent, outerDeadline: outerDeadline,
+		ordinals: newExecutionEventOrdinals(),
+	}
 	refuse := func() (*executionInnerPreparation, error) { return prepared, ErrExecutionLauncher }
 	if ctx == nil || ctx.Err() != nil || !validExecutionSelection(selection) || parent == nil || parent.alive == nil ||
 		parent.alive.Err() != nil || !executionSessionIsolated(os.Getppid()) || !time.Now().Before(outerDeadline) {
@@ -187,6 +204,107 @@ func prepareExecutionInnerPreparation(
 	return prepared, nil
 }
 
+// authorizeAndAuthorA performs the sole live signed handoff. It emits one
+// bounded operator command, spends the first connection regardless of its
+// validity, and transfers only an exact post-authorization binding to AuthorA.
+func (prepared *executionInnerPreparation) authorizeAndAuthorA(ctx context.Context, output io.Writer) (ExecutionAuthorResult, error) {
+	if prepared == nil {
+		return ExecutionAuthorResult{}, ErrExecutionLauncher
+	}
+	prepared.mu.Lock()
+	defer prepared.mu.Unlock()
+	if prepared.closed || prepared.handoffUsed || ctx == nil || ctx.Err() != nil || output == nil ||
+		prepared.flow == nil || prepared.handoff == nil || prepared.key == nil || prepared.parent == nil || prepared.ordinals == nil ||
+		prepared.candidate.raw == nil || !time.Now().Before(prepared.outerDeadline) {
+		return ExecutionAuthorResult{}, ErrExecutionLauncher
+	}
+	prepared.handoffUsed = true
+	outerCtx, cancelOuter := context.WithDeadline(ctx, prepared.outerDeadline)
+	defer cancelOuter()
+
+	var err error
+	prepared.seal, err = sealExecutionFreezeCandidate(outerCtx, prepared.key, prepared.flow.plan, prepared.candidate)
+	if err != nil || prepared.seal == nil || prepared.seal.firstVerifiedAt.UnixNano() <= 0 ||
+		prepared.seal.firstVerifiedAt.After(time.Now()) {
+		return ExecutionAuthorResult{}, ErrExecutionLauncher
+	}
+	prepared.finalAdmissionDeadline, err = executionFinalAdmissionDeadline(prepared.seal.firstVerifiedAt, prepared.outerDeadline,
+		prepared.flow.plan.SafetyEnvelope.RevalidationDeadlineMS)
+	if err != nil || !time.Now().Before(prepared.finalAdmissionDeadline) {
+		return ExecutionAuthorResult{}, ErrExecutionLauncher
+	}
+	finalCtx, cancelFinal := context.WithDeadline(outerCtx, prepared.finalAdmissionDeadline)
+	defer cancelFinal()
+
+	prepared.authorization, err = prepareExecutionAuthorization(finalCtx, prepared.operational, prepared.finalAdmissionDeadline)
+	if err != nil {
+		return ExecutionAuthorResult{}, ErrExecutionLauncher
+	}
+	defer prepared.authorization.close()
+	freezeSHA256, err := receiptSHA256(prepared.seal.freeze)
+	freezeSHA256 = strings.TrimPrefix(freezeSHA256, "sha256:")
+	if err != nil || !validExecutionHexSHA256(freezeSHA256) {
+		return ExecutionAuthorResult{}, ErrExecutionLauncher
+	}
+	prepared.sessionBinding, err = observeExecutionAuthorizationSessionBinding(finalCtx, prepared.selection.CeremonyID,
+		freezeSHA256, prepared.parent, prepared.authorization, prepared.outerDeadline, prepared.finalAdmissionDeadline)
+	if err != nil {
+		return ExecutionAuthorResult{}, ErrExecutionLauncher
+	}
+	executePath, executeDigest, err := prepared.parent.image.observe(finalCtx)
+	if err != nil || executeDigest != prepared.sessionBinding.preimage.T422ExecuteImageSHA256 ||
+		executionAuthorizationSHA256([]byte(executePath)) != prepared.sessionBinding.preimage.T422ExecuteCanonicalPathSHA256 {
+		return ExecutionAuthorResult{}, ErrExecutionLauncher
+	}
+	prepared.authorizationHandoff, err = buildExecutionAuthorizationHandoff(executePath, prepared.authorization.path, executeDigest,
+		prepared.outerDeadline.UnixNano(), prepared.finalAdmissionDeadline.UnixNano(), freezeSHA256,
+		prepared.sessionBinding.sha256, prepared.projection)
+	if err != nil || emitExecutionAuthorizationHandoff(output, prepared.authorizationHandoff) != nil {
+		return ExecutionAuthorResult{}, ErrExecutionLauncher
+	}
+	expected := executionAuthorizationV1{
+		Schema: executionAuthorizationSchema, FreezeSHA256: freezeSHA256, SessionBindingSHA256: prepared.sessionBinding.sha256,
+	}
+	prepared.authorizationPeer, err = prepared.authorization.consume(finalCtx, expected)
+	if err != nil || finalCtx.Err() != nil || !time.Now().Before(prepared.finalAdmissionDeadline) {
+		return ExecutionAuthorResult{}, ErrExecutionLauncher
+	}
+	checkedNamespace, err := prepared.candidate.namespace.recheck(finalCtx)
+	if err != nil || checkedNamespace.digest != prepared.key.namespace.digest {
+		return ExecutionAuthorResult{}, ErrExecutionLauncher
+	}
+	gitIdentity, gitPath, err := prepared.git.Check(finalCtx)
+	if err != nil {
+		return ExecutionAuthorResult{}, ErrExecutionLauncher
+	}
+	checkedCommits, err := InspectExecutionCheckout(finalCtx, prepared.selection.RepositoryRoot, gitPath,
+		prepared.selection.PlanSourceCommit, prepared.selection.IntegratedMainCommit, prepared.selection.SourceCommit)
+	afterGitIdentity, afterGitPath, afterGitErr := prepared.git.Check(finalCtx)
+	if err != nil || afterGitErr != nil || checkedCommits != prepared.candidate.commits ||
+		!reflect.DeepEqual(afterGitIdentity, gitIdentity) || afterGitPath != gitPath {
+		return ExecutionAuthorResult{}, ErrExecutionLauncher
+	}
+	checkedCandidate, err := prepared.handoff.prepareFreezeCandidate(finalCtx, prepared.key.fingerprint)
+	if err != nil || !reflect.DeepEqual(checkedCandidate, prepared.candidate) {
+		return ExecutionAuthorResult{}, ErrExecutionLauncher
+	}
+	freezeAdmission, err := prepared.seal.verifyAndIssueAdmission(finalCtx, prepared.flow.plan)
+	if err != nil || finalCtx.Err() != nil || !time.Now().Before(prepared.finalAdmissionDeadline) {
+		return ExecutionAuthorResult{}, ErrExecutionLauncher
+	}
+	profile, profileAdmission, err := prepared.handoff.consumeProfile(finalCtx)
+	if err != nil || finalCtx.Err() != nil || !time.Now().Before(prepared.finalAdmissionDeadline) {
+		return ExecutionAuthorResult{}, ErrExecutionLauncher
+	}
+	binding, err := BindExecutionFreezeForReceipt(prepared.seal.freeze, prepared.flow.plan, prepared.candidate.commits,
+		prepared.key.fingerprint, prepared.candidate.checkout, profileAdmission, freezeAdmission)
+	if err != nil || !reflect.DeepEqual(profile, prepared.candidate.profile) || finalCtx.Err() != nil ||
+		!time.Now().Before(prepared.finalAdmissionDeadline) {
+		return ExecutionAuthorResult{}, ErrExecutionLauncher
+	}
+	return prepared.flow.authorAAdmitted(outerCtx, prepared.finalAdmissionDeadline, binding, prepared.ordinals)
+}
+
 func createExecutionOperationalRoot(selection executionSelectionV1) (productionRoot, error) {
 	path, err := os.MkdirTemp("/private/tmp", "phebs-t422-")
 	if err != nil {
@@ -253,7 +371,7 @@ func (prepared *executionInnerPreparation) Close() error {
 		}
 	}
 	var result error
-	result = errors.Join(result, prepared.key.Close(), prepared.claim.Close(), prepared.flow.Close(), prepared.epochs.Close(), prepared.author.Close())
+	result = errors.Join(result, prepared.authorization.close(), prepared.seal.Close(), prepared.key.Close(), prepared.claim.Close(), prepared.flow.Close(), prepared.epochs.Close(), prepared.author.Close())
 	if prepared.planInput != nil {
 		result = errors.Join(result, prepared.planInput.Close())
 	}

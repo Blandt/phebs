@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"os"
+	"time"
 )
 
 func createExecutionSignerSeal(
@@ -87,6 +88,10 @@ func createExecutionSignerSeal(
 	if err := verifyExecutionSignerCandidateLocked(ctx, key, seal.candidate, seal.signatureStage, candidateRaw); err != nil {
 		return refuse(err)
 	}
+	seal.firstVerifiedAt = time.Now()
+	if seal.firstVerifiedAt.UnixNano() <= 0 || ctx.Err() != nil {
+		return refuse(ErrExecutionEpochOne)
+	}
 	if err := promoteExecutionSignerFileLocked(ctx, owner, seal.signatureStage, key.claim.names.signature); err != nil {
 		return refuse(err)
 	}
@@ -147,7 +152,8 @@ func checkExecutionSignerSeal(ctx context.Context, seal *executionSignerSealCust
 func checkExecutionSignerSealLocked(ctx context.Context, seal *executionSignerSealCustody) error {
 	key := seal.key
 	if err := checkExecutionSignerKeyLocked(ctx, key); err != nil || seal.candidate == nil || seal.signature == nil ||
-		seal.signatureStage != nil || !bytes.Equal(sealCandidateBytes(seal.candidate, seal.candidateRaw), seal.candidateRaw) {
+		seal.signatureStage != nil || seal.firstVerifiedAt.UnixNano() <= 0 ||
+		!bytes.Equal(sealCandidateBytes(seal.candidate, seal.candidateRaw), seal.candidateRaw) {
 		return ErrExecutionEpochOne
 	}
 	if err := checkExecutionSignerHeldFile(ctx, seal.signature); err != nil {

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"slices"
 	"sync"
+	"time"
 )
 
 const (
@@ -17,16 +18,17 @@ const (
 // signature after the first verification. It is not a returned package,
 // launcher capability, checkout handoff, or receipt binding.
 type executionSignerSealCustody struct {
-	mu             sync.Mutex
-	key            *executionSignerKeyCustody
-	candidate      *executionSignerHeldFile
-	signatureStage *executionSignerHeldFile
-	signature      *executionSignerHeldFile
-	candidateRaw   []byte
-	signatureRaw   []byte
-	freeze         ExecutionFreeze
-	admissionUsed  bool
-	closed         bool
+	mu              sync.Mutex
+	key             *executionSignerKeyCustody
+	candidate       *executionSignerHeldFile
+	signatureStage  *executionSignerHeldFile
+	signature       *executionSignerHeldFile
+	candidateRaw    []byte
+	signatureRaw    []byte
+	freeze          ExecutionFreeze
+	firstVerifiedAt time.Time
+	admissionUsed   bool
+	closed          bool
 }
 
 func sealExecutionFreezeCandidate(
