@@ -117,6 +117,12 @@ func (run *ExecutionEpochOneRun) CollectRestored(ctx context.Context) (retErr er
 	if reader.restoredCommand(op, "drive-fresh") != nil || reader.freshCycle(op) != nil {
 		return ErrExecutionEpochOne
 	}
+	if _, err := run.flow.recordOptionalNamedExecutionEvent("lifecycle_collection", "lifecycle:fence"); err != nil {
+		return ErrExecutionEpochOne
+	}
+	if _, err := run.flow.recordOptionalNamedExecutionEvent("lifecycle_collection", "lifecycle:capacity"); err != nil {
+		return ErrExecutionEpochOne
+	}
 	// DriveFresh already waits for the actual completed cycle. L is one
 	// truthful status snapshot, not another owner cycle or invented polling.
 	if _, _, err := reader.LifecycleStatus(op); err != nil {

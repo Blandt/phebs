@@ -90,12 +90,26 @@ func (run *ExecutionEpochOneRun) StaleLease(ctx context.Context) (retErr error) 
 		close(done)
 	}()
 	if reader.beginStale() != nil || run.advanceStale(ctx) != nil || run.control.OpenRequests(ctx) != nil ||
-		reader.sampleRecoveryWorkspace(ctx, 0) != nil || reader.prepareStale(ctx) != nil || run.control.FenceRequests(ctx) != nil || run.control.ReopenOwners(ctx) != nil {
+		reader.sampleRecoveryWorkspace(ctx, 0) != nil || reader.prepareStale(ctx) != nil {
+		return ErrExecutionEpochOne
+	}
+	if _, err := run.flow.recordOptionalNamedExecutionEvent("stale_lease", "injection:stale_lease:prepare"); err != nil ||
+		run.control.FenceRequests(ctx) != nil || run.control.ReopenOwners(ctx) != nil {
+		return ErrExecutionEpochOne
+	}
+	if _, err := run.flow.recordOptionalNamedExecutionEvent("stale_lease", "injection:stale_lease:arm"); err != nil {
 		return ErrExecutionEpochOne
 	}
 	// Neither held native observer can wait for X/T or owner drainage. Each R
 	// is one blocking call; the native callback contributes its original5s cap.
-	if reader.stale(ctx, store.GenerationStaleLeaseTransitionHit) != nil || reader.stale(ctx, store.GenerationStaleLeaseTransitionRecovered) != nil {
+	if reader.stale(ctx, store.GenerationStaleLeaseTransitionHit) != nil {
+		return ErrExecutionEpochOne
+	}
+	if _, err := run.flow.recordOptionalNamedExecutionEvent("stale_lease", "injection:stale_lease:hit"); err != nil ||
+		reader.stale(ctx, store.GenerationStaleLeaseTransitionRecovered) != nil {
+		return ErrExecutionEpochOne
+	}
+	if _, err := run.flow.recordOptionalNamedExecutionEvent("stale_lease", "injection:stale_lease:recovered"); err != nil {
 		return ErrExecutionEpochOne
 	}
 	for {
@@ -126,6 +140,9 @@ func (run *ExecutionEpochOneRun) StaleLease(ctx context.Context) (retErr error) 
 		return ErrExecutionEpochOne
 	}
 	if _, _, _, err := reader.Final(ctx); err != nil || reader.sampleRecoveryWorkspace(ctx, 2) != nil || run.control.FenceRequests(ctx) != nil || ctx.Err() != nil {
+		return ErrExecutionEpochOne
+	}
+	if _, err := run.flow.recordOptionalNamedExecutionEvent("stale_lease", "injection:stale_lease:clear"); err != nil {
 		return ErrExecutionEpochOne
 	}
 	return reader.acceptInspectionPhase(ctx)

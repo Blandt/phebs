@@ -3082,3 +3082,23 @@ in [docs/ROADMAP.md](./docs/ROADMAP.md).
   There are no new locks, source/corpus/shard reads, hashes, HTTP/store/file
   operations, cache changes, timers, disk writes or children. Ordinary query,
   sync, startup/restart, retry/no-op and publication work remain unchanged.
+
+- **2026-09-13 — T42.2l controller observation-event checkpoint.** Bind
+  ordered event names to the existing admitted phase recorder and retain detached
+  ordinal/time snapshots. Instrument the fixed reader, recovery, pressure,
+  archive and teardown corridors at controller acceptance boundaries. Composite
+  native responses already establish their facts/order; consecutive event
+  entries after such a response do not measure individual callback times or
+  durations. Server runtime rows bind the already sampled native start identity
+  and measured launch-to-health interval without another native census. This
+  neither activates the pending launcher nor fills missing receipt metrics.
+  The fixed five-epoch/fifteen-phase call inventory bounds map entries; capacity
+  48 is allocation sizing, not an enforced entry cap. Per named event, work is
+  fixed map/scalar operations, one clock read and short existing flow, recorder
+  and ordinal locks. Runtime binding adds one bounded native-token SHA-256 per
+  server epoch under the existing meter-to-gauge lock order. Snapshot reads
+  allocate detached maps; no corpus/shard read, store/HTTP/file operation,
+  persistent cache, disk write, new child or concurrent worker is introduced.
+  Ordinary production query/request, sync, startup/restart, retry/no-op and
+  publication costs remain unchanged; selected harness calls with no admitted
+  recorder return without allocating event maps.

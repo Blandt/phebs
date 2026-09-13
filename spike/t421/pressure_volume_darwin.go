@@ -384,6 +384,11 @@ func (v *executionPressureVolume) remove(ctx context.Context, emptyOnly bool) er
 		if err != nil {
 			return err
 		}
+		ordinal, eventErr := v.flow.recordOptionalNamedExecutionEvent("teardown", "teardown:before-detach")
+		if eventErr != nil {
+			return errPressureVolume
+		}
+		v.teardownBefore.EventOrdinal = ordinal
 	} else {
 		for _, session := range v.recordedSessionsLocked() {
 			if err := t4013.WaitPrivateProcessSession(session, time.Now().Add(5*time.Second)); err != nil {
@@ -403,6 +408,9 @@ func (v *executionPressureVolume) remove(ctx context.Context, emptyOnly bool) er
 	}
 	if v.teardownRun != nil {
 		v.teardownDetached = true
+		if _, err := v.flow.recordOptionalNamedExecutionEvent("teardown", "teardown:detach"); err != nil {
+			return errPressureVolume
+		}
 	}
 	if v.teardownRun != nil {
 		var err error
@@ -444,6 +452,9 @@ func (v *executionPressureVolume) remove(ctx context.Context, emptyOnly bool) er
 		}
 		if v.teardownRun != nil && name == "pressure.sparseimage" {
 			v.teardownImageRemoved = true
+			if _, err := v.flow.recordOptionalNamedExecutionEvent("teardown", "teardown:image-removed"); err != nil {
+				return errPressureVolume
+			}
 		}
 	}
 	if v.teardownRun != nil && ctx.Err() != nil || v.root.file.Sync() != nil || os.Remove(v.root.path) != nil || v.parent.file.Sync() != nil {
@@ -454,11 +465,22 @@ func (v *executionPressureVolume) remove(ctx context.Context, emptyOnly bool) er
 	}
 	v.removed = true
 	if v.teardownRun != nil {
+		if _, err := v.flow.recordOptionalNamedExecutionEvent("teardown", "teardown:root-removed"); err != nil {
+			return errPressureVolume
+		}
+		if _, err := v.flow.recordOptionalNamedExecutionEvent("teardown", "teardown:cleanup-joined"); err != nil {
+			return errPressureVolume
+		}
 		var err error
 		v.teardownAfter, err = v.censusTeardownSessions(ctx, true)
 		if err != nil {
 			return err
 		}
+		ordinal, eventErr := v.flow.recordOptionalNamedExecutionEvent("teardown", "teardown:after-cleanup")
+		if eventErr != nil {
+			return errPressureVolume
+		}
+		v.teardownAfter.EventOrdinal = ordinal
 	}
 	return nil
 }

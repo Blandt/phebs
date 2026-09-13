@@ -87,6 +87,9 @@ func (v *executionPressureVolume) finishRestored(ctx context.Context, run *Execu
 	run.mu.Unlock()
 	flow.mu.Unlock()
 	v.mu.Unlock()
+	if _, err := flow.recordOptionalNamedExecutionEvent("teardown", "teardown:operational-fence"); err != nil {
+		return result, errPressureVolume
+	}
 	releaseFlow := false
 	defer func() {
 		// Both snapshots return real accepted prefixes alongside any error.
@@ -107,6 +110,9 @@ func (v *executionPressureVolume) finishRestored(ctx context.Context, run *Execu
 		return result, errPressureVolume
 	}
 	result.Joined = true
+	if _, err := flow.recordOptionalNamedExecutionEvent("teardown", "teardown:owned-handles-joined"); err != nil {
+		return result, errPressureVolume
+	}
 	// All seven actual SDK receivers are closed, including the earlier
 	// explicitly terminal-fenced epoch3. No future-unopened tolerance applies.
 	if joined.Store.Opened != 7 || joined.Store.TerminalEOF != 7 ||
@@ -149,6 +155,9 @@ func (v *executionPressureVolume) finishRestored(ctx context.Context, run *Execu
 	flow.mu.Unlock()
 	releaseFlow = true // Final actual accounting is captured before cancellation.
 	if err := v.Close(); err != nil || op.Err() != nil {
+		return result, errPressureVolume
+	}
+	if _, err := flow.recordOptionalNamedExecutionEvent("teardown", "teardown:cleanup-closed"); err != nil {
 		return result, errPressureVolume
 	}
 	result.CleanupClosed = true

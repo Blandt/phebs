@@ -377,6 +377,11 @@ func (v *executionPressureVolume) finishWorkspace(ctx context.Context, run *Exec
 		return errPressureVolume
 	}
 	if operational {
+		if _, err := flow.recordOptionalNamedExecutionEvent("teardown", "teardown:lease-released"); err != nil {
+			return errPressureVolume
+		}
+	}
+	if operational {
 		if _, err := v.sampleTeardownWorkspace(ctx); err != nil {
 			return err
 		}

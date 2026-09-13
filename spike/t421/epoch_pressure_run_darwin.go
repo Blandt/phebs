@@ -130,6 +130,12 @@ func (run *ExecutionEpochOneRun) pressurePhase(ctx context.Context, ballast *exe
 		if reader.pressureCommand(ctx, "drive-normal", time.Time{}) != nil || reader.pressureRead(ctx, "normal-cycle", time.Time{}) != nil {
 			return ErrExecutionEpochOne
 		}
+		if _, err := run.flow.recordOptionalNamedExecutionEvent("pressure_80", "pressure:80:lifecycle-fence"); err != nil {
+			return ErrExecutionEpochOne
+		}
+		if _, err := run.flow.recordOptionalNamedExecutionEvent("pressure_80", "pressure:80:capacity"); err != nil {
+			return ErrExecutionEpochOne
+		}
 		workspace, err = reader.pressureSample(ctx, "normalized")
 		limits := run.flow.plan.SafetyEnvelope
 		if err != nil || workspace.AllocatedBytes < limits.MinimumPrePressureBytes || workspace.AllocatedBytes > limits.MaximumPrePressureBytes {
@@ -143,6 +149,11 @@ func (run *ExecutionEpochOneRun) pressurePhase(ctx context.Context, ballast *exe
 	if err != nil {
 		return fmt.Errorf("%w: %w", ErrExecutionEpochOne, err)
 	}
+	phaseName := []string{"pressure_80", "pressure_90", "pressure_75"}[phase-9]
+	phaseLabel := []string{"80", "90", "75"}[phase-9]
+	if _, err := run.flow.recordOptionalNamedExecutionEvent(phaseName, "pressure:"+phaseLabel+":ballast"); err != nil {
+		return ErrExecutionEpochOne
+	}
 	if run.control.OpenRequests(ctx) != nil {
 		return ErrExecutionEpochOne
 	}
@@ -153,6 +164,9 @@ func (run *ExecutionEpochOneRun) pressurePhase(ctx context.Context, ballast *exe
 	if reader.pressureRead(ctx, operation, mutation.Fence) != nil {
 		return ErrExecutionEpochOne
 	}
+	if _, err := run.flow.recordOptionalNamedExecutionEvent(phaseName, "pressure:"+phaseLabel+":gate"); err != nil {
+		return ErrExecutionEpochOne
+	}
 	if phase == 11 {
 		if run.control.FenceRequests(ctx) != nil {
 			return ErrExecutionEpochOne
@@ -161,11 +175,23 @@ func (run *ExecutionEpochOneRun) pressurePhase(ctx context.Context, ballast *exe
 		if err != nil || run.control.OpenRequests(ctx) != nil {
 			return ErrExecutionEpochOne
 		}
+		if _, err := run.flow.recordOptionalNamedExecutionEvent("pressure_75", "pressure:75:recovery-ballast"); err != nil {
+			return ErrExecutionEpochOne
+		}
 		if _, err := reader.pressureSample(ctx, "removed"); err != nil {
 			return ErrExecutionEpochOne
 		}
-		if reader.pressureCommand(ctx, "drive-recovery", removed.Fence) != nil || reader.pressureRead(ctx, "recovery-cycle", time.Time{}) != nil ||
+		if reader.pressureCommand(ctx, "drive-recovery", removed.Fence) != nil || reader.pressureRead(ctx, "recovery-cycle", time.Time{}) != nil {
+			return ErrExecutionEpochOne
+		}
+		if _, err := run.flow.recordOptionalNamedExecutionEvent("pressure_75", "pressure:75:lifecycle-fence"); err != nil {
+			return ErrExecutionEpochOne
+		}
+		if _, err := run.flow.recordOptionalNamedExecutionEvent("pressure_75", "pressure:75:capacity"); err != nil ||
 			reader.pressureRead(ctx, "recovered-normal", time.Time{}) != nil {
+			return ErrExecutionEpochOne
+		}
+		if _, err := run.flow.recordOptionalNamedExecutionEvent("pressure_75", "pressure:75:recovery-gate"); err != nil {
 			return ErrExecutionEpochOne
 		}
 	}

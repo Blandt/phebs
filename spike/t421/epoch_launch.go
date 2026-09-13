@@ -13,6 +13,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -70,9 +71,11 @@ type ExecutionEpochOne struct {
 
 	profileRuntime *executionRuntimeObservation // One actual prework process; never an operational producer.
 
-	executionFreezeBinding *ExecutionFreezeBinding
-	executionEventOrdinals *admittedExecutionEventOrdinals
-	executionPhaseEvents   *executionPhaseEventRecorder
+	executionFreezeBinding  *ExecutionFreezeBinding
+	executionEventOrdinals  *admittedExecutionEventOrdinals
+	executionPhaseEvents    *executionPhaseEventRecorder
+	executionEvidenceEvents map[string]uint64
+	executionEvidenceTimes  map[string]time.Time
 }
 
 // PrepareExecutionEpochOne starts no child. It rechecks the author's admitted
@@ -353,6 +356,8 @@ func (flow *ExecutionEpochOne) authorAAdmitted(
 	flow.executionFreezeBinding = &retained
 	flow.executionEventOrdinals = admitted
 	flow.executionPhaseEvents = recorder
+	flow.executionEvidenceEvents = make(map[string]uint64, 48)
+	flow.executionEvidenceTimes = make(map[string]time.Time, 48)
 	result, authorErr := flow.authorALockedAt(ctx, started)
 	outcome := "passed"
 	if authorErr != nil || !result.Completed {
@@ -472,6 +477,7 @@ type ExecutionEpochOneRun struct {
 	healthDone            chan struct{}
 	healthy               bool
 	healthLimit           time.Duration
+	healthStarted         time.Time
 	healthDeadline        time.Time
 	healthTimer           *time.Timer
 	healthTimerDone       chan struct{}
@@ -815,7 +821,19 @@ func (flow *ExecutionEpochOne) launchEpoch(runCtx, launchCtx context.Context, ca
 	}
 	started, run.result.RootStarted = true, true
 	flow.serverSessions[number-1] = command.Process.Pid // flow.mu is held; retain even if subsequent bootstrap fails.
+	launchPhase := flow.plan.PhaseOrder[phase-1]
+	var startEventOrdinal uint64
+	if flow.executionPhaseEvents != nil {
+		startEventOrdinal, err = flow.executionPhaseEvents.event(launchPhase)
+		if err != nil {
+			retErr = ErrExecutionEpochOne
+		} else {
+			flow.executionEvidenceEvents["server-start:"+strconv.FormatUint(number, 10)] = startEventOrdinal
+			flow.executionEvidenceTimes["server-start:"+strconv.FormatUint(number, 10)] = launchStarted
+		}
+	}
 	run.mu.Lock()
+	run.healthStarted = launchStarted
 	run.setHealthDeadlineLocked(launchCtx, launchStarted)
 	run.mu.Unlock()
 	// Capture the actual native birth before the sole Wait can reap this PID.
@@ -824,6 +842,15 @@ func (flow *ExecutionEpochOne) launchEpoch(runCtx, launchCtx context.Context, ca
 		func() { run.stopOnce.Do(func() { close(run.stop) }) })
 	if err != nil {
 		retErr = ErrExecutionEpochOne
+	}
+	if retErr == nil && flow.executionPhaseEvents != nil {
+		identityEventOrdinal, eventErr := flow.executionPhaseEvents.event(launchPhase)
+		if eventErr != nil || run.processObservation.bindRuntime(number, launchPhase, startEventOrdinal, identityEventOrdinal) != nil {
+			retErr = ErrExecutionEpochOne
+		} else {
+			flow.executionEvidenceEvents["native-identity:"+strconv.FormatUint(number, 10)] = identityEventOrdinal
+			flow.executionEvidenceTimes["native-identity:"+strconv.FormatUint(number, 10)] = time.Now()
+		}
 	}
 	if run.processObservation != nil && run.processPrior != nil {
 		run.processObservation.mu.Lock()
@@ -1047,7 +1074,30 @@ func (run *ExecutionEpochOneRun) Health(ctx context.Context) (retErr error) {
 		run.stopOnce.Do(func() { close(run.stop) })
 		return ErrExecutionEpochOne
 	}
-	return run.completeHealth(ctx)
+	if err := run.completeHealth(ctx); err != nil {
+		return err
+	}
+	run.mu.Lock()
+	started := run.healthStarted
+	run.mu.Unlock()
+	elapsed := time.Since(started)
+	elapsedMS := uint64(elapsed / time.Millisecond)
+	if elapsed%time.Millisecond != 0 {
+		elapsedMS++
+	}
+	if elapsedMS == 0 {
+		elapsedMS = 1
+	}
+	if run.flow.hasExecutionPhaseEvents() {
+		run.processObservation.mu.Lock()
+		phase, epoch := run.processObservation.result.LaunchPhase, run.processObservation.result.ServerEpoch
+		run.processObservation.mu.Unlock()
+		ordinal, err := run.flow.recordNamedExecutionEvent(phase, "health-ready:"+strconv.FormatUint(epoch, 10))
+		if err != nil || run.processObservation.ready(ordinal, elapsedMS) != nil {
+			return ErrExecutionEpochOne
+		}
+	}
+	return nil
 }
 
 func (run *ExecutionEpochOneRun) finish(ctx context.Context, cancel context.CancelFunc, waited, served <-chan error, failure error) {

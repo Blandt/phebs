@@ -22,6 +22,31 @@ func epochProcessFixtureRows() []t4013.NativeProcessRecord {
 	}
 }
 
+func TestEpochProcessRuntimeUsesAcceptedIdentityOnce(t *testing.T) {
+	calls := 0
+	meter, err := newEpochProcessObservation(t.Context(), 41, 2, "phebs", map[string]string{"phebs": "phebs", "git": "git"}, func() {},
+		func(context.Context, int) ([]t4013.NativeProcessRecord, error) {
+			calls++
+			return epochProcessFixtureRows(), nil
+		})
+	if err != nil {
+		t.Fatal(err)
+	}
+	pauseEpochProcessTicker(meter)
+	before := calls
+	if meter.bindRuntime(1, "cold", 3, 4) != nil || meter.ready(5, 7) != nil {
+		t.Fatal("accepted root identity or readiness was not bound")
+	}
+	if calls != before || meter.result.NativeIdentitySHA256 != SHA256([]byte("actual-test-birth")) ||
+		meter.result.StartEventOrdinal != 3 || meter.result.NativeIdentityEventOrdinal != 4 ||
+		meter.result.HealthReadyEventOrdinal != 5 || meter.result.HealthElapsedMS != 7 {
+		t.Fatal("runtime binding added a census or changed the accepted observation", meter.result)
+	}
+	if meter.bindRuntime(1, "cold", 6, 7) == nil || meter.ready(8, 9) == nil {
+		t.Fatal("runtime binding or health observation was reusable")
+	}
+}
+
 func pauseEpochProcessTicker(meter *epochProcessObservation) {
 	meter.stopOnce.Do(func() { close(meter.stop) })
 	<-meter.done

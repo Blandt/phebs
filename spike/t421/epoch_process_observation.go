@@ -27,9 +27,16 @@ var errEpochProcessRSS = errors.New("server sampled RSS limit exceeded")
 // Epoch four's phase-eight row already carries the prior root's phase-eight
 // prefix: a later whole-work collector must replace that row, not add it again.
 type ExecutionServerProcessObservation struct {
-	Phases           []ExecutionServerProcessPhase
-	Joined           bool
-	RSSLimitExceeded bool // A successful sample crossed the unchanged frozen threshold; measurement stays available.
+	Phases                     []ExecutionServerProcessPhase
+	Joined                     bool
+	RSSLimitExceeded           bool // A successful sample crossed the unchanged frozen threshold; measurement stays available.
+	ServerEpoch                uint64
+	LaunchPhase                string
+	StartEventOrdinal          uint64
+	NativeIdentityEventOrdinal uint64
+	NativeIdentitySHA256       string
+	HealthReadyEventOrdinal    uint64
+	HealthElapsedMS            uint64
 }
 
 type ExecutionServerProcessPhase struct {
@@ -148,6 +155,40 @@ func newEpochProcessObservation(ctx context.Context, pid int, phase uint32, root
 	}
 	go meter.run()
 	return meter, nil
+}
+
+func (meter *epochProcessObservation) bindRuntime(epoch uint64, phase string, start, identity uint64) error {
+	if meter == nil || epoch == 0 || phase == "" || start == 0 || identity <= start {
+		return ErrExecutionEpochOne
+	}
+	meter.mu.Lock()
+	defer meter.mu.Unlock()
+	meter.gauge.mu.Lock()
+	native := meter.gauge.expectedRootStartIdentity
+	meter.gauge.mu.Unlock()
+	if native == "" || meter.result.ServerEpoch != 0 {
+		return ErrExecutionEpochOne
+	}
+	meter.result.ServerEpoch = epoch
+	meter.result.LaunchPhase = phase
+	meter.result.StartEventOrdinal = start
+	meter.result.NativeIdentityEventOrdinal = identity
+	meter.result.NativeIdentitySHA256 = SHA256([]byte(native))
+	return nil
+}
+
+func (meter *epochProcessObservation) ready(ordinal, elapsed uint64) error {
+	if meter == nil || ordinal == 0 || elapsed == 0 {
+		return ErrExecutionEpochOne
+	}
+	meter.mu.Lock()
+	defer meter.mu.Unlock()
+	if meter.result.NativeIdentityEventOrdinal == 0 || ordinal <= meter.result.NativeIdentityEventOrdinal || meter.result.HealthReadyEventOrdinal != 0 {
+		return ErrExecutionEpochOne
+	}
+	meter.result.HealthReadyEventOrdinal = ordinal
+	meter.result.HealthElapsedMS = elapsed
+	return nil
 }
 
 func (meter *epochProcessObservation) run() {

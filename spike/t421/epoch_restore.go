@@ -238,8 +238,20 @@ func (run *ExecutionEpochOneRun) RestoreBackup(ctx context.Context) (result Exec
 	if err != nil {
 		return result, err
 	}
+	if _, err := flow.recordOptionalNamedExecutionEvent("archive_restore", "archive:installation-destroyed"); err != nil {
+		return result, ErrExecutionEpochOne
+	}
+	if _, err := flow.recordOptionalNamedExecutionEvent("archive_restore", "archive:empty-target"); err != nil {
+		return result, ErrExecutionEpochOne
+	}
+	if _, err := flow.recordOptionalNamedExecutionEvent("archive_restore", "archive:restore-started"); err != nil {
+		return result, ErrExecutionEpochOne
+	}
 	if err = run.runNativeArchive(operation, true); err != nil {
 		return result, err
+	}
+	if _, err := flow.recordOptionalNamedExecutionEvent("archive_restore", "archive:restore-complete"); err != nil {
+		return result, ErrExecutionEpochOne
 	}
 	if operation.Err() != nil {
 		return result, ErrExecutionEpochOne

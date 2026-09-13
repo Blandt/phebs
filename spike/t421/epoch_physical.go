@@ -76,6 +76,9 @@ func (run *ExecutionEpochOneRun) PhysicalB(ctx context.Context) (retErr error) {
 	if run.advancePhysical(ctx) != nil || run.pinPhysical(ctx) != nil {
 		return ErrExecutionEpochOne
 	}
+	if _, err := run.flow.recordOptionalNamedExecutionEvent("physical_delta_b", "reader:lease-acquire"); err != nil {
+		return ErrExecutionEpochOne
+	}
 	authored, err := run.authorPhysical(ctx)
 	if err != nil || !authored.Completed || authored.Response == nil || reader.beginPhysical(authored.Response.Result) != nil || run.reopenMeasuredPhysical(ctx) != nil {
 		return ErrExecutionEpochOne
@@ -110,6 +113,9 @@ func (run *ExecutionEpochOneRun) PhysicalB(ctx context.Context) (retErr error) {
 	if _, _, _, err := reader.Final(ctx); err != nil {
 		return ErrExecutionEpochOne
 	}
+	if _, err := run.flow.recordOptionalNamedExecutionEvent("physical_delta_b", "reader:new-current"); err != nil {
+		return ErrExecutionEpochOne
+	}
 	observation, err := reader.retention(ctx, run.pinStarted, run.pinJoined)
 	if err != nil || reader.cleanupSelectorHandoff(ctx) != nil || reader.sampleMidphaseWorkspace(ctx, 1) != nil || run.control.FenceRequests(ctx) != nil || ctx.Err() != nil {
 		return ErrExecutionEpochOne
@@ -117,6 +123,11 @@ func (run *ExecutionEpochOneRun) PhysicalB(ctx context.Context) (retErr error) {
 	run.mu.Lock()
 	run.physicalResult = observation
 	run.mu.Unlock()
+	for _, name := range []string{"held-lifecycle", "old-held-query", "new-held-query", "lease-release", "post-release-lifecycle", "post-release-old-query"} {
+		if _, err := run.flow.recordOptionalNamedExecutionEvent("physical_delta_b", "reader:"+name); err != nil {
+			return ErrExecutionEpochOne
+		}
+	}
 	return reader.acceptInspectionPhase(ctx)
 }
 

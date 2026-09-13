@@ -191,13 +191,22 @@ func (run *ExecutionEpochOneRun) ReturnA(ctx context.Context) (retErr error) {
 	if run.markerWorkspace != nil && run.markerWorkspace.armMarker() != nil {
 		return ErrExecutionEpochOne
 	}
+	if _, err := run.flow.recordOptionalNamedExecutionEvent("return_a", "injection:return_a:arm"); err != nil {
+		return ErrExecutionEpochOne
+	}
 	if reader.marker(ctx, "hit") != nil {
+		return ErrExecutionEpochOne
+	}
+	if _, err := run.flow.recordOptionalNamedExecutionEvent("return_a", "injection:return_a:hit"); err != nil {
 		return ErrExecutionEpochOne
 	}
 	if run.markerWorkspace != nil && run.markerWorkspace.waitMarker(ctx) != nil {
 		return ErrExecutionEpochOne
 	}
 	if reader.marker(ctx, "recovered") != nil {
+		return ErrExecutionEpochOne
+	}
+	if _, err := run.flow.recordOptionalNamedExecutionEvent("return_a", "injection:return_a:recovered"); err != nil {
 		return ErrExecutionEpochOne
 	}
 	for {
@@ -233,6 +242,9 @@ func (run *ExecutionEpochOneRun) ReturnA(ctx context.Context) (retErr error) {
 	run.mu.Lock()
 	run.warm = true
 	run.mu.Unlock()
+	if _, err := run.flow.recordOptionalNamedExecutionEvent("return_a", "injection:return_a:clear"); err != nil {
+		return ErrExecutionEpochOne
+	}
 	return reader.acceptInspectionPhase(ctx)
 }
 

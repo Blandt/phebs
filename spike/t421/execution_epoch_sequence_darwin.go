@@ -128,6 +128,9 @@ func runExecutionEpochSequence(ctx context.Context, flow *ExecutionEpochOne, vol
 		if err != nil || !joinedExecutionEpochResult(result.backup) {
 			return ErrExecutionEpochOne
 		}
+		if _, err := flow.recordOptionalNamedExecutionEvent("archive_restore", "archive:created"); err != nil {
+			return ErrExecutionEpochOne
+		}
 		result.restore, err = run.RestoreBackup(ctx)
 		if err != nil || !joinedExecutionEpochResult(result.restore) {
 			return ErrExecutionEpochOne
@@ -140,7 +143,11 @@ func runExecutionEpochSequence(ctx context.Context, flow *ExecutionEpochOne, vol
 		if err != nil || run == nil || run.Health(ctx) != nil {
 			return ErrExecutionEpochOne
 		}
-		return run.CompleteArchive(ctx)
+		if err := run.CompleteArchive(ctx); err != nil {
+			return err
+		}
+		_, err = flow.recordOptionalNamedExecutionEvent("archive_restore", "archive:comparison")
+		return err
 	}); err != nil {
 		return result, err
 	}
@@ -154,6 +161,9 @@ func runExecutionEpochSequence(ctx context.Context, flow *ExecutionEpochOne, vol
 		var err error
 		result.teardown, err = volume.finishRestored(ctx, run)
 		if err != nil || !result.teardown.Joined || !result.teardown.CleanupClosed || !result.teardown.CustodyAbsent {
+			return ErrExecutionEpochOne
+		}
+		if _, err := flow.recordOptionalNamedExecutionEvent("teardown", "teardown"); err != nil {
 			return ErrExecutionEpochOne
 		}
 		result.final, err = run.Wait(ctx)

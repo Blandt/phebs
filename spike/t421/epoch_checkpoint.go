@@ -201,8 +201,18 @@ func (run *ExecutionEpochOneRun) checkpointRestart(ctx context.Context, pressure
 		flow.mu.Unlock()
 	}()
 	if reader.beginCheckpoint() != nil || run.advanceReturnPhase(operation, 8) != nil || run.control.OpenRequests(operation) != nil ||
-		reader.sampleRecoveryWorkspace(operation, 3) != nil || reader.prepareRecovery(operation, true) != nil || run.control.FenceRequests(operation) != nil || run.control.ReopenOwners(operation) != nil ||
+		reader.sampleRecoveryWorkspace(operation, 3) != nil || reader.prepareRecovery(operation, true) != nil {
+		return nil, ErrExecutionEpochOne
+	}
+	if _, err := flow.recordOptionalNamedExecutionEvent("process_restart", "injection:process_restart:prepare"); err != nil ||
+		run.control.FenceRequests(operation) != nil || run.control.ReopenOwners(operation) != nil {
+		return nil, ErrExecutionEpochOne
+	}
+	if _, err := flow.recordOptionalNamedExecutionEvent("process_restart", "injection:process_restart:arm"); err != nil ||
 		reader.checkpoint(operation, false) != nil {
+		return nil, ErrExecutionEpochOne
+	}
+	if _, err := flow.recordOptionalNamedExecutionEvent("process_restart", "injection:process_restart:hit"); err != nil {
 		return nil, ErrExecutionEpochOne
 	}
 	handoff, err := reader.checkpointHandoff()
@@ -228,6 +238,9 @@ func (run *ExecutionEpochOneRun) checkpointRestart(ctx context.Context, pressure
 	run.stopOnce.Do(func() { close(run.stop) })
 	stopped, err := run.Wait(operation)
 	if err != nil {
+		return nil, ErrExecutionEpochOne
+	}
+	if _, err := flow.recordOptionalNamedExecutionEvent("process_restart", "injection:process_restart:process-stop"); err != nil {
 		return nil, ErrExecutionEpochOne
 	}
 	processIndex := slices.IndexFunc(stopped.ServerProcesses.Phases, func(value ExecutionServerProcessPhase) bool { return value.Phase == 8 })
@@ -424,6 +437,9 @@ func (run *ExecutionEpochOneRun) RecoverCheckpoint(ctx context.Context) (retErr 
 	if err != nil || reader.checkpoint(ctx, true) != nil {
 		return ErrExecutionEpochOne
 	}
+	if _, err := run.flow.recordOptionalNamedExecutionEvent("process_restart", "injection:process_restart:recovered"); err != nil {
+		return ErrExecutionEpochOne
+	}
 	for {
 		value, _, err := reader.Progress(ctx)
 		if err != nil {
@@ -460,6 +476,9 @@ func (run *ExecutionEpochOneRun) RecoverCheckpoint(ctx context.Context) (retErr 
 	run.mu.Lock()
 	run.warm = true
 	run.mu.Unlock()
+	if _, err := run.flow.recordOptionalNamedExecutionEvent("process_restart", "injection:process_restart:clear"); err != nil {
+		return ErrExecutionEpochOne
+	}
 	return reader.acceptInspectionPhase(ctx)
 }
 

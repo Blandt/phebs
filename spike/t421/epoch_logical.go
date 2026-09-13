@@ -172,7 +172,13 @@ func (run *ExecutionEpochOneRun) LogicalB(ctx context.Context) (retErr error) {
 		close(done)
 	}()
 	reader, err := run.newLogicalInspection(ctx)
-	if err != nil || reader.activation(ctx, "hit") != nil {
+	if err != nil {
+		return ErrExecutionEpochOne
+	}
+	if _, err := run.flow.recordOptionalNamedExecutionEvent("logical_delta_b", "injection:logical_delta_b:arm"); err != nil || reader.activation(ctx, "hit") != nil {
+		return ErrExecutionEpochOne
+	}
+	if _, err := run.flow.recordOptionalNamedExecutionEvent("logical_delta_b", "injection:logical_delta_b:hit"); err != nil {
 		return ErrExecutionEpochOne
 	}
 	for {
@@ -202,12 +208,18 @@ func (run *ExecutionEpochOneRun) LogicalB(ctx context.Context) (retErr error) {
 	if run.control.DrainOwners(ctx) != nil || run.control.OpenRequests(ctx) != nil || reader.activation(ctx, "recovered") != nil {
 		return ErrExecutionEpochOne
 	}
+	if _, err := run.flow.recordOptionalNamedExecutionEvent("logical_delta_b", "injection:logical_delta_b:recovered"); err != nil {
+		return ErrExecutionEpochOne
+	}
 	if _, _, _, err := reader.Final(ctx); err != nil || reader.cleanupSelectorHandoff(ctx) != nil || reader.sampleMidphaseWorkspace(ctx, 2) != nil || run.control.FenceRequests(ctx) != nil || ctx.Err() != nil {
 		return ErrExecutionEpochOne
 	}
 	run.mu.Lock()
 	run.warm = true // The actual owner drain/request fence above is joined.
 	run.mu.Unlock()
+	if _, err := run.flow.recordOptionalNamedExecutionEvent("logical_delta_b", "injection:logical_delta_b:clear"); err != nil {
+		return ErrExecutionEpochOne
+	}
 	return reader.acceptInspectionPhase(ctx)
 }
 

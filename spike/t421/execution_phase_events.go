@@ -202,6 +202,60 @@ func (flow *ExecutionEpochOne) recordExecutionEvent(phase string) (uint64, error
 	return recorder.event(phase)
 }
 
+// Named events mark when the controller accepts an observation. Composite
+// observations may describe earlier native operations; these times are not
+// native callback timestamps or measurements of the operations' duration.
+func (flow *ExecutionEpochOne) recordNamedExecutionEvent(phase, name string) (uint64, error) {
+	if flow == nil || name == "" {
+		return 0, ErrExecutionEpochOne
+	}
+	ordinal, err := flow.recordExecutionEvent(phase)
+	if err != nil {
+		return 0, err
+	}
+	flow.mu.Lock()
+	defer flow.mu.Unlock()
+	if flow.executionEvidenceEvents == nil || flow.executionEvidenceEvents[name] != 0 {
+		return 0, ErrExecutionEpochOne
+	}
+	flow.executionEvidenceEvents[name] = ordinal
+	flow.executionEvidenceTimes[name] = time.Now()
+	return ordinal, nil
+}
+
+func (flow *ExecutionEpochOne) recordOptionalNamedExecutionEvent(phase, name string) (uint64, error) {
+	if !flow.hasExecutionPhaseEvents() {
+		return 0, nil
+	}
+	return flow.recordNamedExecutionEvent(phase, name)
+}
+
+func (flow *ExecutionEpochOne) executionNamedEventEvidence() map[string]uint64 {
+	if flow == nil {
+		return nil
+	}
+	flow.mu.Lock()
+	defer flow.mu.Unlock()
+	result := make(map[string]uint64, len(flow.executionEvidenceEvents))
+	for name, ordinal := range flow.executionEvidenceEvents {
+		result[name] = ordinal
+	}
+	return result
+}
+
+func (flow *ExecutionEpochOne) executionNamedEventTimes() map[string]time.Time {
+	if flow == nil {
+		return nil
+	}
+	flow.mu.Lock()
+	defer flow.mu.Unlock()
+	result := make(map[string]time.Time, len(flow.executionEvidenceTimes))
+	for name, observed := range flow.executionEvidenceTimes {
+		result[name] = observed
+	}
+	return result
+}
+
 func (flow *ExecutionEpochOne) executionPhaseEventEvidence() ([]PhaseMeasurement, error) {
 	if flow == nil {
 		return nil, ErrExecutionEpochOne

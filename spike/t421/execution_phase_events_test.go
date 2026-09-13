@@ -6,6 +6,46 @@ import (
 	"time"
 )
 
+func TestExecutionNamedEventsAreOrderedDetachedObservations(t *testing.T) {
+	flow := &ExecutionEpochOne{}
+	if ordinal, err := flow.recordOptionalNamedExecutionEvent("preflight", "inactive"); err != nil || ordinal != 0 {
+		t.Fatal("inactive recorder acquired an ordinal", ordinal, err)
+	}
+	ordinals := newExecutionEventOrdinals()
+	admitted, _, err := ordinals.consumeFinalAdmission()
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now()
+	flow.executionPhaseEvents, err = newExecutionPhaseEventRecorder(admitted, frozenPhaseOrder(), now, now.Add(time.Hour))
+	if err != nil || flow.executionPhaseEvents.beginAt("preflight", now) != nil {
+		t.Fatal("could not open recorder", err)
+	}
+	flow.executionEvidenceEvents = make(map[string]uint64)
+	flow.executionEvidenceTimes = make(map[string]time.Time)
+	first, err := flow.recordNamedExecutionEvent("preflight", "first")
+	if err != nil || first == 0 {
+		t.Fatal("first observation absent", err)
+	}
+	second, err := flow.recordNamedExecutionEvent("preflight", "second")
+	if err != nil || second <= first {
+		t.Fatal("observation order changed", err)
+	}
+	events, times := flow.executionNamedEventEvidence(), flow.executionNamedEventTimes()
+	if times["first"].Before(now) || times["second"].Before(times["first"]) {
+		t.Fatal("controller observation times changed order")
+	}
+	events["first"], times["first"] = 0, time.Time{}
+	if flow.executionNamedEventEvidence()["first"] != first || flow.executionNamedEventTimes()["first"].IsZero() {
+		t.Fatal("snapshot mutated retained observations")
+	}
+	for _, test := range []struct{ phase, name string }{{"preflight", "first"}, {"cold", "wrong-phase"}, {"preflight", ""}} {
+		if _, err := flow.recordNamedExecutionEvent(test.phase, test.name); err == nil {
+			t.Fatal("duplicate or invalid observation accepted", test)
+		}
+	}
+}
+
 func TestExecutionPhaseEventRecorder(t *testing.T) {
 	newRecorder := func(t *testing.T) (*executionPhaseEventRecorder, time.Time) {
 		t.Helper()
