@@ -56,10 +56,12 @@ type ExecutionEpochOne struct {
 	profileEnvironmentUsed bool                      // One preparation attempt, never per-dispatch hashing.
 	profileCommands        []ExecutionCommandProfile // Actual normalized argv, separate from parsed YAML.
 
-	profileSigner      *ExecutionSystemToolCustody // Borrowed outer-owned signer; never a mounted input owner.
-	profileSignerImage executionProfileSystemImage
-	profileSystemUsed  bool
-	profileExecutor    *executionProfileExecutorCustody
+	profileSigner              *ExecutionSystemToolCustody // Borrowed outer-owned signer; never a mounted input owner.
+	profileSignerImage         executionProfileSystemImage
+	profileSystemUsed          bool
+	profileExecutor            *executionProfileExecutorCustody
+	profileSignerNamespace     *executionSignerNamespaceCustody
+	profileSignerNamespaceUsed bool
 
 	profileHost      *executionHostObservation
 	profileHostUsed  bool
@@ -170,6 +172,35 @@ func (flow *ExecutionEpochOne) bindProfileTools(ctx context.Context, buf, focuse
 		}
 	}
 	flow.profileTools = selected
+	return nil
+}
+
+// bindProfileSignerNamespace spends one preparation slot and retains the
+// selected external signer registry root before pressure-workspace binding.
+// It creates no key, claim, signature, socket, checkout, or handoff authority.
+func (flow *ExecutionEpochOne) bindProfileSignerNamespace(ctx context.Context, selection executionSelectionV1) error {
+	if flow == nil || flow.epochs == nil || flow.epochs.author == nil {
+		return ErrExecutionEpochOne
+	}
+	flow.mu.Lock()
+	defer flow.mu.Unlock()
+	author, epochs := flow.epochs.author, flow.epochs
+	author.mu.Lock()
+	defer author.mu.Unlock()
+	epochs.mu.Lock()
+	defer epochs.mu.Unlock()
+	if flow.plan.Schema != PlanV3Schema || flow.closed || flow.used || flow.authored || !flow.authorStarted.IsZero() ||
+		flow.workspace != nil || flow.profileSignerNamespaceUsed || !validExecutionSelection(selection) ||
+		author.closed || author.err != nil || author.active || author.borrowedBy != nil || author.next != 0 ||
+		epochs.closed || epochs.err != nil || epochs.active || epochs.released != 0 {
+		return ErrExecutionEpochOne
+	}
+	flow.profileSignerNamespaceUsed = true
+	custody, err := holdExecutionSignerNamespace(ctx, selection.SignerControlRoot)
+	if err != nil {
+		return ErrExecutionEpochOne
+	}
+	flow.profileSignerNamespace = custody
 	return nil
 }
 
@@ -300,6 +331,9 @@ func (flow *ExecutionEpochOne) Close() error {
 	flow.closed = true
 	if flow.profileRuntime != nil {
 		flow.closeErr = errors.Join(flow.closeErr, flow.profileRuntime.err)
+	}
+	if flow.profileSignerNamespace != nil {
+		flow.closeErr = errors.Join(flow.closeErr, flow.profileSignerNamespace.Close())
 	}
 	if flow.parent != nil {
 		if flow.parent.Close(context.Background()) != nil {

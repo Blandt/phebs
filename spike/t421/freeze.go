@@ -27,15 +27,16 @@ const (
 // It intentionally carries no executable path, source path, log, or source
 // content.
 type ExecutionFreeze struct {
-	Schema            string                    `json:"schema"`
-	PlanSHA256        string                    `json:"plan_sha256"`
-	SignerFingerprint string                    `json:"signer_fingerprint"`
-	Commits           ExecutionCommits          `json:"commits"`
-	DigestAlgorithm   string                    `json:"digest_algorithm"`
-	Tools             []ExecutionToolIdentity   `json:"tools"`
-	Host              ExecutionHost             `json:"host"`
-	Profile           ExecutionProfile          `json:"execution_profile"`
-	Pressure          ExecutionPressureGeometry `json:"pressure_geometry"`
+	Schema                string                    `json:"schema"`
+	PlanSHA256            string                    `json:"plan_sha256"`
+	SignerFingerprint     string                    `json:"signer_fingerprint"`
+	SignerNamespaceSHA256 string                    `json:"signer_namespace_sha256,omitempty"`
+	Commits               ExecutionCommits          `json:"commits"`
+	DigestAlgorithm       string                    `json:"digest_algorithm"`
+	Tools                 []ExecutionToolIdentity   `json:"tools"`
+	Host                  ExecutionHost             `json:"host"`
+	Profile               ExecutionProfile          `json:"execution_profile"`
+	Pressure              ExecutionPressureGeometry `json:"pressure_geometry"`
 }
 
 // ExecutionCommits are supplied by the integration and execution authorities;
@@ -152,7 +153,7 @@ func BuildExecutionFreeze(
 		return ExecutionFreeze{}, err
 	}
 	freeze := buildExecutionFreeze(
-		plan, commits, tools, host, signerFingerprint, profile, planSHA256, pressure,
+		plan, commits, tools, host, signerFingerprint, profileAdmission.signerNamespaceSHA256, profile, planSHA256, pressure,
 	)
 	if err := ValidateExecutionFreeze(freeze, plan, commits, signerFingerprint, checkout, profileAdmission); err != nil {
 		return ExecutionFreeze{}, err
@@ -170,6 +171,7 @@ func assembleExecutionFreezeCandidate(
 	tools []ExecutionToolIdentity,
 	host ExecutionHost,
 	signerFingerprint string,
+	namespace executionSignerNamespaceBinding,
 	profile ExecutionProfile,
 	profileAdmission ExecutionProfileAdmissionBinding,
 ) ([]byte, error) {
@@ -180,7 +182,7 @@ func assembleExecutionFreezeCandidate(
 	if err := ValidateFrozenPlan(plan); err != nil {
 		return nil, fmt.Errorf("validate exact T42.1 plan: %w", err)
 	}
-	if err := validateExecutionFreezeCandidateAuthority(commits, signerFingerprint, plan); err != nil {
+	if err := validateExecutionFreezeCandidateAuthority(commits, signerFingerprint, namespace, plan); err != nil {
 		return nil, err
 	}
 	planSHA256, pressure, err := executionFreezeConstructionInputs(plan, host)
@@ -188,8 +190,11 @@ func assembleExecutionFreezeCandidate(
 		return nil, err
 	}
 	freeze := buildExecutionFreeze(
-		plan, commits, tools, host, signerFingerprint, cloneExecutionProfile(profile), planSHA256, pressure,
+		plan, commits, tools, host, signerFingerprint, namespace.digest, cloneExecutionProfile(profile), planSHA256, pressure,
 	)
+	if !namespace.valid() || freeze.SignerNamespaceSHA256 != namespace.digest {
+		return nil, errors.New("T42.2 candidate freeze signer namespace drifted")
+	}
 	if err := validateExecutionFreezeCandidateValue(freeze, plan, commits, signerFingerprint, profile, profileAdmission); err != nil {
 		return nil, err
 	}
@@ -206,14 +211,15 @@ func buildExecutionFreeze(
 	tools []ExecutionToolIdentity,
 	host ExecutionHost,
 	signerFingerprint string,
+	signerNamespaceSHA256 string,
 	profile ExecutionProfile,
 	planSHA256 string,
 	pressure ExecutionPressureGeometry,
 ) ExecutionFreeze {
 	return ExecutionFreeze{
 		Schema: plan.ToolPolicy.ExecutionFreezeSchema, PlanSHA256: planSHA256,
-		SignerFingerprint: signerFingerprint,
-		Commits:           commits, DigestAlgorithm: plan.ToolPolicy.DigestAlgorithm,
+		SignerFingerprint: signerFingerprint, SignerNamespaceSHA256: signerNamespaceSHA256,
+		Commits: commits, DigestAlgorithm: plan.ToolPolicy.DigestAlgorithm,
 		Tools: slices.Clone(tools), Host: host, Profile: profile, Pressure: pressure,
 	}
 }
@@ -292,9 +298,15 @@ func validateExecutionFreezeFields(
 	if freeze.Schema != plan.ToolPolicy.ExecutionFreezeSchema ||
 		freeze.PlanSHA256 != SHA256(planRaw) ||
 		freeze.SignerFingerprint != expectedSignerFingerprint ||
+		freeze.SignerNamespaceSHA256 != profileAdmission.signerNamespaceSHA256 ||
 		freeze.Commits != expectedCommits ||
 		freeze.DigestAlgorithm != plan.ToolPolicy.DigestAlgorithm {
 		return errors.New("T42.2 execution freeze authority differs from the exact plan")
+	}
+	if plan.Schema == PlanV3Schema && (!validExecutionHexSHA256(profileAdmission.signerNamespaceSHA256) ||
+		freeze.Profile.SignerNamespaceSHA256 != profileAdmission.signerNamespaceSHA256) ||
+		plan.Schema != PlanV3Schema && (profileAdmission.signerNamespaceSHA256 != "" || freeze.Profile.SignerNamespaceSHA256 != "") {
+		return errors.New("T42.2 signer namespace differs from the exact admission")
 	}
 	if err := validateExecutionTools(freeze.Tools, plan.ToolPolicy, expectedCommits.T422SourceCommit); err != nil {
 		return err
@@ -315,12 +327,13 @@ func validateExecutionFreezeFields(
 	return nil
 }
 
-func validateExecutionFreezeCandidateAuthority(commits ExecutionCommits, signerFingerprint string, plan Plan) error {
+func validateExecutionFreezeCandidateAuthority(commits ExecutionCommits, signerFingerprint string, namespace executionSignerNamespaceBinding, plan Plan) error {
 	if !validGitObjectID(commits.IntegratedMainCommit, "sha1") ||
 		!validGitObjectID(commits.IntegratedMainTree, "sha1") ||
 		!validGitObjectID(commits.T422SourceCommit, "sha1") ||
 		!validGitObjectID(commits.T422SourceTree, "sha1") ||
 		!validSSHSHA256Fingerprint(signerFingerprint) ||
+		!namespace.valid() ||
 		plan.ToolPolicy.RequireCleanCommit && !commits.CleanTree ||
 		!commits.IntegratedMainDescendsFromPlanSource || !commits.SourceDescendsFromIntegratedMain {
 		return errors.New("T42.2 candidate freeze authority is invalid")
@@ -385,6 +398,7 @@ func validateExecutionFreezeCandidate(
 	plan Plan,
 	commits ExecutionCommits,
 	signerFingerprint string,
+	namespace executionSignerNamespaceBinding,
 	profile ExecutionProfile,
 	profileAdmission ExecutionProfileAdmissionBinding,
 ) (ExecutionFreeze, error) {
@@ -394,12 +408,15 @@ func validateExecutionFreezeCandidate(
 	if err := ValidateFrozenPlan(plan); err != nil {
 		return ExecutionFreeze{}, fmt.Errorf("validate exact T42.1 plan: %w", err)
 	}
-	if err := validateExecutionFreezeCandidateAuthority(commits, signerFingerprint, plan); err != nil {
+	if err := validateExecutionFreezeCandidateAuthority(commits, signerFingerprint, namespace, plan); err != nil {
 		return ExecutionFreeze{}, err
 	}
 	freeze, err := decodeCanonicalExecutionFreeze(raw, plan.ToolPolicy.MaximumExecutionFreezeBytes)
 	if err != nil {
 		return ExecutionFreeze{}, err
+	}
+	if !namespace.valid() || freeze.SignerNamespaceSHA256 != namespace.digest {
+		return ExecutionFreeze{}, errors.New("T42.2 candidate freeze signer namespace drifted")
 	}
 	if err := validateExecutionFreezeCandidateValue(freeze, plan, commits, signerFingerprint, profile, profileAdmission); err != nil {
 		return ExecutionFreeze{}, err

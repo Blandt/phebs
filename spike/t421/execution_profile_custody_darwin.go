@@ -327,6 +327,10 @@ func profilePreimagesLocked(ctx context.Context, proof *executionWorkspaceCustod
 }
 
 func issueExecutionProfileLocked(ctx context.Context, v *executionPressureVolume, flow *ExecutionEpochOne, observed executionObservedProfilePreimages) (ExecutionProfile, ExecutionProfileAdmissionBinding, error) {
+	namespace, err := flow.profileSignerNamespace.check(ctx)
+	if err != nil {
+		return ExecutionProfile{}, ExecutionProfileAdmissionBinding{}, errPressureVolume
+	}
 	tools, phebsPath, err := observedExecutionProfileToolsLocked(ctx, v, flow)
 	if err != nil || validateExecutionTools(tools, flow.plan.ToolPolicy, flow.plan.SourceCommit) != nil || flow.profileHost == nil || validateExecutionHost(flow.profileHost.Host, flow.plan) != nil {
 		return ExecutionProfile{}, ExecutionProfileAdmissionBinding{}, errPressureVolume
@@ -339,8 +343,12 @@ func issueExecutionProfileLocked(ctx context.Context, v *executionPressureVolume
 	if err != nil || !reflect.DeepEqual(environment, *flow.profileEnvironment) || !reflect.DeepEqual(commands, flow.profileCommands) {
 		return ExecutionProfile{}, ExecutionProfileAdmissionBinding{}, errPressureVolume
 	}
+	namespace, err = namespace.recheck(ctx)
+	if err != nil {
+		return ExecutionProfile{}, ExecutionProfileAdmissionBinding{}, errPressureVolume
+	}
 	return issueObservedExecutionProfile(flow.plan, tools, flow.profileHost.Host, configDigests, configDigest, environment, commands,
-		flow.profileRuntime, phebsPath, flow.epochs.epochs[0].Temporary, observed)
+		flow.profileRuntime, phebsPath, flow.epochs.epochs[0].Temporary, observed, namespace)
 }
 
 // issueObservedExecutionProfile is the pure end of the issuer. Its inputs are
@@ -358,9 +366,10 @@ func issueObservedExecutionProfile(
 	phebsPath string,
 	directory string,
 	observed executionObservedProfilePreimages,
+	namespace executionSignerNamespaceBinding,
 ) (ExecutionProfile, ExecutionProfileAdmissionBinding, error) {
 	if validateExecutionTools(tools, plan.ToolPolicy, plan.SourceCommit) != nil || validateExecutionHost(host, plan) != nil ||
-		observed.commandsSHA256 != observed.harnessCommandSetSHA256 {
+		observed.commandsSHA256 != observed.harnessCommandSetSHA256 || !namespace.valid() {
 		return ExecutionProfile{}, ExecutionProfileAdmissionBinding{}, errPressureVolume
 	}
 	accountingDigest, err := canonicalSHA256(plan.ProcessAccounting)
@@ -378,7 +387,7 @@ func issueObservedExecutionProfile(
 		configBytesSHA256:        configDigest, epochConfigBytesSHA256: slices.Clone(configDigests),
 		recoveryEnvironmentSHA256: environment.RecoverySHA256, serverEnvironmentSHA256: environment.ServerSHA256,
 		rootVolumeBindingsSHA256: observed.rootVolumeBindingsSHA256, closedEnvironment: true,
-		processAccountingSHA256: accountingDigest,
+		processAccountingSHA256: accountingDigest, signerNamespaceSHA256: namespace.digest,
 	}
 	profile, commandsDigest, err := assembleExecutionProfile(plan, tools, host, admission)
 	actualCommandsDigest, actualCommandsErr := canonicalSHA256(commands)
@@ -482,7 +491,7 @@ func cloneExecutionProfileAdmission(value ExecutionProfileAdmissionBinding) Exec
 
 func profileObservationSetComplete(flow *ExecutionEpochOne) bool {
 	return profilePreimageObservationSetComplete(flow) &&
-		flow.profileExecutor != nil
+		flow.profileExecutor != nil && flow.profileSignerNamespace != nil
 }
 
 func profilePreimageObservationSetComplete(flow *ExecutionEpochOne) bool {

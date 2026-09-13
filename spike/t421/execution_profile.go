@@ -23,6 +23,7 @@ type ExecutionProfile struct {
 	RuntimeBindingSchema     string                        `json:"runtime_binding_schema"`
 	PhaseRecipeSHA256        string                        `json:"phase_recipe_sha256"`
 	ProcessAccountingSHA256  string                        `json:"process_accounting_sha256,omitempty"`
+	SignerNamespaceSHA256    string                        `json:"signer_namespace_sha256,omitempty"`
 	Commands                 []ExecutionCommandProfile     `json:"commands"`
 	HarnessCommandSetSHA256  string                        `json:"harness_command_set_sha256"`
 	PressureCommandSetSHA256 string                        `json:"pressure_command_set_sha256"`
@@ -156,6 +157,7 @@ type ExecutionProfileAdmissionBinding struct {
 	verifiedBeforeWork            bool
 	verifiedBeforeOperationalWork bool
 	processAccountingSHA256       string
+	signerNamespaceSHA256         string
 }
 
 // PhaseRuntimeBinding ties one phase observation to the exact admitted serve
@@ -224,6 +226,8 @@ func expectedExecutionProfile(
 		!validExecutionSHA256(admission.serverEnvironmentSHA256) ||
 		admission.recoveryEnvironmentSHA256 == admission.serverEnvironmentSHA256 ||
 		!validExecutionSHA256(admission.rootVolumeBindingsSHA256) ||
+		plan.Schema == PlanV3Schema && !validExecutionHexSHA256(admission.signerNamespaceSHA256) ||
+		plan.Schema != PlanV3Schema && admission.signerNamespaceSHA256 != "" ||
 		!admission.closedEnvironment ||
 		plan.Schema == PlanV3Schema && (!admission.verifiedBeforeOperationalWork || admission.verifiedBeforeWork) ||
 		plan.Schema != PlanV3Schema && (!admission.verifiedBeforeWork || admission.verifiedBeforeOperationalWork) {
@@ -291,6 +295,7 @@ func assembleExecutionProfile(
 		RuntimeBindingSchema:     phaseRuntimeBindingSchema(plan),
 		PhaseRecipeSHA256:        executionPhaseRecipeSHA256(plan),
 		ProcessAccountingSHA256:  accountingSHA256,
+		SignerNamespaceSHA256:    admission.signerNamespaceSHA256,
 		Commands:                 commands,
 		HarnessCommandSetSHA256:  admission.harnessCommandSetSHA256,
 		PressureCommandSetSHA256: admission.pressureCommandSetSHA256,

@@ -52,7 +52,16 @@ func (cache *executionFreezeTestCache) binding(t *testing.T, plan Plan, commits 
 	}
 	tools, host := executionFreezeTestTools(plan, commits), executionFreezeTestHost()
 	checkout := executionFreezeTestCheckout(t, commits, tools)
-	profile := executionProfileTestAdmission(t, plan, tools, host)
+	var namespaces []executionSignerNamespaceBinding
+	if plan.Schema == PlanV3Schema {
+		namespaces = append(namespaces, newExecutionSignerNamespaceTestBinding(t))
+	}
+	var profile ExecutionProfileAdmissionBinding
+	if len(namespaces) == 1 {
+		profile = executionProfileTestAdmission(t, plan, tools, host, namespaces[0].digest)
+	} else {
+		profile = executionProfileTestAdmission(t, plan, tools, host)
+	}
 	signer := executionFreezeTestSigner()
 	freeze, err := BuildExecutionFreeze(plan, commits, tools, host, signer, checkout, profile)
 	if err != nil {
@@ -60,7 +69,7 @@ func (cache *executionFreezeTestCache) binding(t *testing.T, plan Plan, commits 
 	}
 	binding, err := BindExecutionFreezeForReceipt(
 		freeze, plan, commits, signer, checkout, profile,
-		executionFreezeTestAdmission(t, plan, freeze),
+		executionFreezeTestAdmission(t, plan, freeze, namespaces...),
 	)
 	if err != nil {
 		return ExecutionFreezeBinding{}, fmt.Errorf("admit fixture freeze: %w", err)

@@ -1483,35 +1483,49 @@ func frozenReceiptTestBinding(t *testing.T, plan Plan) ExecutionFreezeBinding {
 	return admittedExecutionFreezeTestBinding(t, plan, executionFreezeTestCommits())
 }
 
-func executionFreezeTestAdmission(t *testing.T, plan Plan, freeze ExecutionFreeze) ExecutionFreezeAdmissionBinding {
+func executionFreezeTestAdmission(t *testing.T, plan Plan, freeze ExecutionFreeze, namespace ...executionSignerNamespaceBinding) ExecutionFreezeAdmissionBinding {
 	t.Helper()
 	freezeSHA256, err := receiptSHA256(freeze)
 	if err != nil {
 		t.Fatal(err)
 	}
 	admissionEventSHA256, err := receiptSHA256(struct {
-		Schema             string `json:"schema"`
-		FreezeSHA256       string `json:"freeze_sha256"`
-		SignatureNamespace string `json:"signature_namespace"`
-		SignerFingerprint  string `json:"signer_fingerprint"`
-		Order              string `json:"order"`
-		EventOrdinal       uint64 `json:"event_ordinal"`
+		Schema                string `json:"schema"`
+		FreezeSHA256          string `json:"freeze_sha256"`
+		SignatureNamespace    string `json:"signature_namespace"`
+		SignerFingerprint     string `json:"signer_fingerprint"`
+		SignerNamespaceSHA256 string `json:"signer_namespace_sha256,omitempty"`
+		Order                 string `json:"order"`
+		EventOrdinal          uint64 `json:"event_ordinal"`
 	}{
 		Schema: plan.ReceiptContract.ExecutionAdmissionSchema, FreezeSHA256: freezeSHA256,
-		SignatureNamespace: plan.SealPolicy.FreezeSignatureNamespace,
-		SignerFingerprint:  executionFreezeTestSigner(),
-		Order:              plan.ReceiptContract.ExecutionAdmissionOrder,
-		EventOrdinal:       1,
+		SignatureNamespace:    plan.SealPolicy.FreezeSignatureNamespace,
+		SignerFingerprint:     executionFreezeTestSigner(),
+		SignerNamespaceSHA256: freeze.SignerNamespaceSHA256,
+		Order:                 plan.ReceiptContract.ExecutionAdmissionOrder,
+		EventOrdinal:          1,
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	return ExecutionFreezeAdmissionBinding{
+	admission := ExecutionFreezeAdmissionBinding{
 		schema: plan.ReceiptContract.ExecutionAdmissionSchema, freezeSHA256: freezeSHA256,
 		signatureNamespace: plan.SealPolicy.FreezeSignatureNamespace,
-		signerFingerprint:  executionFreezeTestSigner(), admissionEventSHA256: admissionEventSHA256,
-		admissionEventOrdinal: 1, signatureVerified: true, verifiedBeforeWork: true,
+		signerFingerprint:  executionFreezeTestSigner(), signerNamespaceSHA256: freeze.SignerNamespaceSHA256,
+		admissionEventSHA256: admissionEventSHA256, admissionEventOrdinal: 1, signatureVerified: true,
 	}
+	if plan.Schema == PlanV3Schema {
+		if len(namespace) != 1 || namespace[0].digest != freeze.SignerNamespaceSHA256 {
+			t.Fatal("missing exact signer namespace fixture")
+		}
+		admission.signerNamespace = namespace[0]
+		admission.verifiedBeforeOperationalWork = true
+	} else if len(namespace) == 0 {
+		admission.verifiedBeforeWork = true
+	} else {
+		t.Fatal("legacy signer namespace fixture")
+	}
+	return admission
 }
 
 func completeTestReceipt(t *testing.T, plan Plan, binding ExecutionFreezeBinding) Receipt {
@@ -1622,6 +1636,7 @@ func completeTestReceipt(t *testing.T, plan Plan, binding ExecutionFreezeBinding
 		RevisionResults: revisions,
 		Seal: ReceiptSeal{
 			PolicySchema: plan.SealPolicy.Schema, SignerFingerprint: freeze.SignerFingerprint,
+			SignerNamespaceSHA256:                freeze.SignerNamespaceSHA256,
 			FreezeSignatureNamespace:             plan.SealPolicy.FreezeSignatureNamespace,
 			SourceVerificationSignatureNamespace: plan.SealPolicy.SourceVerificationSignatureNamespace,
 			ReturnedSignatureNamespace:           plan.SealPolicy.ReturnedSignatureNamespace,

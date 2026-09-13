@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"os"
 	"reflect"
 	"slices"
 	"strings"
@@ -335,6 +336,7 @@ type executionFreezeCandidateTestFixture struct {
 	tools     []ExecutionToolIdentity
 	host      ExecutionHost
 	signer    string
+	namespace executionSignerNamespaceBinding
 	profile   ExecutionProfile
 	admission ExecutionProfileAdmissionBinding
 }
@@ -346,13 +348,33 @@ func newExecutionFreezeCandidateTestFixture(t *testing.T) executionFreezeCandida
 	tools := executionFreezeTestTools(plan, commits)
 	host := executionFreezeTestHost()
 	admission := executionProfileTestAdmission(t, plan, tools, host)
-	profile, err := expectedExecutionProfile(plan, tools, host, admission)
+	file, err := os.Open(os.DevNull)
+	if err != nil {
+		t.Fatal(err)
+	}
+	token := byte(1)
+	digest := strings.TrimPrefix(SHA256([]byte("t422-test-live-signer-namespace")), "sha256:")
+	custody := &executionSignerNamespaceCustody{file: file, digest: digest, token: &token}
+	t.Cleanup(func() { _ = custody.Close() })
+	namespace := executionSignerNamespaceBinding{owner: custody, token: custody.token, digest: digest}
+	admission.signerNamespaceSHA256 = digest
+	profile, commandsSHA256, err := assembleExecutionProfile(plan, tools, host, admission)
+	if err != nil {
+		t.Fatal(err)
+	}
+	admission.commandsSHA256 = commandsSHA256
+	admission.invocationSHA256 = profile.InvocationSHA256
+	admission.profileSHA256, err = canonicalSHA256(profile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	profile, err = expectedExecutionProfile(plan, tools, host, admission)
 	if err != nil {
 		t.Fatal(err)
 	}
 	return executionFreezeCandidateTestFixture{
 		plan: plan, commits: commits, tools: tools, host: host,
-		signer: executionFreezeTestSigner(), profile: profile, admission: admission,
+		signer: executionFreezeTestSigner(), namespace: namespace, profile: profile, admission: admission,
 	}
 }
 
@@ -365,18 +387,18 @@ func (value executionFreezeCandidateTestFixture) clone() executionFreezeCandidat
 
 func (value executionFreezeCandidateTestFixture) assemble() ([]byte, error) {
 	return assembleExecutionFreezeCandidate(
-		value.plan, value.commits, value.tools, value.host, value.signer, value.profile, value.admission,
+		value.plan, value.commits, value.tools, value.host, value.signer, value.namespace, value.profile, value.admission,
 	)
 }
 
 func (value executionFreezeCandidateTestFixture) validate(raw []byte) (ExecutionFreeze, error) {
 	return validateExecutionFreezeCandidate(
-		raw, value.plan, value.commits, value.signer, value.profile, value.admission,
+		raw, value.plan, value.commits, value.signer, value.namespace, value.profile, value.admission,
 	)
 }
 
 func (value executionFreezeCandidateTestFixture) validateAfterPlan(raw []byte) (ExecutionFreeze, error) {
-	if err := validateExecutionFreezeCandidateAuthority(value.commits, value.signer, value.plan); err != nil {
+	if err := validateExecutionFreezeCandidateAuthority(value.commits, value.signer, value.namespace, value.plan); err != nil {
 		return ExecutionFreeze{}, err
 	}
 	freeze, err := decodeCanonicalExecutionFreeze(raw, value.plan.ToolPolicy.MaximumExecutionFreezeBytes)
@@ -392,7 +414,7 @@ func (value executionFreezeCandidateTestFixture) validateAfterPlan(raw []byte) (
 }
 
 func (value executionFreezeCandidateTestFixture) validateInputsAfterPlan() error {
-	if err := validateExecutionFreezeCandidateAuthority(value.commits, value.signer, value.plan); err != nil {
+	if err := validateExecutionFreezeCandidateAuthority(value.commits, value.signer, value.namespace, value.plan); err != nil {
 		return err
 	}
 	planSHA256, pressure, err := executionFreezeConstructionInputs(value.plan, value.host)
@@ -400,7 +422,7 @@ func (value executionFreezeCandidateTestFixture) validateInputsAfterPlan() error
 		return err
 	}
 	freeze := buildExecutionFreeze(
-		value.plan, value.commits, value.tools, value.host, value.signer, value.profile, planSHA256, pressure,
+		value.plan, value.commits, value.tools, value.host, value.signer, value.namespace.digest, value.profile, planSHA256, pressure,
 	)
 	return validateExecutionFreezeCandidateValue(
 		freeze, value.plan, value.commits, value.signer, value.profile, value.admission,
@@ -527,6 +549,13 @@ func TestExecutionFreezeCandidateRejectsInputMutations(t *testing.T) {
 		{"legacy verified state", func(value *executionFreezeCandidateTestFixture) {
 			value.admission.verifiedBeforeOperationalWork = false
 			value.admission.verifiedBeforeWork = true
+		}},
+		{"signer namespace digest", func(value *executionFreezeCandidateTestFixture) {
+			value.namespace.digest = strings.Repeat("0", 64)
+		}},
+		{"signer namespace token", func(value *executionFreezeCandidateTestFixture) {
+			token := byte(1)
+			value.namespace.token = &token
 		}},
 		{"signer empty", func(value *executionFreezeCandidateTestFixture) { value.signer = "" }},
 		{"signer padded", func(value *executionFreezeCandidateTestFixture) { value.signer += "=" }},
@@ -672,7 +701,7 @@ func TestExecutionFreezeCandidatePreservesPublicLegacyConstruction(t *testing.T)
 			if decoded, err := DecodeExecutionFreeze(raw, plan, commits, executionFreezeTestSigner(), checkout, admission); err != nil || !reflect.DeepEqual(decoded, freeze) {
 				t.Fatal("public legacy freeze validation changed", err)
 			}
-			if candidate, err := assembleExecutionFreezeCandidate(plan, commits, tools, host, executionFreezeTestSigner(), profile, admission); err == nil || candidate != nil {
+			if candidate, err := assembleExecutionFreezeCandidate(plan, commits, tools, host, executionFreezeTestSigner(), executionSignerNamespaceBinding{}, profile, admission); err == nil || candidate != nil {
 				t.Fatal("legacy plan issued private V3 candidate bytes", err)
 			}
 		})
@@ -764,6 +793,7 @@ func executionProfileTestAdmission(
 	plan Plan,
 	tools []ExecutionToolIdentity,
 	host ExecutionHost,
+	signerNamespaceSHA256 ...string,
 ) ExecutionProfileAdmissionBinding {
 	t.Helper()
 	admission := ExecutionProfileAdmissionBinding{
@@ -778,6 +808,12 @@ func executionProfileTestAdmission(
 	}
 	if plan.Schema == PlanV3Schema {
 		admission.verifiedBeforeOperationalWork = true
+		admission.signerNamespaceSHA256 = strings.TrimPrefix(SHA256([]byte("t422-test-signer-namespace")), "sha256:")
+		if len(signerNamespaceSHA256) == 1 {
+			admission.signerNamespaceSHA256 = signerNamespaceSHA256[0]
+		} else if len(signerNamespaceSHA256) != 0 {
+			t.Fatal("invalid signer namespace fixture cardinality")
+		}
 	} else {
 		admission.verifiedBeforeWork = true
 	}
@@ -811,6 +847,7 @@ func executionProfileTestAdmission(
 		Posture:                  "ordinary-production-workers-exact-v1",
 		RuntimeBindingSchema:     phaseRuntimeBindingSchema(plan),
 		PhaseRecipeSHA256:        executionPhaseRecipeSHA256(plan),
+		SignerNamespaceSHA256:    admission.signerNamespaceSHA256,
 		Commands:                 frozenExecutionCommands(),
 		HarnessCommandSetSHA256:  admission.harnessCommandSetSHA256,
 		PressureCommandSetSHA256: admission.pressureCommandSetSHA256,

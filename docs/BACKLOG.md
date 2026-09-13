@@ -9286,8 +9286,10 @@ Listener custody adds bounded parent/socket checks at absent/bind/mode/listen/
 accept/unlink, one accepted-FD `CloseOnExec`, listener/connection `F_GETFD`,
 one `SO_TYPE`/`Getpeername`/`LOCAL_PEERPID`/`LOCAL_PEERCRED`
 check set, one parent sync and
-short close-state locking. Signer namespace adds four at-most-8-KiB canonical
-encodes/SHA passes at signer/profile/post-auth/receipt binding, one digest field
+short close-state locking. Signer namespace adds six at-most-8-KiB canonical
+encodes/SHA passes at initial hold, profile precheck/profile post-recheck,
+signer, post-auth and receipt binding; this prerequisite implements the first
+three and receipt, while the owning live-handoff slice adds signer/post-auth. It adds one digest field
 in both claims and signed V3 freeze/profile/receipt, plus existing root rechecks;
 no cross-root scan. Signer custody adds umask-077 set/restore, two same-root
 hidden-temp absence checks, two staged-key file syncs and one signer-root stage
@@ -9782,6 +9784,19 @@ cancel regression waits until FD3 adoption, makes only its test child ignore
 `SIGTERM`, and requires both the joined post-EOF marker and dedicated child
 exit status, so neither default signal death nor the forced sweep can satisfy
 the cooperative-cleanup assertion.
+
+**T42.2lm held signer-namespace prerequisite (2026-09-13).** V3 preparation
+now spends one binding attempt before workspace ownership, holds the selected
+canonical signer-root directory through flow close, and derives the exact
+bounded path/device/inode/full-mode namespace digest only after current-uid,
+`S_IFDIR|0700`, no-symlink and close-on-exec descriptor checks. Actual profile
+issue rechecks that custody; the private candidate seam consumes its binding;
+V3 profile, freeze, freeze-admission event and receipt seal retain the digest.
+Public construction/decode/receipt APIs and V1/V2 bytes remain unchanged.
+Darwin acceptance, mode drift and symlink refusal have a focused native test;
+the shared V3 fixtures cover profile/freeze/receipt propagation. The slice
+creates no signer claim, key, signature, socket, checkout binding, ordinal or
+AuthorA transition and is not ceremony readiness.
 
 **Pressure headroom refusal after c7db1d21 (2026-09-11).** The exact-source
 rehearsal failed in 5,519.79s (package 5,520.627s), after 672 contiguous normal

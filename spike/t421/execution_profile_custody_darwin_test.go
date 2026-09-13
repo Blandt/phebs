@@ -387,6 +387,7 @@ type observedProfileIssuerFixture struct {
 	phebsPath     string
 	directory     string
 	preimages     executionObservedProfilePreimages
+	namespace     executionSignerNamespaceBinding
 }
 
 func newObservedProfileIssuerFixture(t *testing.T) observedProfileIssuerFixture {
@@ -396,9 +397,37 @@ func newObservedProfileIssuerFixture(t *testing.T) observedProfileIssuerFixture 
 	commits.T422SourceCommit = plan.SourceCommit
 	tools, host := executionFreezeTestTools(plan, commits), executionFreezeTestHost()
 	admitted := executionProfileTestAdmission(t, plan, tools, host)
-	profile, err := expectedExecutionProfile(plan, tools, host, admitted)
+	namespaceRoot := filepath.Join(t.TempDir(), "signer")
+	if err := os.Mkdir(namespaceRoot, 0o700); err != nil {
+		t.Fatal("create signer namespace", err)
+	}
+	namespaceRoot, err := filepath.EvalSymlinks(namespaceRoot)
 	if err != nil {
-		t.Fatal(err)
+		t.Fatal("canonicalize signer namespace", err)
+	}
+	custody, err := holdExecutionSignerNamespace(context.Background(), namespaceRoot)
+	if err != nil {
+		t.Fatal("hold signer namespace", err)
+	}
+	t.Cleanup(func() { _ = custody.Close() })
+	namespace, err := custody.check(context.Background())
+	if err != nil {
+		t.Fatal("check signer namespace", err)
+	}
+	admitted.signerNamespaceSHA256 = namespace.digest
+	profile, commandsSHA256, err := assembleExecutionProfile(plan, tools, host, admitted)
+	if err != nil {
+		t.Fatal("assemble rebound profile", err)
+	}
+	admitted.commandsSHA256 = commandsSHA256
+	admitted.invocationSHA256 = profile.InvocationSHA256
+	admitted.profileSHA256, err = canonicalSHA256(profile)
+	if err != nil {
+		t.Fatal("hash rebound profile", err)
+	}
+	profile, err = expectedExecutionProfile(plan, tools, host, admitted)
+	if err != nil {
+		t.Fatal("build expected profile", err)
 	}
 	environment := executionRuntimeEnvironmentObservation{
 		Recovery: slices.Clone(profile.Environment.BaseVariables), Server: executionProfileServerEnvironment(profile.Environment),
@@ -419,7 +448,7 @@ func newObservedProfileIssuerFixture(t *testing.T) observedProfileIssuerFixture 
 	}
 	phebsIndex := slices.IndexFunc(tools, func(value ExecutionToolIdentity) bool { return value.Role == "phebs" })
 	return observedProfileIssuerFixture{
-		plan: plan, tools: tools, host: host,
+		plan: plan, tools: tools, host: host, namespace: namespace,
 		configDigests: slices.Clone(admitted.epochConfigBytesSHA256), configDigest: admitted.configBytesSHA256,
 		environment: environment, commands: frozenExecutionCommands(), phebsPath: path, directory: directory,
 		preimages: executionObservedProfilePreimages{
@@ -437,7 +466,7 @@ func newObservedProfileIssuerFixture(t *testing.T) observedProfileIssuerFixture 
 
 func (value observedProfileIssuerFixture) issue() (ExecutionProfile, ExecutionProfileAdmissionBinding, error) {
 	return issueObservedExecutionProfile(value.plan, value.tools, value.host, value.configDigests, value.configDigest,
-		value.environment, value.commands, value.runtime, value.phebsPath, value.directory, value.preimages)
+		value.environment, value.commands, value.runtime, value.phebsPath, value.directory, value.preimages, value.namespace)
 }
 
 func TestExecutionObservedProfileIssuerCompleteAndMutations(t *testing.T) {

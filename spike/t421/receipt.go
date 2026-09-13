@@ -2,6 +2,7 @@ package t421
 
 import (
 	"bytes"
+	"context"
 	"crypto/sha1"
 	"encoding/json"
 	"errors"
@@ -91,24 +92,28 @@ type ReceiptExecutionFreeze struct {
 // validation cannot accidentally self-authorize the commits carried by a
 // freeze.
 type ExecutionFreezeBinding struct {
-	freeze                    ExecutionFreeze
-	expectedCommits           ExecutionCommits
-	expectedSignerFingerprint string
-	planSHA256                string
-	freezeSHA256              string
-	admissionEventSHA256      string
-	admissionEventOrdinal     uint64
+	freeze                        ExecutionFreeze
+	expectedCommits               ExecutionCommits
+	expectedSignerFingerprint     string
+	expectedSignerNamespaceSHA256 string
+	planSHA256                    string
+	freezeSHA256                  string
+	admissionEventSHA256          string
+	admissionEventOrdinal         uint64
 }
 
 type ExecutionFreezeAdmissionBinding struct {
-	schema                string
-	freezeSHA256          string
-	signatureNamespace    string
-	signerFingerprint     string
-	admissionEventSHA256  string
-	admissionEventOrdinal uint64
-	signatureVerified     bool
-	verifiedBeforeWork    bool
+	schema                        string
+	freezeSHA256                  string
+	signatureNamespace            string
+	signerFingerprint             string
+	signerNamespaceSHA256         string
+	signerNamespace               executionSignerNamespaceBinding
+	admissionEventSHA256          string
+	admissionEventOrdinal         uint64
+	signatureVerified             bool
+	verifiedBeforeWork            bool
+	verifiedBeforeOperationalWork bool
 }
 
 // ReturnedPackageBinding is yielded only by the T42.2 outer package verifier.
@@ -919,6 +924,7 @@ type LifecycleOwnerResult struct {
 type ReceiptSeal struct {
 	PolicySchema                         string `json:"policy_schema"`
 	SignerFingerprint                    string `json:"signer_fingerprint"`
+	SignerNamespaceSHA256                string `json:"signer_namespace_sha256,omitempty"`
 	FreezeSignatureNamespace             string `json:"freeze_signature_namespace"`
 	SourceVerificationSignatureNamespace string `json:"source_verification_signature_namespace"`
 	ReturnedSignatureNamespace           string `json:"returned_signature_namespace"`
@@ -1051,7 +1057,7 @@ func BindExecutionFreezeForReceipt(
 		return ExecutionFreezeBinding{}, err
 	}
 	return bindExecutionFreezeForReceipt(
-		freeze, plan, expectedCommits, expectedSignerFingerprint, admission,
+		freeze, plan, expectedCommits, expectedSignerFingerprint, profileAdmission.signerNamespaceSHA256, admission,
 	)
 }
 
@@ -1060,8 +1066,17 @@ func bindExecutionFreezeForReceipt(
 	plan Plan,
 	expectedCommits ExecutionCommits,
 	expectedSignerFingerprint string,
+	expectedSignerNamespaceSHA256 string,
 	admission ExecutionFreezeAdmissionBinding,
 ) (ExecutionFreezeBinding, error) {
+	if plan.Schema == PlanV3Schema {
+		current, namespaceErr := admission.signerNamespace.recheck(context.Background())
+		if namespaceErr != nil || current.digest != expectedSignerNamespaceSHA256 {
+			return ExecutionFreezeBinding{}, errors.New("T42.2 execution freeze signer namespace is no longer admitted")
+		}
+	} else if admission.signerNamespace != (executionSignerNamespaceBinding{}) {
+		return ExecutionFreezeBinding{}, errors.New("T42.2 legacy execution freeze carried signer namespace authority")
+	}
 	planSHA256, err := receiptSHA256(plan)
 	if err != nil {
 		return ExecutionFreezeBinding{}, err
@@ -1071,28 +1086,35 @@ func bindExecutionFreezeForReceipt(
 		return ExecutionFreezeBinding{}, err
 	}
 	wantAdmissionSHA256, err := receiptSHA256(struct {
-		Schema             string `json:"schema"`
-		FreezeSHA256       string `json:"freeze_sha256"`
-		SignatureNamespace string `json:"signature_namespace"`
-		SignerFingerprint  string `json:"signer_fingerprint"`
-		Order              string `json:"order"`
-		EventOrdinal       uint64 `json:"event_ordinal"`
+		Schema                string `json:"schema"`
+		FreezeSHA256          string `json:"freeze_sha256"`
+		SignatureNamespace    string `json:"signature_namespace"`
+		SignerFingerprint     string `json:"signer_fingerprint"`
+		SignerNamespaceSHA256 string `json:"signer_namespace_sha256,omitempty"`
+		Order                 string `json:"order"`
+		EventOrdinal          uint64 `json:"event_ordinal"`
 	}{
 		Schema: plan.ReceiptContract.ExecutionAdmissionSchema, FreezeSHA256: freezeSHA256,
 		SignatureNamespace: plan.SealPolicy.FreezeSignatureNamespace,
 		SignerFingerprint:  expectedSignerFingerprint, Order: plan.ReceiptContract.ExecutionAdmissionOrder,
-		EventOrdinal: 1,
+		SignerNamespaceSHA256: expectedSignerNamespaceSHA256,
+		EventOrdinal:          1,
 	})
 	if err != nil || admission.schema != plan.ReceiptContract.ExecutionAdmissionSchema ||
 		admission.freezeSHA256 != freezeSHA256 || admission.signatureNamespace != plan.SealPolicy.FreezeSignatureNamespace ||
 		admission.signerFingerprint != expectedSignerFingerprint || admission.admissionEventSHA256 != wantAdmissionSHA256 ||
-		admission.admissionEventOrdinal != 1 || !admission.signatureVerified || !admission.verifiedBeforeWork {
+		admission.signerNamespaceSHA256 != expectedSignerNamespaceSHA256 ||
+		plan.Schema == PlanV3Schema && !validExecutionHexSHA256(expectedSignerNamespaceSHA256) ||
+		plan.Schema != PlanV3Schema && expectedSignerNamespaceSHA256 != "" ||
+		admission.admissionEventOrdinal != 1 || !admission.signatureVerified ||
+		plan.Schema == PlanV3Schema && (!admission.verifiedBeforeOperationalWork || admission.verifiedBeforeWork) ||
+		plan.Schema != PlanV3Schema && (!admission.verifiedBeforeWork || admission.verifiedBeforeOperationalWork) {
 		return ExecutionFreezeBinding{}, errors.New("T42.2 execution freeze lacks verified pre-work signature admission")
 	}
 	return ExecutionFreezeBinding{
 		freeze: freeze, expectedCommits: expectedCommits,
-		expectedSignerFingerprint: expectedSignerFingerprint,
-		planSHA256:                planSHA256, freezeSHA256: freezeSHA256,
+		expectedSignerFingerprint: expectedSignerFingerprint, expectedSignerNamespaceSHA256: expectedSignerNamespaceSHA256,
+		planSHA256: planSHA256, freezeSHA256: freezeSHA256,
 		admissionEventSHA256: admission.admissionEventSHA256, admissionEventOrdinal: admission.admissionEventOrdinal,
 	}, nil
 }
@@ -1158,6 +1180,10 @@ func ValidateReceipt(
 	if binding.planSHA256 != planSHA256 || binding.freeze.PlanSHA256 != planSHA256 ||
 		binding.freeze.Commits != binding.expectedCommits ||
 		binding.freeze.SignerFingerprint != binding.expectedSignerFingerprint ||
+		binding.freeze.SignerNamespaceSHA256 != binding.expectedSignerNamespaceSHA256 ||
+		binding.freeze.Profile.SignerNamespaceSHA256 != binding.expectedSignerNamespaceSHA256 ||
+		plan.Schema == PlanV3Schema && !validExecutionHexSHA256(binding.expectedSignerNamespaceSHA256) ||
+		plan.Schema != PlanV3Schema && binding.expectedSignerNamespaceSHA256 != "" ||
 		binding.freezeSHA256 != freezeSHA256 || !validDigest(binding.freezeSHA256) {
 		return errors.New("T42.2 execution freeze binding is invalid")
 	}
@@ -1227,6 +1253,7 @@ func ValidateReceipt(
 	if receipt.Seal != (ReceiptSeal{
 		PolicySchema:                         plan.SealPolicy.Schema,
 		SignerFingerprint:                    binding.expectedSignerFingerprint,
+		SignerNamespaceSHA256:                binding.expectedSignerNamespaceSHA256,
 		FreezeSignatureNamespace:             plan.SealPolicy.FreezeSignatureNamespace,
 		SourceVerificationSignatureNamespace: plan.SealPolicy.SourceVerificationSignatureNamespace,
 		ReturnedSignatureNamespace:           plan.SealPolicy.ReturnedSignatureNamespace,

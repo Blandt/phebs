@@ -429,6 +429,23 @@ unchanged. This plan is orchestration, not evidence that any later gate passed.
   integration must bind the required signer namespace and parent image before
   it may claim a live candidate or sealed handoff.
 
+  **2026-09-13 — T42.2lm held signer-namespace prerequisite.** V3 now spends
+  one pre-work binding attempt to open the selected canonical signer root as a
+  close-on-exec, no-follow directory, retain its descriptor, and require the
+  current effective uid and exact full `S_IFDIR|0700` mode. Its bounded
+  canonical path/device/inode/mode preimage yields the lowercase 64-hex
+  `signer_namespace_sha256`; profile issue rechecks the held path and inode,
+  and the private candidate assembler accepts only the corresponding live
+  binding. V3 profile, freeze and receipt seal carry that digest, and the
+  private freeze-admission event binds it before operational work. Public
+  freeze/decode/receipt-binding signatures and V1/V2 bytes remain unchanged.
+  One binding retains one directory FD and token; each check performs one path
+  and descriptor stat, canonical-path comparison and two descriptor-flag
+  reads, followed by one at-most-8-KiB canonical encode/hash. It adds no child,
+  request, store, retry, polling or steady-state work. This prerequisite does
+  not create claims, keys, signatures, a socket, checkout authority, ordinal
+  or AuthorA transition; those remain in the owning live-handoff slice.
+
   Independently select and hold one unique external Ed25519 private key,
   canonical public key, reviewed `SHA256:` fingerprint and exact single-line
   allowlist `phebs-t422-ceremony <canonical-public-key>\n`. None is authorized
@@ -1090,9 +1107,11 @@ These replace any one-predicate/three-total-hash shorthand below.
   one accepted-descriptor `CloseOnExec` plus listener/connection `F_GETFD`
   checks; one `SO_TYPE`/`Getpeername`/`LOCAL_PEERPID`/`LOCAL_PEERCRED` check set; one
   parent sync; and short close-state locking for
-  main/cancel ownership. Signer namespace binding adds four at-most-8-KiB
-  canonical preimage encodes/SHA-256 passes at signer, profile, post-auth and
-  receipt-binding boundaries, plus one fixed digest field in each claim,
+  main/cancel ownership. Signer namespace binding adds six at-most-8-KiB
+  canonical preimage encodes/SHA-256 passes: initial hold, profile precheck,
+  profile post-recheck, signer, post-auth and receipt binding. The current
+  prerequisite implements the initial, two profile and receipt passes; the
+  owning live-handoff slice adds signer and post-auth. It also adds one fixed digest field in each claim,
   signed V3 freeze/profile and receipt and existing root path/stat rechecks; it
   performs no cross-root scan. Signer custody adds one umask-077 set and restore,
   two same-root hidden-temp absence checks, two staged-key file syncs and one
