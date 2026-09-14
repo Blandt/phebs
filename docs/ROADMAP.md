@@ -64,6 +64,22 @@ sequence.
 
 ## Now
 
+**T42.2 reviewed checkpoint integration, 2026-09-13:** Ben explicitly
+requested merging the reviewed component stack before the remaining acceptance
+gates finish. Corrected source `3e570c31` has no remaining independent-review
+findings; focused normal/race, static, scoped Linux lint, T40.13 race and the
+tiny native pressure-refusal regression with cleanup pass. Resumed command,
+internal and routine race results retain their actual source attribution.
+Historical fixture failures are repaired without rewriting retained evidence.
+The active native signer/package normal pair will finish in its detached
+checkout; stale-handoff and eight unstarted race groups remain deferred. Full
+T42.2l/m/n acceptance stays open: the launcher still stops after AuthorA, and
+native metric ownership, complete receipts, package delivery, ordinary output
+support and real launcher rehearsals remain required. This checkpoint merge
+does not authorize sealing, freeze or ceremony execution. The owning
+[backlog record](./BACKLOG.md) preserves completed and pending gates; the
+break-era record below remains historical.
+
 **T42.2l/m checkpoints and T42.2n review candidate, 2026-09-13:** the current topic contains
 executor/launcher component work beyond the older status rows below, but full
 acceptance remains open. Review rejected the unobserved caller counters,

@@ -4607,6 +4607,44 @@ caller counters, independent pressure/archive observations, complete success
 and stopped receipt composition, package delivery and real T42.2l/m readiness
 still precede T42.2n closure and T42.2o integration/seal/exact-main freeze.
 
+**T42.2n reviewed checkpoint integration (2026-09-13).** Ben explicitly
+requested merging the reviewed component checkpoint now, before the remaining
+acceptance gates complete. This is checkpoint integration, not T42.2l/m/n/o
+closure. The break-era records above retain their original attribution.
+
+Corrected source `3e570c31e4f4051ebe38df887d8041b21619bb3e` incorporates
+independent review of the previously unreviewed applied stack and fixes all five
+medium and three low findings. Correction re-review reports no remaining
+findings. Changes cover cancellation after authorization connect, bounded
+authorization output, pressure-refusal completion, detached recovery workspace
+observations, guarded reference-build scratch custody, duplicate signer checks
+and admission-cost records. Authorization output currently requires an already
+nonblocking pipe/socket; ordinary shell/terminal/regular-file output remains
+unsupported. Historical T21.1/T30.6m/T32.4 fixture repairs preserve retained
+evidence bytes while separating historical from current contracts.
+
+Completed resumed checks include command normal/race (698.184s/1160.495s),
+the remaining internal race tail (1351.947s), the 596-name routine race group
+(420.544s), and historical-fixture normal/race (34.968s/44.791s), with their
+original exact source and exercised-input proofs retained. At `3e570c31`,
+focused normal/race (9.965s/23.726s), native tiny pressure-refusal normal/race
+(16.301s/8.529s), full static (68.348s), scoped Linux lint (10.328s), and
+T40.13 race (185.260s) passed. The pressure fixture's actual volume/inode and
+cleanup checks passed; its run/recorder prerequisites are explicitly modeled.
+Opt-in skips, no-test results and interrupted commands remain distinguished
+from passes. Retained V1/V2 plan bytes are unchanged.
+
+At this integration checkpoint the corrected native signer/returned-package
+normal pair is still running in its immutable detached checkout. It will join
+normally; unstarted stale-handoff normal/race and eight broad race groups are
+deferred and remain required. No complete exact-tree acceptance or readiness
+result is claimed. Native caller counters, independent pressure/archive
+observations, complete phase-one/teardown/disk metric ownership, successful and
+stopped receipt composition, bounded outer package delivery, and real healthy
+and failure launcher rehearsals remain next. The post-AuthorA
+`errExecutionAuthorityPending` boundary remains. T42.2n acceptance and T42.2o
+seal/exact-main freeze stay open; this integration authorizes no ceremony.
+
 **T42.2l measurement track — phase-bound attempt reports (2026-09-07).**
 Replace selected job/chunk report writes with genuine producer/input/phase-bound
 envelopes, preserving ordinary/T40 behavior. Consume only joined native output,

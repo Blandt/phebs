@@ -3259,6 +3259,16 @@ in [docs/ROADMAP.md](./docs/ROADMAP.md).
   exact refusal with real volume/inode custody. Its compile-only or skipped
   result is not a native pass or complete pressure/readiness evidence.
 
+- **2026-09-13 — T42.2 reviewed checkpoint integration scope.** Ben explicitly
+  requests immediate integration of the reviewed component stack while full
+  acceptance remains open. Preserve the pending-authority stop, outstanding
+  native metric/receipt/transport work, unstarted regression gates and exact
+  attribution of completed or interrupted checks. The already-running native
+  signer/package check finishes in its immutable detached checkout; it is not
+  a prerequisite claimed complete by this integration. This changes no runtime
+  behavior, resource ceiling, retained V1/V2 byte, acceptance result or ceremony
+  authority. T42.2n closure and T42.2o seal/exact-main freeze remain separate.
+
 - **2026-09-13 — T42.2n cancellable authorization-output boundary.** Before
   starting inner preparation, require inherited stdout to be an already
   nonblocking FIFO or socket with working runtime write deadlines. Observe it
