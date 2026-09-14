@@ -13462,6 +13462,14 @@ thirteen groups retain sixty minutes. The failed run stays failed; corrected
 normal/race and independent review remain required. No production, admission,
 fixture-constructor or ceremony deadline changes.
 
+**T42.2o author-command prerequisite:** the plan-author command adds explicit
+`-schema v3`, backed by the same corrected V3 constructor used by the launcher
+and the existing exact-clean, canonical, private create-only writer. Default
+and explicit `v2` preserve the historical path; unknown selections refuse.
+Focused author validation and independent review precede use. Canonical V3
+authoring/sealing still waits for complete T42.2n acceptance; this option does
+not issue the separate live signed execution freeze.
+
 **T42.3 · Scale posture decision and neutral product closure** — independently
 review the T42.2 receipt, replay representative All code → service →
 relationship → Workbench → proof → MCP flows, and record one decision:

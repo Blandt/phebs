@@ -3561,3 +3561,22 @@ in [docs/ROADMAP.md](./docs/ROADMAP.md).
   retry, publication, locks, caches, memory/disk ceilings and child counts do
   not change. Successful execution and exact inventory reconciliation remain
   required; an allowance is not evidence that the group fits it.
+
+- **2026-09-14 — T42.2o explicit canonical V3 plan author.**
+  Add an explicit `-schema v3` selection to the existing plan-author command;
+  its default and `v2` selection retain the historical `Author`/`BuildPlan`
+  path. `AuthorV3` uses `BuildPlanV3WithLogicalStoreWork`, matching the live
+  launcher's corrected plan, through the existing exact-clean checkout check,
+  canonical encoding and private create-only `sealPlan` writer. Reject unknown
+  selections before authoring. No second artifact writer or corpus-author
+  mode is introduced. This is implementation for the later acceptance-gated
+  author step; no canonical V3 artifact or live freeze is issued by this change.
+
+  Authoring retains the existing three Git checkout/index/status commands and
+  their repository-sized captured output, one complete uncached selected plan
+  construction, canonical bytes, temporary-file write/sync, create-only hard
+  link and directory sync. The V3 constructor retains its existing full
+  generator cost and contextless cancellation limitation. No operational
+  corpus, database or server is created, and ordinary query, sync, startup,
+  retry, publication, locks and caches are unchanged. The private plan-file
+  seal is distinct from the later authenticated live freeze signature.

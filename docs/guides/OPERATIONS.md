@@ -7506,6 +7506,19 @@ Every report must be zero, every parsing phase needs one, and a sixth report in
 one phase refuses. This does not mean all source languages are supported, and
 the record is not a phase metric or freeze authorization by itself.
 
+### T42.2 canonical V3 plan authoring
+
+After complete implementation acceptance, select `-schema v3` on
+`go run ./spike/t421/cmd/author` with the existing `-repository-root`, exact
+`-source-commit` and new `-out` path arguments. The command requires a clean
+checkout, builds the launcher's corrected V3 plan and creates a private file
+without replacing an existing artifact. Omitting `-schema`, or selecting
+`v2`, retains the historical V2 author; other values refuse.
+
+This create-only plan seal is separate from the live execution freeze and its
+signature. Preserve retained V1/V2 artifacts. The author option alone supplies
+no host/tool admission, execution authorization or readiness result.
+
 ### T42.2 returned launcher output
 
 The admitted launcher emits its canonical authorization line first. After

@@ -17,6 +17,17 @@ type PlanIdentity struct {
 
 // Author builds and atomically links one create-only frozen plan.
 func Author(ctx context.Context, destination, repositoryRoot, sourceCommit string) (PlanIdentity, error) {
+	return authorPlan(ctx, destination, repositoryRoot, sourceCommit, BuildPlan)
+}
+
+// AuthorV3 writes the corrected prospective V3 plan through the same exact-clean
+// and create-only authoring boundary. It does not sign an execution freeze,
+// create private admission, or authorize corpus execution. Author retains V2.
+func AuthorV3(ctx context.Context, destination, repositoryRoot, sourceCommit string) (PlanIdentity, error) {
+	return authorPlan(ctx, destination, repositoryRoot, sourceCommit, BuildPlanV3WithLogicalStoreWork)
+}
+
+func authorPlan(ctx context.Context, destination, repositoryRoot, sourceCommit string, build func(string) (Plan, error)) (PlanIdentity, error) {
 	commit, err := t4110.VerifyCleanCommit(ctx, repositoryRoot)
 	if err != nil {
 		return PlanIdentity{}, err
@@ -24,7 +35,7 @@ func Author(ctx context.Context, destination, repositoryRoot, sourceCommit strin
 	if commit != sourceCommit {
 		return PlanIdentity{}, errors.New("T42.1 source commit differs from exact clean HEAD")
 	}
-	plan, err := BuildPlan(sourceCommit)
+	plan, err := build(sourceCommit)
 	if err != nil {
 		return PlanIdentity{}, err
 	}

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 
@@ -12,23 +13,56 @@ import (
 )
 
 func main() {
-	var destination, repositoryRoot, sourceCommit string
-	flag.StringVar(&destination, "out", "", "new source-free plan path (must not exist)")
-	flag.StringVar(&repositoryRoot, "repository-root", ".", "exact clean Phebs checkout")
-	flag.StringVar(&sourceCommit, "source-commit", "", "exact clean implementation commit")
-	flag.Parse()
-	if destination == "" || sourceCommit == "" || flag.NArg() != 0 {
-		fail(errors.New("-out and -source-commit are required; positional arguments are not accepted"))
+	options, err := parseAuthorOptions(os.Args[1:], os.Stderr)
+	if errors.Is(err, flag.ErrHelp) {
+		return
 	}
-	repositoryRoot, err := filepath.Abs(repositoryRoot)
 	if err != nil {
 		fail(err)
 	}
-	identity, err := t421.Author(context.Background(), destination, repositoryRoot, sourceCommit)
+	identity, err := options.author(context.Background(), options.destination, options.repositoryRoot, options.sourceCommit)
 	if err != nil {
 		fail(err)
 	}
 	fmt.Printf("T42.1 source-free plan: bytes=%d sha256=%s\n", identity.Bytes, identity.SHA256)
+}
+
+type authorOptions struct {
+	destination, repositoryRoot, sourceCommit string
+	author                                    func(context.Context, string, string, string) (t421.PlanIdentity, error)
+}
+
+// Schema selection is closed before invoking either genuine author. The
+// historical invocation remains V2; V3 must be selected explicitly.
+func parseAuthorOptions(args []string, output io.Writer) (authorOptions, error) {
+	var options authorOptions
+	var schema string
+	flags := flag.NewFlagSet("t421-author", flag.ContinueOnError)
+	flags.SetOutput(output)
+	flags.StringVar(&options.destination, "out", "", "new source-free plan path (must not exist)")
+	flags.StringVar(&options.repositoryRoot, "repository-root", ".", "exact clean Phebs checkout")
+	flags.StringVar(&options.sourceCommit, "source-commit", "", "exact clean implementation commit")
+	flags.StringVar(&schema, "schema", "v2", "plan schema: v2 (historical default) or v3 (corrected prospective contract)")
+	if err := flags.Parse(args); err != nil {
+		return authorOptions{}, err
+	}
+	if options.destination == "" || options.sourceCommit == "" || flags.NArg() != 0 {
+		return authorOptions{}, errors.New("-out and -source-commit are required; positional arguments are not accepted")
+	}
+	switch schema {
+	case "v2":
+		options.author = t421.Author
+	case "v3":
+		options.author = t421.AuthorV3
+	default:
+		return authorOptions{}, errors.New("-schema must be v2 or v3")
+	}
+	root, err := filepath.Abs(options.repositoryRoot)
+	if err != nil {
+		return authorOptions{}, err
+	}
+	options.repositoryRoot = root
+	return options, nil
 }
 
 func fail(err error) {

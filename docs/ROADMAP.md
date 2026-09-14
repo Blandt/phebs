@@ -107,6 +107,11 @@ deadline diagnostics and allows ten minutes per helper invocation, with a
 native deadlines remain unchanged. Corrected passage is still required before
 V3 admission/sealing.
 
+The plan-author prerequisite adds an explicit V3 selection through the existing
+private create-only writer, retaining the V2 default. The later canonical plan
+seal and authenticated live execution freeze remain separate gated operations;
+neither has been performed.
+
 **T42.2 reviewed checkpoint integration, 2026-09-13:** Ben explicitly
 requested merging the reviewed component stack before the remaining acceptance
 gates finish. Corrected source `3e570c31` has no remaining independent-review
