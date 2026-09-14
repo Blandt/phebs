@@ -26,14 +26,18 @@ func TestServiceCatalogV3LifecycleResumesSharedMemberDrain(t *testing.T) {
 	}
 	generations := lifecycleSharedCatalogGenerations(t, repository)
 	sort.Slice(generations, func(i, j int) bool { return generations[i].Root.Digest > generations[j].Root.Digest })
-	for _, generation := range generations {
+	for index, generation := range generations {
 		if err := s.SetRepoIndexed(ctx, repository, generation.Root.Binding.Source.Commit, time.Now().UTC()); err != nil {
 			t.Fatal(err)
 		}
 		if err := s.PublishServiceCatalogV3Candidate(ctx, generation); err != nil {
 			t.Fatal(err)
 		}
-		time.Sleep(time.Millisecond)
+		if index == 0 {
+			// Stored timestamps have second precision. Only the first root
+			// must be strictly older; digest ties among the retained roots are fine.
+			time.Sleep(time.Second)
+		}
 	}
 	oldest := generations[0].Root
 	retired, err := s.SweepServiceCatalogV3Lifecycle(ctx, "", 11, 16, store.ServiceCatalogV3Retained)

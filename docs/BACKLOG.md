@@ -13396,6 +13396,31 @@ already implemented verified pre-admission abort; no behavior changes. The
 ongoing sixteen internal normal/race suites exclude both changed spike packages
 from their complete test dependency graphs, preserving their source attribution.
 
+**T42.2n complete-store fixture correction, 2026-09-14:** fifteen affected
+internal normal packages passed. The complete store command finished in
+1,040.354 seconds with 2,179 passing cases and one failed shared-member cursor
+fixture. The relevant fixture and production timestamp/retention code are
+unchanged from `ccff51c6`; five focused repetitions reproduced three failures
+and two passes. Stored timestamps have second precision, so the fixture's
+one-millisecond publication gaps did not establish its required oldest root.
+One second after the first publication preserves the intended exact cursor
+regression without changing production retention. Ten corrected normal
+repetitions pass in 96.535 seconds. Five repetitions of the separate existing
+V2 rollback-retention test pass in 3.764 seconds.
+
+The selected five-repetition race command proved two completed cases, each
+about 83 seconds; its five-minute outer allowance could not fit all five. The
+lead interrupted that command and its exact in-memory database child before
+the package alarm; no process survives. It is not a completed race gate.
+Complete corrected store normal/race, the remaining race matrix, native
+readiness and final exact-source acceptance remain pending. Future package
+allowances must cover the selected test count; native and fixture limits are
+unchanged.
+The full pinned static gate passes after two test-only promoted-method selector
+cleanups: repository-wide vet, lint with zero issues and all-package
+compilation. Independent review of the six-file correction has no remaining
+finding. Documentation, glossary and whitespace checks pass.
+
 **T42.3 · Scale posture decision and neutral product closure** — independently
 review the T42.2 receipt, replay representative All code → service →
 relationship → Workbench → proof → MCP flows, and record one decision:

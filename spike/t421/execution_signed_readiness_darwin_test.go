@@ -298,7 +298,7 @@ func TestExecutionSignedLauncherOptionalReadiness(t *testing.T) {
 	} else {
 		var exit *exec.ExitError
 		if !executionSignedReadinessTimelyRefusal(ctx.Err(), finishedAt, time.Unix(0, frame.value.FinalAdmissionDeadlineUnixNano)) ||
-			!errors.As(waitErr, &exit) || waitErr != exit || exit.ProcessState == nil || !exit.ProcessState.Exited() || exit.ExitCode() != 1 || returned.err == nil || len(returned.raw) != 0 {
+			!errors.As(waitErr, &exit) || waitErr != exit || exit.ProcessState == nil || !exit.Exited() || exit.ExitCode() != 1 || returned.err == nil || len(returned.raw) != 0 {
 			t.Fatal("expected timely ordinary exit status 1 without operational receipt; timeout/signal is unavailable evidence", waitErr, returned.err, ctx.Err())
 		}
 		t.Logf("real signed-wait refusal %s: timely ordinary native status 1, no operational package; not an executed stopped-receipt test", mode)

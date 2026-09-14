@@ -120,7 +120,7 @@ func executionSignedReadinessOrphan(t *testing.T, ctx context.Context, root stri
 	finished := time.Now()
 	waitDeadline, bounded := waitCtx.Deadline()
 	exit, ordinaryExit := waitErr.(*exec.ExitError)
-	observation.OuterFailed = ordinaryExit && exit.ProcessState != nil && exit.ProcessState.Exited() &&
+	observation.OuterFailed = ordinaryExit && exit.ProcessState != nil && exit.Exited() &&
 		exit.ExitCode() == 1 && bounded && finished.Before(waitDeadline) && ctx.Err() == nil && waitCtx.Err() == nil
 	select {
 	case <-captured:

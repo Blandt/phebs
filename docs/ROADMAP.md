@@ -82,6 +82,13 @@ race checks pass. Actual native results and final exact-source review remain
 required; a selected failure can pass its refusal test while retaining clearly
 identified custody, and cannot establish a healthy launcher or ceremony pass.
 
+The complete store gate exposed a timestamp-ordering assumption in its shared-
+member cursor fixture. The correction separates its required oldest root by
+the store's one-second precision and passes ten normal repetitions; production
+retention is unchanged. Full corrected store normal/race and the remaining
+acceptance matrix are still required. Fifteen other affected internal normal
+packages have passed.
+
 **T42.2 reviewed checkpoint integration, 2026-09-13:** Ben explicitly
 requested merging the reviewed component stack before the remaining acceptance
 gates finish. Corrected source `3e570c31` has no remaining independent-review

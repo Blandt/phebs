@@ -3508,3 +3508,14 @@ in [docs/ROADMAP.md](./docs/ROADMAP.md).
   ownership for later disposition. No production path, admission cap or retained
   V1/V2 byte changes. The volume removal comment now includes the already
   implemented verified pre-admission abort owner.
+
+- **2026-09-14 — T42.2n shared-member cursor fixture timing.**
+  The real V3 cursor fixture required the first, highest-digest root to be
+  strictly oldest, but separated publications by only one millisecond while
+  the pinned store codec truncates timestamps to seconds. The legitimate
+  digest tie-breaker could therefore retain that first root. Wait one second
+  only after its publication; the later three roots may share a timestamp.
+  Preserve the exact predecessor, shared-member progression and candidate/two-
+  prior retention assertions. This adds about 996 milliseconds per fixture run
+  in place of four one-millisecond waits, with no production work, schema,
+  retention rule, clock abstraction or admission-limit change.
