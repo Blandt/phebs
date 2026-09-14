@@ -7529,3 +7529,14 @@ workspace when the existing custody checks refuse removal. Preserve that
 receipt and custody for review; do not force detach, replace a failed outcome
 with a passed one, or automatically retry. No completed native launcher
 readiness, ceremony or freeze is implied by the presence of this implementation.
+
+The `1539d96f` optional epoch rehearsal failed after 4,876.67 seconds in stale
+lease recovery: the recovery itself completed, but phase seven exhausted its
+1,000 accepted store transactions before tail readiness. Cleanup also required
+forced session removal and retained its mounted image. Keep the private log and
+image together for disposition review; a quiet process list does not make that
+teardown successful. The current source correction preserves shutdown signal
+handling through command and accounting closure and checks current downstream
+publications before queuing redundant jobs. It does not supply a rehearsal pass.
+Before a new attempt, review retained custody and remeasure the unchanged
+120-GiB host-free-space prerequisite; never rerun against the failed workspace.

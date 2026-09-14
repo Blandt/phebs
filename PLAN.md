@@ -3374,3 +3374,64 @@ in [docs/ROADMAP.md](./docs/ROADMAP.md).
   duration; no numerical cap, admission rule, retained V1/V2 byte, release or
   scale claim changes. Full exact-tree and real launcher readiness remain gates,
   not consequences of connecting the assembler.
+
+- **2026-09-14 — T42.2n stale-reuse downstream and shutdown correction.**
+  The exact `1539d96f` native epoch rehearsal passed cold, warm, physical B,
+  logical B and return A, then exhausted phase seven's 1,000 accepted store
+  transactions. Its selected stale lease recovered, but the subsequent tail
+  readiness read refused; the test failed after 4,876.67 seconds. All 56 reused
+  partition settlements still notified resolver/caller queues. Preserve those
+  native publication calls and their frozen bounds. At the partition-settlement
+  and resolver-publication notification edges, reconcile an already authenticated
+  cached downstream publication directly only after fresh native authority and
+  stable-artifact checks. Preserve all existing downstream callbacks. Missing,
+  changed or unavailable authority, callback errors and forced requests keep
+  queued work; errors remain visible. No new cache, schema, corpus scan or cold
+  pair-array hash is introduced. Cold startup/restart still uses queued recovery.
+
+  Work cancellation previously also unregistered SIGTERM before local database
+  cleanup, allowing the parent stop signal to terminate the server mid-close.
+  For serve/backup/restore, own the signal subscription in the outer command
+  entry point through both
+  command cleanup and the admitted accounting lifetime close; use a separate
+  cancelable work context. Preserve actual forced-stop failure classification,
+  terminal accounting and all existing shutdown deadlines. This adds only bounded
+  context state and extends the existing subscription's lifetime, with no helper
+  process. The failed run's mounted image and diagnostics remain retained; forced
+  process removal is not clean teardown. No ceremony, full launcher, later phase
+  or admission pass follows from the fix. Numerical limits and V1/V2 remain exact.
+
+  Steady-state cost: each successful resolver guard performs four bounded store
+  reads plus one per enabled declaration adapter (at most sixteen), and an extra
+  legacy-outcome read for each absent partitioned domain. It reconstructs the
+  complete current declaration identity using existing bounded plan/root controls,
+  checks the candidate marker and makes two cached-artifact metadata passes, with
+  no transaction. This complete set comparison includes domains omitted from a
+  previously empty/subset publication; old pointer domains alone are insufficient.
+  Each successful caller guard performs five bounded store reads plus one per
+  configured adapter, the existing observation pointer/root/pointer reads (root
+  capped at one MiB), canonical domain-control decoding and two cached-artifact
+  metadata checks. These are full bounded fingerprint inventories: up to 256
+  resolver members or 16,384 caller leaves per pass. The 112 caller guards can
+  perform 224 such leaf-inventory passes. Its existing warm authority fence is
+  one explicit zero-row
+  BEGIN/COMMIT and still counts as one transaction. Both caller notification
+  edges remain: 56 stable settlements can execute 112 such transactions. Existing
+  resolver callbacks still perform selector advancement under the shared mutation
+  lock and controller mutex; legacy relationship reconciliation retains its
+  existing locks and bounded work. These callback costs are not included in the
+  guard-only subtotal. For configured V3, each selector advancement rereads and
+  rebuilds the selected catalog under its existing 32-MiB cap even when current;
+  56 stable resolver notifications can repeat that bounded catalog work 56 times
+  under the shared mutation and controller locks. Cache mutexes protect only
+  existing short snapshots; none is held across callbacks. Partition handlers now await those callbacks directly,
+  under their existing handler concurrency, before completion. Assembly retains
+  one of the existing 64 runtime shard mutexes across publication and settlement;
+  that hold now includes the guards and selector/relationship callbacks. The
+  exclusive publication fence is released before settlement as before. Missing
+  or changed
+  caches add bounded failed checks before ordinary enqueue/claim/handle/complete
+  work; forced requests bypass the guard. No production query or periodic sync
+  path changes, no full corpus/shard hashing, new invalidation state, persistent
+  allocation, disk artifact or child process is added. Restart has no populated
+  cache to skip ordinary recovery. Actual whole-phase work fit remains unproved.

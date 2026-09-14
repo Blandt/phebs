@@ -13321,6 +13321,36 @@ user-global build cache was removed. The resulting host observation was
 122 GiB available. Cache contents can be regenerated; admission must remeasure
 the unchanged 120-GiB prerequisite, and this observation is not host freeze.
 
+**T42.2n 2026-09-14 native rehearsal correction:** exact source `1539d96f`
+passed the native cold/warm/physical/logical/return-A boundaries, then stopped in
+phase seven at exactly 1,000 accepted store transactions. Stale-lease recovery
+succeeded, but the tail readiness request refused. The 4,876.67-second test also
+failed cleanup: signal handling ended before database/accounting closure, and
+the parent ultimately forced remaining session removal. Its image and diagnostic
+prefix remain retained. This is neither a full phase-seven pass nor clean
+teardown; pressure/archive/restored/query phases and signed launcher acceptance
+remain unproved. The correction preserves 56 native reuse publications, avoids
+redundant downstream jobs only through existing cold-authenticated caches plus
+fresh authority, preserves callbacks/retry, and holds signal handling through
+the outer accounting close. Focused checks and independent review are required;
+no transaction, time, disk or other admission bound is raised.
+Corrected-source focused normal and race regressions pass for both worker
+shortcuts, callback routing, and real-signal cleanup/ordinary-version behavior.
+The complete resolver and caller worker race packages also pass (23.990s and
+5.670s respectively).
+Repository-wide vet, pinned lint (zero issues), compilation, docs and glossary
+checks pass. Independent review closed the omitted-declaration, outer-close
+signal lifetime, non-work-command interception and cost-record findings; final
+scoped review has no remaining finding. Native whole-phase fit remains open.
+A broader three-package normal run begun before the final review corrections
+passed resolver/caller (10.410s/9.710s) but hit its ten-minute outer package alarm
+in `TestT422WorkspaceCleanupNativeComposition` after 4m53s of that fixture.
+The fixture has its own ten-minute allowance; no timeout was raised and this
+run is not a full command-package pass. The alarm bypassed test cleanup; the
+sole identified orphaned fixture database was stopped, preserving its temporary
+root. Corrected-source focused normal/race, complete worker race and static
+gates above remain distinct from this incomplete broader gate.
+
 **T42.3 · Scale posture decision and neutral product closure** — independently
 review the T42.2 receipt, replay representative All code → service →
 relationship → Workbench → proof → MCP flows, and record one decision:

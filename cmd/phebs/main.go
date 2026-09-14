@@ -129,6 +129,28 @@ func partitionAuthorityForCandidate(ctx context.Context, indexRoot string, state
 	return authority.SourceGenerationDigest, authority.ObservationGenerationDigest, nil
 }
 
+// Reconcile an already authenticated current publication without creating another
+// job. Missing/stale authority and callback failures retain ordinary queued retry.
+func enqueueUnlessCurrent(
+	ctx context.Context,
+	kind store.JobKind,
+	repository string,
+	force bool,
+	current func(context.Context, string) (bool, error),
+	enqueue func(context.Context, store.JobKind, string, bool) (*store.Job, error),
+) (*store.Job, error) {
+	var currentErr error
+	if !force && current != nil {
+		var handled bool
+		handled, currentErr = current(ctx, repository)
+		if handled && currentErr == nil {
+			return nil, nil
+		}
+	}
+	job, enqueueErr := enqueue(ctx, kind, repository, force)
+	return job, errors.Join(currentErr, enqueueErr)
+}
+
 func afterResolverPublication(
 	ctx context.Context,
 	repository string,
@@ -271,12 +293,28 @@ func main() {
 	}
 }
 
+// Work cancellation must not restore default signal handling while owned
+// workers or the local database are still draining. Release the subscription
+// only after command cleanup and the outer admitted lifetime have returned.
+func commandSignalContext(parent context.Context) (context.Context, context.CancelFunc, context.CancelFunc) {
+	signals, stopSignals := signal.NotifyContext(parent, os.Interrupt, syscall.SIGTERM)
+	ctx, cancel := context.WithCancel(signals)
+	return ctx, cancel, stopSignals
+}
+
 // runPhebs returns through owned exact-mode cleanup before main can exit.
 // Ordinary invocations keep the absent-selector path with no producer state.
 func runPhebs(args []string) (code int, retErr error) {
 	lifetime, err := dispatchadmission.BootstrapProduction(context.Background())
 	if err != nil {
 		return 1, err
+	}
+	ctx := dispatchadmission.ProcessContext()
+	if len(args) > 0 && (args[0] == "serve" || args[0] == "backup" || args[0] == "restore") {
+		var cancel, stopSignals context.CancelFunc
+		ctx, cancel, stopSignals = commandSignalContext(ctx)
+		defer stopSignals()
+		defer cancel()
 	}
 	if lifetime != nil {
 		defer func() {
@@ -301,7 +339,7 @@ func runPhebs(args []string) (code int, retErr error) {
 	}
 	switch args[0] {
 	case "serve":
-		err = serve(args[1:])
+		err = serve(ctx, args[1:])
 		// The flag package already printed usage/diagnostics. Preserve its
 		// ordinary exit codes, but return through any admitted lifetime close.
 		if errors.Is(err, flag.ErrHelp) {
@@ -311,9 +349,9 @@ func runPhebs(args []string) (code int, retErr error) {
 			return 2, nil
 		}
 	case "backup":
-		err = backup(args[1:])
+		err = backup(ctx, args[1:])
 	case "restore":
-		err = restore(args[1:])
+		err = restore(ctx, args[1:])
 	case "version":
 		err = printVersion(args[1:], os.Stdout)
 	case t422RuntimeFactsCommand:
@@ -346,7 +384,7 @@ func printVersion(args []string, output io.Writer) error {
 	return nil
 }
 
-func backup(args []string) error {
+func backup(ctx context.Context, args []string) error {
 	flags := flag.NewFlagSet("backup", flag.ContinueOnError)
 	cfgPath := flags.String("config", "", "path to config file (defaults apply if omitted)")
 	output := flags.String("output", "", "new backup directory (must not exist)")
@@ -360,7 +398,7 @@ func backup(args []string) error {
 	if err != nil {
 		return err
 	}
-	ctx, cancel := signal.NotifyContext(dispatchadmission.ProcessContext(), os.Interrupt, syscall.SIGTERM)
+	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	ctx, err = bindT422ArchiveReports(ctx, cancel)
 	if err != nil {
@@ -382,7 +420,7 @@ func backup(args []string) error {
 	return nil
 }
 
-func restore(args []string) error {
+func restore(ctx context.Context, args []string) error {
 	flags := flag.NewFlagSet("restore", flag.ContinueOnError)
 	cfgPath := flags.String("config", "", "path to config file (defaults apply if omitted)")
 	backupPath := flags.String("backup", "", "backup directory to verify and import")
@@ -396,7 +434,7 @@ func restore(args []string) error {
 	if err != nil {
 		return err
 	}
-	ctx, cancel := signal.NotifyContext(dispatchadmission.ProcessContext(), os.Interrupt, syscall.SIGTERM)
+	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	ctx, err = bindT422ArchiveReports(ctx, cancel)
 	if err != nil {
@@ -558,7 +596,7 @@ func initializeCompatibilityForLaunch(ctx context.Context, semanticLaunch *t422S
 	return checker, nil
 }
 
-func serve(args []string) (retErr error) {
+func serve(ctx context.Context, args []string) (retErr error) {
 	flags := flag.NewFlagSet("serve", flag.ContinueOnError)
 	cfgPath := flags.String("config", "", "path to config file (defaults apply if omitted)")
 	addr := flags.String("addr", "", "listen address (overrides config)")
@@ -657,7 +695,7 @@ func serve(args []string) (retErr error) {
 		callerexecute.Root(cfg.Server.DataDir),
 	)
 
-	ctx, cancel := signal.NotifyContext(dispatchadmission.ProcessContext(), os.Interrupt, syscall.SIGTERM)
+	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	owners, err := dispatchadmission.NewProductionOwners(ctx, t422ServerOwnerLimits())
 	if err != nil {
@@ -1701,6 +1739,19 @@ func serve(args []string) (retErr error) {
 				},
 			)
 		}
+		// Assigned before runners start; both callbacks preserve downstream
+		// reconciliation while avoiding jobs for already-current publications.
+		var resolverCurrent, callerCurrent func(context.Context, string) (bool, error)
+		enqueueDownstream := func(enqueueCtx context.Context, kind store.JobKind, repository string, force bool) (*store.Job, error) {
+			var current func(context.Context, string) (bool, error)
+			switch kind {
+			case store.JobResolverCatalog:
+				current = resolverCurrent
+			case store.JobCallerLeaf:
+				current = callerCurrent
+			}
+			return enqueueUnlessCurrent(enqueueCtx, kind, repository, force, current, st.EnqueuePending)
+		}
 		partitionRuntime.OnSettled = func(
 			settledCtx context.Context,
 			repository string,
@@ -1713,7 +1764,7 @@ func serve(args []string) (retErr error) {
 				legacyRelationshipReconcileFor(
 					repository, cfg.ServiceCatalogs, reconcileRelationship,
 				),
-				st.EnqueuePending,
+				enqueueDownstream,
 				resolverRegistry.Enabled() && partitionsCurrent,
 				callerRegistry.Enabled() && partitionsCurrent &&
 					resolverPublicationPresent(cfg.Server.DataDir, repository),
@@ -1821,10 +1872,11 @@ func serve(args []string) (retErr error) {
 							repository, cfg.ServiceCatalogs, reconcileRelationship,
 						),
 						serviceRuntime.Advance,
-						st.EnqueuePending, callerRegistry.Enabled(),
+						enqueueDownstream, callerRegistry.Enabled(),
 					)
 				}
 			}
+			resolverCurrent = resolverWorker.ReconcileCurrent
 			resolverRunner = &store.Runner{
 				Store: st, Kind: store.JobResolverCatalog, Owners: owners,
 				Handle: func(jobCtx context.Context, job store.Job) error {
@@ -1856,6 +1908,7 @@ func serve(args []string) (retErr error) {
 					return reconcile(publishedCtx, repository)
 				}
 			}
+			callerCurrent = callerWorker.ReconcileCurrent
 			callerRunner = &store.Runner{
 				Store: st, Kind: store.JobCallerLeaf, Owners: owners,
 				Handle: func(jobCtx context.Context, job store.Job) error {

@@ -20,7 +20,7 @@ func TestT422ServeConfigArgvLoadsExactPath(t *testing.T) {
 	for _, spelling := range []string{"-config", "--config"} {
 		t.Run(spelling, func(t *testing.T) {
 			path := filepath.Join(t.TempDir(), "missing-config.yaml")
-			err := serve([]string{spelling, path})
+			err := serve(t.Context(), []string{spelling, path})
 			var pathErr *os.PathError
 			if errors.Is(err, errServeFlags) || !errors.Is(err, os.ErrNotExist) ||
 				!errors.As(err, &pathErr) || pathErr.Path != path {

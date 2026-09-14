@@ -199,7 +199,7 @@ func TestT421FinalAuthorityServerHelper(t *testing.T) {
 		}
 		return ctx.Err()
 	}
-	if err := serve([]string{"-config", configPath}); err != nil {
+	if _, err := runPhebs([]string{"serve", "-config", configPath}); err != nil {
 		t.Fatal(err)
 	}
 }

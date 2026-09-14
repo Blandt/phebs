@@ -583,6 +583,13 @@ outer signature/semantic validation. Required native archive and population
 observations replace the previously missing evidence. Focused gates and
 independent corrections are recorded in BACKLOG; complete exact-tree and real
 healthy/custody-failure launcher readiness remain open before T42.2o freeze.
+The exact `1539d96f` native rehearsal then stopped at phase seven's 1,000-store-
+transaction ceiling after successful selected stale-lease recovery; tail
+readiness and clean teardown failed. The current correction removes redundant
+current-publication queue work and preserves signal handling through final
+accounting cleanup. Retained custody, a new exact-source native pass and full
+signed launcher acceptance remain separate outstanding gates; bounds are unchanged.
+
 
 T42.2 implementation resumed from integrated V2 `9ac960c9` with T42.2a's
 fail-closed generation-chunk telemetry on `codex/t42.2a-exact-chunk-reports`.
