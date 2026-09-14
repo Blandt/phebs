@@ -3562,6 +3562,28 @@ in [docs/ROADMAP.md](./docs/ROADMAP.md).
   not change. Successful execution and exact inventory reconciliation remain
   required; an allowance is not evidence that the group fits it.
 
+- **2026-09-14 — T42.2n admission-fixture race continuation.**
+  Exact `3a40d415` race groups two through seven passed. Group eight then
+  reached its unchanged sixty-minute package alarm in the final V2 signature
+  refusal's synchronous frozen-plan rebuild; the command remains failed at
+  3,601.016 seconds. It emitted no race warning. Independent exact-source and
+  log review preserves only its four completed top-level passes: version
+  ordering, exact plan/commit identity, owned bindings and unclean-key refusal.
+  Partial boundary-drift subtests supply no top-level completion credit, and
+  the pressure-fixture test had not started. The queue joined with no matching
+  test, launcher or SurrealDB process remaining.
+
+  Run the whole two unfinished tests in a fresh race process, then the six
+  remaining unchanged inventory groups. Every command retains fail-fast,
+  count one and sixty minutes; immutable source/tool/log hashes and exact
+  terminal-name/skip reconciliation remain mandatory. The fresh continuation
+  repays twelve full plan constructions, six per retained version, because
+  it has no preceding process's fixture cache. Measured costs project roughly
+  twenty-seven minutes, not a guaranteed pass. This changes only test
+  orchestration: no source predicate, production work, lock, cache, child,
+  memory/disk ceiling, admission limit or native deadline changes. The original
+  failed command and the pending continuation remain distinct evidence.
+
 - **2026-09-14 — T42.2o explicit canonical V3 plan author.**
   Add an explicit `-schema v3` selection to the existing plan-author command;
   its default and `v2` selection retain the historical `Author`/`BuildPlan`

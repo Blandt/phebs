@@ -13462,6 +13462,19 @@ thirteen groups retain sixty minutes. The failed run stays failed; corrected
 normal/race and independent review remain required. No production, admission,
 fixture-constructor or ceremony deadline changes.
 
+Exact `3a40d415` subsequently passed race groups two through seven. Group eight
+hit its sixty-minute package alarm during the final V2 signature-refusal plan
+rebuild and remains failed at 3,601.016 seconds. Independent review preserves
+four completed top-level passes only; it credits no partial boundary-drift
+test, and the pressure-fixture test was unrun. No race warning or matching
+surviving test/launcher/SurrealDB process was observed. The reviewed continuation
+runs both unfinished tests whole in a fresh process, then unchanged groups
+nine through fourteen, retaining race detection, fail-fast, count one and
+sixty minutes per command. Its twelve fresh plan constructions add test-host
+work only. Successful terminals, explicit skip reconciliation, corrected V3
+group passage and all seven actual signed native readiness cases remain
+required. No production or admission bound changes.
+
 **T42.2o author-command prerequisite:** the plan-author command adds explicit
 `-schema v3`, backed by the same corrected V3 constructor used by the launcher
 and the existing exact-clean, canonical, private create-only writer. Default

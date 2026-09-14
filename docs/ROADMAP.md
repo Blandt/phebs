@@ -107,6 +107,14 @@ deadline diagnostics and allows ten minutes per helper invocation, with a
 native deadlines remain unchanged. Corrected passage is still required before
 V3 admission/sealing.
 
+Race groups two through seven subsequently passed at exact `3a40d415`. Group
+eight reached its unchanged one-hour package alarm during a synchronous plan
+rebuild. Its failed command is retained; independent review preserves only four
+completed top-level passes. The two unfinished tests are being run whole in a
+fresh process before unchanged groups nine through fourteen, all still bounded
+to one hour per command. Final inventory reconciliation and the corrected V3
+race group remain open alongside actual signed native readiness.
+
 The plan-author prerequisite adds an explicit V3 selection through the existing
 private create-only writer, retaining the V2 default. The later canonical plan
 seal and authenticated live execution freeze remain separate gated operations;
