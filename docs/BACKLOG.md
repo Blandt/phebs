@@ -4458,6 +4458,42 @@ owns the design and dependency order. Execution remains excluded.
   retained V1/V2 unchanged, exact invocation and custody/expiry handoff; no
   ceremony execution, Epic closure, release or scale claim.
 
+**T42.2n completion implementation (2026-09-13).** The launcher now connects
+real phase execution, observed success/stopped receipt assembly, the sole-use
+signed package builder, and independently verified framed delivery. The four
+composition gaps also required actual resolver/caller/RPC populations,
+independent six-family archive observations, whole-inner native/disk phase
+boundaries and admitted preflight bytes. No expected quantity substitutes for
+an observation. Author A now shares its true cold accounting phase. Stopped
+cleanup retains guarded-close refusals and actual custody; passed receipts must
+survive full outer semantic and signature validation. The owning PLAN ADR
+records ordinary and selected costs, including archive-map overhead.
+
+Independent OCR review corrected extra caller-record hashing, skipped session
+cleanup after non-native Wait errors, a hardcoded launcher basename, endpoint
+failures recorded after phase completion, parent byte samples masking missing
+child coverage, and lost preflight coverage after later stops. The corrected
+preflight adapter uses actual root checkpoint and store phase advancement;
+whole stopped snapshots remain incomplete. Current source/cost reviews report
+all severity counts zero across the nonarchive and independent archive scopes.
+Focused native output, cancellation, phase-boundary, observation and modeled
+stopped-receipt checks pass. Pinned static checks, all-package compilation,
+Linux build, module verification, documentation and glossary also pass. The 59
+selected race checks across ten packages pass; the spike cohort passed in
+816.751s under its one-hour allowance after an initial ten-minute package alarm
+while constructing modeled receipt fixture evidence, without an assertion
+failure. The three affected native projection packages also pass their complete normal/race suites,
+and retained-version checks pass. The real signed-package fixture passed in
+983.676s, including native outer delivery and rejection of a passed receipt
+paired with a failed process exit. Its prior delivery attempt exposed an obsolete
+handoff-only test capture ceiling; the corrected bounded collector drains the
+handoff plus maximum returned frame and closes its reader on completion. Final
+outer race checks passed in 30.973s, and independent review of that collector
+correction reports no findings. No owned test process remains. Full real-profile
+healthy/custody-failure launcher readiness and complete T42.2n acceptance remain
+required. This paragraph is an implementation record, not T42.2n acceptance,
+T42.2o freeze, ceremony execution or a scale result.
+
 **T42.2l/m reviewed component checkpoints (2026-09-13).** The current
 `codex/t42.2l-logical-measurement` stack continues from `adc0f887`; prior
 implementation subjects are not acceptance receipts. Ben requested review,

@@ -76,6 +76,10 @@ type executionEpochInspection struct {
 	tail                               epochTailReadiness
 	finalUsed                          bool
 	finalAuthority                     AuthorityPhaseResult
+	finalCatalogPopulation             *ExecutionCatalogPopulation
+	finalRPCPostings                   *ExecutionRPCPostingObservation
+	finalResolverCatalogCounts         *readaccounting.ResolverCatalogCounts
+	finalCallerPublication             *ExecutionCallerPublicationObservation
 	retentionUsed                      bool
 	selectorCleanupPhase               string
 	selectorCleanup                    epochSelectorCleanupObservation
@@ -367,6 +371,10 @@ func (reader *executionEpochInspection) readRequest(ctx context.Context, path st
 			return nil, response.StatusCode, response.Header.Get("Content-Type"), report, errEpochInspection
 		}
 		reader.reports, reader.totals = count, readaccounting.Counts{ControlFileReads: controls, StoreReadAttempts: stores, MemberVisits: members}
+		if err := reader.retainTransitionReads(path, report); err != nil {
+			stage = "transition_ledger_overflow"
+			return nil, response.StatusCode, response.Header.Get("Content-Type"), report, err
+		}
 	}
 	if readErr != nil || closeErr != nil || int64(len(raw)) > limit || ctx.Err() != nil || reportErr != nil || !validEpochQueryRepositories(report, repositories) ||
 		len(response.Header.Values(epochReadTrailer)) != 0 || len(response.Trailer) != 1 || response.Uncompressed || response.Header.Get("Content-Encoding") != "" ||
@@ -569,11 +577,15 @@ type epochFinalProjection struct {
 }
 
 type epochFinalResponse struct {
-	Schema          string                 `json:"schema"`
-	Authority       epochFinalAuthority    `json:"authority"`
-	Projection      epochFinalProjection   `json:"projection"`
-	ExtractionRoots []ExtractionRootResult `json:"extraction_roots"`
-	QueryAuthority  *epochQueryAuthority   `json:"query_authority,omitempty"`
+	CatalogPopulation     *ExecutionCatalogPopulation            `json:"catalog_population,omitempty"`
+	Schema                string                                 `json:"schema"`
+	Authority             epochFinalAuthority                    `json:"authority"`
+	Projection            epochFinalProjection                   `json:"projection"`
+	ExtractionRoots       []ExtractionRootResult                 `json:"extraction_roots"`
+	ResolverCatalogCounts *readaccounting.ResolverCatalogCounts  `json:"resolver_catalog_counts,omitempty"`
+	CallerPublication     *ExecutionCallerPublicationObservation `json:"caller_publication,omitempty"`
+	RPCPostings           *ExecutionRPCPostingObservation        `json:"rpc_postings,omitempty"`
+	QueryAuthority        *epochQueryAuthority                   `json:"query_authority,omitempty"`
 }
 
 type epochQueryAuthority struct {
@@ -647,7 +659,7 @@ func (reader *executionEpochInspection) Final(ctx context.Context) (authority Au
 	if err == nil {
 		reader.finalAuthority = cloneExecutionAuthorityResult(authority)
 		row := &reader.evidence.rows[len(reader.evidence.rows)-1]
-		row.Final = cloneInspectionFinal(ExecutionInspectionFinal{Ordinal: report.RequestOrdinal, Authority: authority.AuthorityState, Projection: projection})
+		row.Final = cloneInspectionFinal(ExecutionInspectionFinal{Ordinal: report.RequestOrdinal, Authority: authority.AuthorityState, Projection: projection, CatalogPopulation: reader.finalCatalogPopulation, RPCPostings: reader.finalRPCPostings, ResolverCatalogCounts: reader.finalResolverCatalogCounts, CallerPublication: reader.finalCallerPublication})
 	}
 	if err == nil && authority.Phase == "cold" {
 		reader.cold = authority
@@ -681,6 +693,29 @@ func (reader *executionEpochInspection) decodeFinal(raw []byte) (authority Autho
 	if len(raw) > epochFinalResponseBytes || decodeEpochJSON(raw, &value, true) != nil || value.Schema != "t421-final-authority-source-free-v1" || value.Projection.Schema != "t421-final-state-projection-source-free-v1" {
 		return authority, projection, errEpochInspection
 	}
+	if value.ResolverCatalogCounts != nil && (!validDigest(value.ResolverCatalogCounts.GenerationSHA256) || !validDigest(value.ResolverCatalogCounts.ManifestSHA256) ||
+		value.ResolverCatalogCounts.GenerationSHA256 != value.Authority.ResolverCatalogGenerationSHA256 || value.ResolverCatalogCounts.ManifestSHA256 != value.Authority.ResolverCatalogRootSHA256) {
+		return authority, projection, errEpochInspection
+	}
+	if value.CallerPublication != nil && (value.CallerPublication.GenerationSHA256 != value.Authority.CallerGenerationSHA256 ||
+		value.CallerPublication.ManifestSHA256 != value.Authority.CallerRootSHA256 || !value.CallerPublication.valid()) {
+		return authority, projection, errEpochInspection
+	}
+	if value.CatalogPopulation != nil && value.CatalogPopulation.AcceptedServices > value.Projection.Catalog.Records {
+		return authority, projection, errEpochInspection
+	}
+	if value.RPCPostings != nil && !value.RPCPostings.valid() {
+		return authority, projection, errEpochInspection
+	}
+	defer func() {
+		if retErr == nil {
+			reader.finalCatalogPopulation = value.CatalogPopulation
+			reader.finalRPCPostings = value.RPCPostings
+			reader.finalResolverCatalogCounts = value.ResolverCatalogCounts
+			reader.finalCallerPublication = value.CallerPublication
+		}
+	}()
+
 	// Convert only already-validated closed source-free fields; phase/revision
 	// provenance comes from the protected plan and the actual author response.
 	encoded, _ := json.Marshal(value.Authority)

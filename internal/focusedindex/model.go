@@ -4,6 +4,7 @@ package focusedindex
 
 import (
 	"bytes"
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -17,6 +18,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/bmeddeb/phebs/internal/analysisunit"
+	"github.com/bmeddeb/phebs/internal/archiveevidence"
 	"github.com/bmeddeb/phebs/internal/gitobj"
 	"github.com/bmeddeb/phebs/internal/store"
 )
@@ -269,6 +271,10 @@ func ReadResult(path string) (Result, error) {
 }
 
 func readControlFile(path string, destination any) error {
+	return readControlFileContext(context.Background(), path, destination)
+}
+
+func readControlFileContext(ctx context.Context, path string, destination any) error {
 	before, err := os.Lstat(path)
 	if err != nil || !before.Mode().IsRegular() ||
 		before.Size() < 0 || before.Size() > maxControlBytes {
@@ -300,7 +306,10 @@ func readControlFile(path string, destination any) error {
 		!sameControlFileIdentity(after, current) {
 		return errors.New("focused control file changed while reading")
 	}
-	return decodeJSONStrict(raw, destination)
+	if err := decodeJSONStrict(raw, destination); err != nil {
+		return err
+	}
+	return archiveevidence.ObserveRead(ctx, path, raw)
 }
 
 func sameControlFileIdentity(left, right os.FileInfo) bool {

@@ -112,7 +112,7 @@ func ReadWholeManifestContext(
 		return WholeManifest{}, err
 	}
 	var manifest WholeManifest
-	if err := readControlFile(
+	if err := readControlFileContext(ctx,
 		filepath.Join(indexDir, WholeManifestName(repository)), &manifest,
 	); err != nil {
 		return WholeManifest{}, err

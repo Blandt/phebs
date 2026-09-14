@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"hash"
 	"io"
 	"os"
 	"path"
@@ -16,6 +17,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/bmeddeb/phebs/internal/archiveevidence"
 	"github.com/bmeddeb/phebs/internal/callerleaf"
 	"github.com/bmeddeb/phebs/internal/callerpublicationid"
 	"github.com/bmeddeb/phebs/internal/custodybytes"
@@ -193,11 +195,17 @@ func scanArchive(
 		total += header.Size
 		if destination == nil {
 			entry := &io.LimitedReader{R: reader, N: header.Size}
+			var content io.Reader = entry
+			var entryHash hash.Hash
+			if archiveevidence.Capturing(ctx) != nil {
+				entryHash = sha256.New()
+				content = io.TeeReader(entry, entryHash)
+			}
 			var entryErr error
 			if visit == nil {
-				_, entryErr = io.Copy(io.Discard, entry)
+				_, entryErr = io.Copy(io.Discard, content)
 			} else {
-				entryErr = visit(header, entry)
+				entryErr = visit(header, content)
 			}
 			if entryErr != nil {
 				return nil, fmt.Errorf(
@@ -210,6 +218,13 @@ func scanArchive(
 					"read caller publication archive entry %q: truncated content",
 					header.Name,
 				)
+			}
+			if entryHash != nil {
+				var sum [32]byte
+				_ = entryHash.Sum(sum[:0])
+				if err := archiveevidence.Capturing(ctx).Add(header.Name, uint64(header.Size), sum); err != nil {
+					return nil, err
+				}
 			}
 		} else {
 			components := strings.Split(header.Name, "/")
@@ -403,6 +418,13 @@ func CreateArchiveWithReportContext(
 	ctx context.Context,
 	root, output string,
 ) (_ ArchiveReport, retErr error) {
+	inventory := archiveevidence.New(ctx, "caller-publication.tar", maxArchiveEntries)
+	ctx = inventory.CaptureContext(ctx)
+	defer func() {
+		if retErr == nil {
+			retErr = inventory.Emit(ctx, archiveevidence.Before)
+		}
+	}()
 	var report ArchiveReport
 	if ctx == nil {
 		return report, errors.New("caller publication archive context is required")
@@ -678,7 +700,7 @@ func appendStableTarFileAt(
 	}
 	reader := io.Reader(contextReader{ctx: ctx, reader: source})
 	var hash = sha256.New()
-	if sourceRef.expectedDigest != "" {
+	if sourceRef.expectedDigest != "" || archiveevidence.Capturing(ctx) != nil {
 		reader = io.TeeReader(reader, hash)
 	}
 	if _, err := io.CopyN(writer, reader, info.Size()); err != nil {
@@ -687,6 +709,13 @@ func appendStableTarFileAt(
 	if sourceRef.expectedDigest != "" && "sha256:"+
 		hex.EncodeToString(hash.Sum(nil)) != sourceRef.expectedDigest {
 		return nil, errors.New("caller publication archive source digest differs")
+	}
+	if inventory := archiveevidence.Capturing(ctx); inventory != nil {
+		var sum [32]byte
+		_ = hash.Sum(sum[:0])
+		if err := inventory.Add(name, uint64(info.Size()), sum); err != nil {
+			return nil, err
+		}
 	}
 	after, statErr := source.Stat()
 	current, lstatErr := authority.root.Lstat(ref.Name)
@@ -737,6 +766,12 @@ func RestoreArchive(archivePath, target string) error {
 // RestoreArchiveContext is the cancellable restore boundary. Cancellation can
 // stop both the streaming semantic preflight and final staged extraction.
 func RestoreArchiveContext(ctx context.Context, archivePath, target string) (retErr error) {
+	inventory := archiveevidence.New(ctx, "caller-publication.tar", maxArchiveEntries)
+	defer func() {
+		if retErr == nil {
+			retErr = inventory.Emit(ctx, archiveevidence.After)
+		}
+	}()
 	if ctx == nil {
 		return errors.New("caller publication restore context is required")
 	}
@@ -753,8 +788,11 @@ func RestoreArchiveContext(ctx context.Context, archivePath, target string) (ret
 		return err
 	}
 	defer func() { _ = source.Close() }()
-	preflight, _, err := verifyArchiveStream(ctx, source, archiveInfo.Size())
+	preflight, _, err := verifyArchiveStream(inventory.CaptureContext(ctx), source, archiveInfo.Size())
 	if err != nil {
+		return err
+	}
+	if err := inventory.Emit(ctx, archiveevidence.Archived); err != nil {
 		return err
 	}
 	if _, err := source.Seek(0, io.SeekStart); err != nil {
@@ -893,7 +931,11 @@ func RestoreArchiveContext(ctx context.Context, archivePath, target string) (ret
 	if err != nil || !sameDirectory(parentAuthority.info, currentParent) {
 		return errors.New("caller publication restore parent changed during installation")
 	}
-	if err := validateRestoredArchive(ctx, target, extracted); err != nil {
+	validationContext, err := inventory.VerificationContext(ctx, target)
+	if err != nil {
+		return err
+	}
+	if err := validateRestoredArchive(validationContext, target, extracted); err != nil {
 		return fmt.Errorf("validate installed caller publication archive: %w", err)
 	}
 	currentParent, err = os.Lstat(parentPath)

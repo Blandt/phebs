@@ -744,7 +744,7 @@ func recoverMarkerV3(
 	if err := validateDirectory(base); err != nil {
 		return false, err
 	}
-	raw, err := readRegular(filepath.Join(base, "publishing.json"), MaxRootBytesV3)
+	raw, err := readRegularContext(ctx, filepath.Join(base, "publishing.json"), MaxRootBytesV3)
 	if errors.Is(err, os.ErrNotExist) {
 		if selected != nil {
 			return false, fmt.Errorf("%w: selected relationship v3 marker absent", ErrInvalid)
@@ -870,7 +870,7 @@ func ReadPointerV3(ctx context.Context, root, repository string) (PointerV3, err
 	if err := readaccounting.Charge(ctx, readaccounting.ControlFileRead, 1); err != nil {
 		return PointerV3{}, err
 	}
-	raw, err := readRegular(filepath.Join(base, "current.json"), MaxRootBytesV3)
+	raw, err := readRegularContext(ctx, filepath.Join(base, "current.json"), MaxRootBytesV3)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return PointerV3{}, ErrNotFound
@@ -930,7 +930,7 @@ func OpenGenerationV3(
 	if err := readaccounting.Charge(ctx, readaccounting.ControlFileRead, 1); err != nil {
 		return nil, err
 	}
-	raw, err := readRegular(filepath.Join(directory, "root.json"), MaxRootBytesV3)
+	raw, err := readRegularContext(ctx, filepath.Join(directory, "root.json"), MaxRootBytesV3)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return nil, ErrNotFound
@@ -1172,7 +1172,7 @@ func (publication *PublicationV3) confirmCurrent(ctx context.Context) error {
 	if err := readaccounting.Charge(ctx, readaccounting.ControlFileRead, 1); err != nil {
 		return err
 	}
-	raw, err := readRegular(filepath.Join(publication.base, "current.json"), MaxRootBytesV3)
+	raw, err := readRegularContext(ctx, filepath.Join(publication.base, "current.json"), MaxRootBytesV3)
 	if err != nil || !bytes.Equal(raw, publication.pointerRaw) {
 		return ErrPublishing
 	}
@@ -1208,7 +1208,7 @@ func openDirectoryCompleteIdentityV3(
 	if !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
 		return nil, fmt.Errorf("%w: v3 generation directory", ErrInvalid)
 	}
-	raw, err := readRegular(filepath.Join(directory, "root.json"), MaxRootBytesV3)
+	raw, err := readRegularContext(ctx, filepath.Join(directory, "root.json"), MaxRootBytesV3)
 	if err != nil {
 		if missingControlIsNotFound && errors.Is(err, os.ErrNotExist) {
 			return nil, ErrNotFound
@@ -1408,7 +1408,7 @@ func (publication *PublicationV3) openRepositoryMemberV3(
 	if err := readaccounting.Charge(ctx, readaccounting.ControlFileRead, 1); err != nil {
 		return RepositoryMemberV3{}, err
 	}
-	raw, err := readRegular(
+	raw, err := readRegularContext(ctx,
 		filepath.Join(publication.directory, receipt.Name), MaxRepositoryMemberBytes,
 	)
 	if err != nil {
@@ -1463,7 +1463,7 @@ func (publication *PublicationV3) openServiceMemberV3(
 	if err := readaccounting.Charge(ctx, readaccounting.ControlFileRead, 1); err != nil {
 		return ServiceMemberV3{}, err
 	}
-	raw, err := readRegular(
+	raw, err := readRegularContext(ctx,
 		filepath.Join(publication.directory, receipt.Name), MaxServiceMemberBytes,
 	)
 	if err != nil {

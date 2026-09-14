@@ -17,6 +17,7 @@ import (
 	"github.com/bmeddeb/phebs/internal/extract"
 	"github.com/bmeddeb/phebs/internal/extract/sdk"
 	"github.com/bmeddeb/phebs/internal/gitobj"
+	"github.com/bmeddeb/phebs/internal/readaccounting"
 	"github.com/bmeddeb/phebs/internal/repopath"
 	"github.com/bmeddeb/phebs/internal/resolvercatalog"
 	"github.com/bmeddeb/phebs/internal/resolvercatalogid"
@@ -1644,4 +1645,40 @@ func findGeneratedRecord(
 	}
 	t.Fatalf("generated record kind=%q path=%q not found in %+v", kind, generatedPath, records)
 	return generatedRecord{}
+}
+
+func TestBuildReportsActualSealedCatalogCounts(t *testing.T) {
+	for _, fail := range []bool{false, true} {
+		registry := newMaterializeTestRegistry(t, ProtocolGRPC, ProtocolThrift)
+		request, blobs := resolvedMaterializeRequest(t, t.TempDir(), registry)
+		var observed readaccounting.ResolverCatalogCounts
+		calls := 0
+		ctx, err := readaccounting.WithResolverCatalogObserver(t.Context(), func(counts readaccounting.ResolverCatalogCounts) error {
+			calls++
+			observed = counts
+			if fail {
+				return errors.New("catalog report unavailable")
+			}
+			return nil
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		prepared, err := Build(ctx, request)
+		if calls != 1 || (err != nil) != fail {
+			t.Fatal(calls, err)
+		}
+		if fail {
+			if prepared != nil {
+				t.Fatal("report failure returned a publishable catalog")
+			}
+			continue
+		}
+		defer func() { _ = prepared.Discard() }()
+		state := prepared.State()
+		if observed.GenerationSHA256 != state.GenerationDigest || observed.ManifestSHA256 != state.ManifestDigest ||
+			observed.DeclarationRecords != 2 || observed.GeneratedDescriptors != 0 || len(blobs.readPaths) != 6 {
+			t.Fatalf("native counts=%+v blob reads=%v", observed, blobs.readPaths)
+		}
+	}
 }

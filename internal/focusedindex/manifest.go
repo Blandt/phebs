@@ -14,6 +14,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/bmeddeb/phebs/internal/archiveevidence"
 	"github.com/sourcegraph/zoekt"
 	"github.com/sourcegraph/zoekt/index"
 
@@ -215,7 +216,7 @@ func validateArtifacts(
 	}
 	manifestPath := filepath.Join(indexDir, ManifestName(repository))
 	var manifest Manifest
-	if err := readControlFile(manifestPath, &manifest); err != nil {
+	if err := readControlFileContext(ctx, manifestPath, &manifest); err != nil {
 		return Manifest{}, fmt.Errorf("%w: read manifest: %v", ErrShardSet, err)
 	}
 	if manifest.Schema != ManifestSchema ||
@@ -291,7 +292,7 @@ func validateArtifacts(
 			return Manifest{}, fmt.Errorf("%w: content mismatch for %q", ErrShardSet, member.Name)
 		}
 		var sidecar ShardMember
-		if err := readControlFile(shardPath+MemberSuffix, &sidecar); err != nil || sidecar != member {
+		if err := readControlFileContext(ctx, shardPath+MemberSuffix, &sidecar); err != nil || sidecar != member {
 			return Manifest{}, fmt.Errorf("%w: sidecar mismatch for %q", ErrShardSet, member.Name)
 		}
 		repositories, metadata, err := index.ReadMetadataPath(shardPath)
@@ -342,7 +343,7 @@ func validateSelfContained(
 		return Manifest{}, fmt.Errorf("%w: repository publication is in progress", ErrShardSet)
 	}
 	var manifest Manifest
-	if err := readControlFile(
+	if err := readControlFileContext(ctx,
 		filepath.Join(indexDir, ManifestName(repository)), &manifest,
 	); err != nil {
 		return Manifest{}, fmt.Errorf("%w: read manifest: %v", ErrShardSet, err)
@@ -527,7 +528,12 @@ func DigestRegularFileContext(
 			"%w: %q changed while hashing", ErrShardSet, path,
 		)
 	}
-	return "sha256:" + hex.EncodeToString(hash.Sum(nil)), size, nil
+	var sum [32]byte
+	_ = hash.Sum(sum[:0])
+	if err := archiveevidence.ObserveDigest(ctx, path, uint64(size), sum); err != nil {
+		return "", 0, err
+	}
+	return "sha256:" + hex.EncodeToString(sum[:]), size, nil
 }
 
 func syncFile(path string) error {

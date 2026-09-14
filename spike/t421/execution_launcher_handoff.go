@@ -6,7 +6,6 @@ import (
 	"bufio"
 	"bytes"
 	"context"
-	"errors"
 	"io"
 	"time"
 )
@@ -17,33 +16,34 @@ type executionAuthorizationHandoffFrame struct {
 	err   error
 }
 
-// captureExecutionAuthorizationHandoff publishes the first complete canonical
-// frame immediately, then separately proves that the child wrote no second
-// byte before closing stdout. The fixed reader buffer prevents an unterminated
-// or oversized line from allocating beyond the handoff ceiling.
-func captureExecutionAuthorizationHandoff(
-	reader io.Reader,
-	frame chan<- executionAuthorizationHandoffFrame,
-	tail chan<- error,
-) {
-	buffered := bufio.NewReaderSize(reader, maxExecutionAuthorizationHandoffFrameBytes)
+// Both message types share one buffered reader, preserving coalesced bytes.
+func readExecutionAuthorizationHandoff(buffered *bufio.Reader) executionAuthorizationHandoffFrame {
 	raw, err := buffered.ReadSlice('\n')
 	if err != nil || len(raw) < 2 || len(raw) > maxExecutionAuthorizationHandoffFrameBytes {
-		frame <- executionAuthorizationHandoffFrame{err: errExecutionAuthorization}
-		return
+		return executionAuthorizationHandoffFrame{err: errExecutionAuthorization}
 	}
 	raw = bytes.Clone(raw)
 	value, err := decodeExecutionAuthorizationHandoff(raw)
 	if err != nil {
-		frame <- executionAuthorizationHandoffFrame{err: errExecutionAuthorization}
+		return executionAuthorizationHandoffFrame{err: errExecutionAuthorization}
+	}
+	return executionAuthorizationHandoffFrame{value: value, raw: raw}
+}
+
+type executionReturnedOutput struct {
+	raw []byte
+	err error
+}
+
+func captureExecutionReturnedOutput(reader io.Reader, frame chan<- executionAuthorizationHandoffFrame, returned chan<- executionReturnedOutput) {
+	buffered := bufio.NewReaderSize(reader, maxExecutionAuthorizationHandoffFrameBytes)
+	captured := readExecutionAuthorizationHandoff(buffered)
+	frame <- captured
+	if captured.err != nil {
 		return
 	}
-	frame <- executionAuthorizationHandoffFrame{value: value, raw: raw}
-	if _, err := buffered.ReadByte(); !errors.Is(err, io.EOF) {
-		tail <- errExecutionAuthorization
-		return
-	}
-	tail <- nil
+	raw, err := captureExecutionReturnedPackage(buffered)
+	returned <- executionReturnedOutput{raw: raw, err: err}
 }
 
 func forwardExecutionAuthorizationHandoff(ctx context.Context, output *executionAuthorizationOutput, raw []byte) (retErr error) {
@@ -56,6 +56,15 @@ func forwardExecutionAuthorizationHandoff(ctx context.Context, output *execution
 		return errExecutionAuthorization
 	}
 	deadline := time.Unix(0, value.FinalAdmissionDeadlineUnixNano)
+	return writeExecutionOutput(ctx, output, raw, deadline)
+}
+
+// writeExecutionOutput preserves one cancellation/deadline corridor for both
+// the early authorization handoff and the later authenticated package.
+func writeExecutionOutput(ctx context.Context, output *executionAuthorizationOutput, raw []byte, deadline time.Time) (retErr error) {
+	if ctx == nil || ctx.Err() != nil || output == nil || output.check(ctx) != nil {
+		return errExecutionAuthorization
+	}
 	if output.deadline.Before(deadline) {
 		deadline = output.deadline
 	}

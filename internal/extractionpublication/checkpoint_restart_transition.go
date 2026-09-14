@@ -29,6 +29,9 @@ type CheckpointRestartTransitionRequest struct {
 // CheckpointRestartTransition is the bounded source-free prepared or restored
 // state returned after the mutable store row is confirmed around all controls.
 type CheckpointRestartTransition struct {
+	PrivateLeaseChanged         bool                                      `json:"private_lease_changed,omitempty"`
+	ObservedScheduleChunks      uint64                                    `json:"observed_schedule_chunks,omitempty"`
+	ObservedScheduleSuccesses   uint64                                    `json:"observed_schedule_successes,omitempty"`
 	Point                       store.GenerationStaleLeaseTransitionPoint `json:"point"`
 	TargetGeneration            string                                    `json:"target_generation"`
 	ScheduleGeneration          string                                    `json:"schedule_generation"`

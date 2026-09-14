@@ -200,22 +200,23 @@ func t422StalePreparationLimits() readaccounting.Counts {
 }
 
 type t422StalePreparationObservation struct {
-	Schema             string                       `json:"schema"`
-	Authority          t421FinalAuthorityState      `json:"authority"`
-	TargetGeneration   string                       `json:"target_generation"`
-	PriorSchedule      string                       `json:"prior_schedule"`
-	RecoveryGeneration string                       `json:"recovery_generation"`
-	RecoverySchedule   string                       `json:"recovery_schedule"`
-	Domain             string                       `json:"domain"`
-	Ordinal            int                          `json:"ordinal"`
-	Offset             int                          `json:"offset"`
-	PlanDigest         string                       `json:"plan_digest"`
-	ResultIdentity     string                       `json:"result_identity"`
-	ControlFileReads   uint64                       `json:"control_file_reads"`
-	StoreReadAttempts  uint64                       `json:"store_read_attempts"`
-	MemberReads        uint64                       `json:"member_reads"`
-	StoreWriteAttempts uint64                       `json:"store_write_attempts"`
-	Workspace          *t422WorkspaceSampleResponse `json:"workspace,omitempty"`
+	Operations         *extractionpublication.RecoveryPreparationObservation `json:"operations,omitempty"`
+	Schema             string                                                `json:"schema"`
+	Authority          t421FinalAuthorityState                               `json:"authority"`
+	TargetGeneration   string                                                `json:"target_generation"`
+	PriorSchedule      string                                                `json:"prior_schedule"`
+	RecoveryGeneration string                                                `json:"recovery_generation"`
+	RecoverySchedule   string                                                `json:"recovery_schedule"`
+	Domain             string                                                `json:"domain"`
+	Ordinal            int                                                   `json:"ordinal"`
+	Offset             int                                                   `json:"offset"`
+	PlanDigest         string                                                `json:"plan_digest"`
+	ResultIdentity     string                                                `json:"result_identity"`
+	ControlFileReads   uint64                                                `json:"control_file_reads"`
+	StoreReadAttempts  uint64                                                `json:"store_read_attempts"`
+	MemberReads        uint64                                                `json:"member_reads"`
+	StoreWriteAttempts uint64                                                `json:"store_write_attempts"`
+	Workspace          *t422WorkspaceSampleResponse                          `json:"workspace,omitempty"`
 }
 
 func (control *t422StaleControl) command(writer http.ResponseWriter, request *http.Request) {
@@ -272,7 +273,7 @@ func (control *t422StaleControl) command(writer http.ResponseWriter, request *ht
 		TargetGeneration: target.TargetGeneration, PriorSchedule: target.PriorScheduleDigest,
 		RecoveryGeneration: target.Schedule.Generation, RecoverySchedule: target.Schedule.Digest,
 		Domain: target.Domain, Ordinal: target.Ordinal, Offset: target.Offset, PlanDigest: target.PlanDigest, ResultIdentity: target.ResultIdentity,
-		ControlFileReads: counts.ControlFileReads, StoreReadAttempts: counts.StoreReadAttempts, MemberReads: counts.MemberVisits, StoreWriteAttempts: counts.StoreWriteAttempts, Workspace: workspace})
+		ControlFileReads: counts.ControlFileReads, StoreReadAttempts: counts.StoreReadAttempts, MemberReads: counts.MemberVisits, StoreWriteAttempts: counts.StoreWriteAttempts, Workspace: workspace, Operations: &target.Observation})
 	if err != nil {
 		return
 	}
@@ -463,13 +464,20 @@ func (control *t422StaleControl) read(ctx context.Context, point store.Generatio
 	control.mu.Unlock()
 	finishWait()
 	operation, finish := control.operationContext(ctx, observer)
-	value, err := control.reconciler.Runtime.ReadStaleLeaseTransition(operation, extractionpublication.StaleLeaseTransitionRequest{
+	observedContext, scheduleObservation := readaccounting.CaptureRecoverySchedule(operation)
+	value, err := control.reconciler.Runtime.ReadStaleLeaseTransition(observedContext, extractionpublication.StaleLeaseTransitionRequest{
 		Transition: event, TargetGeneration: target.TargetGeneration, PriorScheduleDigest: target.PriorScheduleDigest,
 		Domain: target.Domain, Ordinal: target.Ordinal, PlanDigest: target.PlanDigest, ResultIdentity: target.ResultIdentity})
 	if err != nil {
 		finish()
 		return nil, nil, control.stop(err)
 	}
+	schedule, observed := scheduleObservation.Observation()
+	if !observed || schedule.ScheduleSHA256 != value.ScheduleDigest {
+		finish()
+		return nil, nil, control.stop(errT422StaleControl)
+	}
+	value.ObservedScheduleChunks, value.ObservedScheduleSuccesses = schedule.Chunks, schedule.Successes
 	body, err := json.Marshal(value)
 	if err != nil {
 		finish()

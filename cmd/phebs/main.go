@@ -432,6 +432,10 @@ func bindT422ArchiveReports(ctx context.Context, cancel context.CancelFunc) (con
 	if err != nil {
 		return nil, err
 	}
+	ctx, err = bindT422ArchiveArtifactReports(ctx, cancel)
+	if err != nil {
+		return nil, err
+	}
 	return bindT422ArchiveWorkspace(ctx, cancel)
 }
 

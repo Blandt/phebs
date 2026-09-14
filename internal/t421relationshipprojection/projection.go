@@ -59,8 +59,11 @@ type ProductSummary struct {
 
 // Result contains the fixed-order family and product summaries.
 type Result struct {
-	Families []FamilySummary `json:"families"`
-	Product  ProductSummary  `json:"product"`
+	RPCRecords     uint64          `json:"-"`
+	RPCFramedBytes uint64          `json:"-"`
+	RPCSHA256      string          `json:"-"`
+	Families       []FamilySummary `json:"families"`
+	Product        ProductSummary  `json:"product"`
 }
 
 type familySpec struct {
@@ -124,6 +127,7 @@ type productItem struct {
 }
 
 type derivation struct {
+	rpcIdentity    identityResult
 	edges          [len(familySpecs)][]edge
 	product        []productItem
 	seenProjection map[string]struct{}
@@ -310,6 +314,7 @@ func (state *derivation) finish(ctx context.Context) (Result, error) {
 		return Result{}, err
 	}
 	result.Product = product
+	result.RPCRecords, result.RPCFramedBytes, result.RPCSHA256 = state.rpcIdentity.records, state.rpcIdentity.bytes, state.rpcIdentity.sha256
 	return result, nil
 }
 
@@ -392,17 +397,26 @@ func (state *derivation) summarizeProduct(ctx context.Context) (ProductSummary, 
 		return left.consumer - right.consumer
 	})
 	identity := newFramedIdentity(productDomain)
+	rpcIdentity := newFramedIdentity("t421-independent-rpc-product-projections-v1")
 	for index, item := range state.product {
 		if index%256 == 0 {
 			if err := ctx.Err(); err != nil {
 				return ProductSummary{}, err
 			}
 		}
-		if err := identity.add(item.record); err != nil {
+		raw, err := json.Marshal(item.record)
+		if err != nil {
 			return ProductSummary{}, err
+		}
+		identity.writeFrame(raw)
+		identity.records++
+		if item.record.Kind == "rpc" {
+			rpcIdentity.writeFrame(raw)
+			rpcIdentity.records++
 		}
 	}
 	finished := identity.finish()
+	state.rpcIdentity = rpcIdentity.finish()
 	if finished.records != 20_999 || finished.bytes != 4_673_604 ||
 		finished.sha256 != "sha256:742f20fff1ca76f036b1114f5e2d556682b642e3257ab9c1ebba794dfe66653d" {
 		return ProductSummary{}, invalid("noncanonical product projection inventory")

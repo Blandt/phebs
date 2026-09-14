@@ -50,6 +50,9 @@ func (recorder *executionPhaseEventRecorder) beginAt(phase string, started time.
 	defer recorder.mu.Unlock()
 	last := len(recorder.phases) - 1
 	index := recorder.next
+	if recorder.stopped && phase != recorder.phases[last] {
+		return ErrExecutionEpochOne
+	}
 	if recorder.stopped && index < last && phase == recorder.phases[last] {
 		index = last
 	}

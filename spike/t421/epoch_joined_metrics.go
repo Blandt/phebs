@@ -12,8 +12,11 @@ type executionJoinedWorkMetrics struct {
 
 func addExecutionJoinedMetric[T ~uint64](target *T, value uint64) bool {
 	sum, carry := bits.Add64(uint64(*target), value, 0)
+	if carry != 0 {
+		return false
+	}
 	*target = T(sum)
-	return carry == 0
+	return true
 }
 
 func validExecutionJoinedWorkRecord(plan Plan, record executionJoinedWorkRecord) bool {
@@ -114,66 +117,73 @@ func (work executionJoinedWork) receiptMetrics(plan Plan) (executionJoinedWorkMe
 		}
 		for _, phase := range executionProducerPhases(record.Producer) {
 			index := phase - 1
-			metric := &out.Metrics[index]
-			attempt := record.Attempts.Phases[index]
-			cache := record.Attempts.Cache.Phases[index]
-			lifecycle := record.Attempts.Lifecycle.Phases[index]
-			indexOffer := record.IndexOffers.Phases[index]
-			values := []struct {
-				target *CountMetric
-				value  uint64
-			}{
-				{&metric.JobAttempts, attempt.JobAttempts}, {&metric.Retries, attempt.Retries},
-				{&metric.GitReads, attempt.SourceBlobAttempts}, {&metric.ObservationParses, attempt.ObservationParses},
-				{&metric.PublicationWrites, attempt.PublicationWrites}, {&metric.ResolverBlobReads, attempt.ResolverBlobReads},
-				{&metric.RelationshipBuildAttempts, attempt.RelationshipBuildAttempts},
-				{&metric.RelationshipProjections, attempt.RelationshipProjections},
-				{&metric.ServiceReferences, attempt.ServiceReferences},
-				{&metric.CensusChildren, attempt.CensusChildren}, {&metric.CensusRecords, attempt.CensusRecords},
-				{&metric.CacheLookups, cache.Lookups}, {&metric.CacheHits, cache.Hits}, {&metric.CacheMisses, cache.Misses},
-				{&metric.CacheRootReads, cache.RootReads}, {&metric.CacheMemberReads, cache.MemberReads},
-				{&metric.CacheRootValidations, cache.RootValidations}, {&metric.CacheMemberValidations, cache.MemberValidations},
-				{&metric.LifecycleOwnerTurns, lifecycle.OwnerTurns}, {&metric.LifecycleDeleted, lifecycle.Deleted},
-				{&metric.UnsupportedSourceFiles, attempt.UnsupportedSourceFiles}, {&metric.IndexFiles, indexOffer.Offers},
-			}
-			for _, value := range values {
-				if !addExecutionJoinedMetric(value.target, value.value) {
-					return executionJoinedWorkMetrics{}, errExecutionAttempts
-				}
-			}
-			for _, value := range []struct {
-				target *Bytes
-				value  uint64
-			}{
-				{&metric.ResolverBlobBytes, attempt.ResolverBlobBytes},
-				{&metric.SourceLogicalBytes, attempt.SourceLogicalBytes},
-				{&metric.SourceUniqueBytes, attempt.SourceUniqueBytes},
-			} {
-				if !addExecutionJoinedMetric(value.target, value.value) {
-					return executionJoinedWorkMetrics{}, errExecutionAttempts
-				}
-			}
-			metric.MaxRetriesUnit = max(metric.MaxRetriesUnit, CountMetric(attempt.MaxRetriesUnit))
-			metric.MaxLifecycleDeletesTurn = max(metric.MaxLifecycleDeletesTurn, CountMetric(lifecycle.MaxDeleted))
-			if record.Producer <= 6 {
-				reuse := record.Attempts.Reuse.Phases[index]
-				lanes := []struct {
-					target *CountMetric
-					value  ExecutionReuseDecision
-				}{
-					{&metric.SourceReuseDecisions, reuse.Source}, {&metric.SearchReuseDecisions, reuse.Search},
-					{&metric.ObservationReuseDecisions, reuse.Observation}, {&metric.CatalogReuseDecisions, reuse.Catalog},
-					{&metric.RelationshipReuseDecisions, reuse.Relationship},
-				}
-				for _, lane := range lanes {
-					count, valid := executionReuseCount(lane.value)
-					if !valid || !addExecutionJoinedMetric(lane.target, count) || !addExecutionJoinedMetric(&metric.ReuseDecisions, count) {
-						return executionJoinedWorkMetrics{}, errExecutionAttempts
-					}
-				}
+			if !addExecutionWorkRecordMetrics(&out.Metrics[index], record, int(index)) {
+				return executionJoinedWorkMetrics{}, errExecutionAttempts
 			}
 			out.Covered[index] = true
 		}
 	}
 	return out, nil
+}
+
+// Add only actual retained quantities, independent of coverage/acceptance.
+func addExecutionWorkRecordMetrics(metric *ReceiptMetrics, record executionJoinedWorkRecord, index int) bool {
+	attempt := record.Attempts.Phases[index]
+	cache := record.Attempts.Cache.Phases[index]
+	lifecycle := record.Attempts.Lifecycle.Phases[index]
+	indexOffer := record.IndexOffers.Phases[index]
+	values := []struct {
+		target *CountMetric
+		value  uint64
+	}{
+		{&metric.JobAttempts, attempt.JobAttempts}, {&metric.Retries, attempt.Retries},
+		{&metric.GitReads, attempt.SourceBlobAttempts}, {&metric.ObservationParses, attempt.ObservationParses},
+		{&metric.PublicationWrites, attempt.PublicationWrites}, {&metric.ResolverBlobReads, attempt.ResolverBlobReads},
+		{&metric.RelationshipBuildAttempts, attempt.RelationshipBuildAttempts},
+		{&metric.RelationshipProjections, attempt.RelationshipProjections},
+		{&metric.ServiceReferences, attempt.ServiceReferences},
+		{&metric.CensusChildren, attempt.CensusChildren}, {&metric.CensusRecords, attempt.CensusRecords},
+		{&metric.CacheLookups, cache.Lookups}, {&metric.CacheHits, cache.Hits}, {&metric.CacheMisses, cache.Misses},
+		{&metric.CacheRootReads, cache.RootReads}, {&metric.CacheMemberReads, cache.MemberReads},
+		{&metric.CacheRootValidations, cache.RootValidations}, {&metric.CacheMemberValidations, cache.MemberValidations},
+		{&metric.LifecycleOwnerTurns, lifecycle.OwnerTurns}, {&metric.LifecycleDeleted, lifecycle.Deleted},
+		{&metric.UnsupportedSourceFiles, attempt.UnsupportedSourceFiles}, {&metric.IndexFiles, indexOffer.Offers},
+	}
+	for _, value := range values {
+		if !addExecutionJoinedMetric(value.target, value.value) {
+			return false
+		}
+	}
+	for _, value := range []struct {
+		target *Bytes
+		value  uint64
+	}{
+		{&metric.ResolverBlobBytes, attempt.ResolverBlobBytes},
+		{&metric.SourceLogicalBytes, attempt.SourceLogicalBytes},
+		{&metric.SourceUniqueBytes, attempt.SourceUniqueBytes},
+	} {
+		if !addExecutionJoinedMetric(value.target, value.value) {
+			return false
+		}
+	}
+	metric.MaxRetriesUnit = max(metric.MaxRetriesUnit, CountMetric(attempt.MaxRetriesUnit))
+	metric.MaxLifecycleDeletesTurn = max(metric.MaxLifecycleDeletesTurn, CountMetric(lifecycle.MaxDeleted))
+	if record.Producer <= 6 {
+		reuse := record.Attempts.Reuse.Phases[index]
+		lanes := []struct {
+			target *CountMetric
+			value  ExecutionReuseDecision
+		}{
+			{&metric.SourceReuseDecisions, reuse.Source}, {&metric.SearchReuseDecisions, reuse.Search},
+			{&metric.ObservationReuseDecisions, reuse.Observation}, {&metric.CatalogReuseDecisions, reuse.Catalog},
+			{&metric.RelationshipReuseDecisions, reuse.Relationship},
+		}
+		for _, lane := range lanes {
+			count, valid := executionReuseCount(lane.value)
+			if !valid || !addExecutionJoinedMetric(lane.target, count) || !addExecutionJoinedMetric(&metric.ReuseDecisions, count) {
+				return false
+			}
+		}
+	}
+	return true
 }

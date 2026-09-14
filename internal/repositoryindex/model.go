@@ -18,6 +18,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/bmeddeb/phebs/internal/archiveevidence"
 	"github.com/bmeddeb/phebs/internal/gitobj"
 	"github.com/bmeddeb/phebs/internal/readaccounting"
 	"github.com/bmeddeb/phebs/internal/reponame"
@@ -314,7 +315,7 @@ func ReadSourceManifestContext(
 		return SourceManifest{}, err
 	}
 	var manifest SourceManifest
-	if err := readControl(filepath.Join(directory, SourceManifestName(repository)), &manifest); err != nil {
+	if err := readControlContext(ctx, filepath.Join(directory, SourceManifestName(repository)), &manifest); err != nil {
 		return SourceManifest{}, err
 	}
 	if err := ValidateSourceManifest(manifest); err != nil {
@@ -339,7 +340,7 @@ func ReadSearchManifestContext(
 		return SearchManifest{}, err
 	}
 	var manifest SearchManifest
-	if err := readControl(filepath.Join(directory, SearchManifestName(repository)), &manifest); err != nil {
+	if err := readControlContext(ctx, filepath.Join(directory, SearchManifestName(repository)), &manifest); err != nil {
 		return SearchManifest{}, err
 	}
 	if err := ValidateSearchManifest(manifest); err != nil {
@@ -434,7 +435,7 @@ func writeControl(path string, value any) error {
 	return file.Close()
 }
 
-func readControl(path string, value any) error {
+func readControlContext(ctx context.Context, path string, value any) error {
 	info, err := os.Lstat(path)
 	if err != nil || !info.Mode().IsRegular() || info.Size() < 1 ||
 		info.Size() > maxControlBytes {
@@ -481,7 +482,7 @@ func readControl(path string, value any) error {
 	if !bytes.Equal(raw, canonical) {
 		return invalidf("control file is not canonical")
 	}
-	return nil
+	return archiveevidence.ObserveRead(ctx, path, raw)
 }
 
 func validateRevisions(revisions []store.IndexedRevision) error {

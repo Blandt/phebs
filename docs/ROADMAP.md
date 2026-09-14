@@ -577,6 +577,13 @@ follows integration; the host/tool execution freeze follows implementation and r
 execution still separately unauthorized. This artifact/docs record adds no
 runtime cost or scale/SLO claim.
 
+T42.2n's 2026-09-13 completion work connects observed receipt assembly and
+signed launcher delivery, including honest stopped cleanup and independent
+outer signature/semantic validation. Required native archive and population
+observations replace the previously missing evidence. Focused gates and
+independent corrections are recorded in BACKLOG; complete exact-tree and real
+healthy/custody-failure launcher readiness remain open before T42.2o freeze.
+
 T42.2 implementation resumed from integrated V2 `9ac960c9` with T42.2a's
 fail-closed generation-chunk telemetry on `codex/t42.2a-exact-chunk-reports`.
 The observation/catalog, relationship, and partitioned-extraction schedulers

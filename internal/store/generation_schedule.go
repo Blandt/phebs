@@ -1233,6 +1233,7 @@ COMMIT;`, map[string]any{
 	if !validGenerationStaleLeaseTransitionShape(request, *schedule, chunk) {
 		return GenerationStaleLeaseTransition{}, ErrGenerationStale
 	}
+	readaccounting.ObserveRecoverySchedule(ctx, schedule.Digest, schedule.TotalChunks, schedule.Succeeded)
 	return GenerationStaleLeaseTransition{
 		Point: request.Point, Repository: chunk.Repository, Stage: chunk.Stage,
 		Generation: chunk.Generation, ResourceClass: chunk.ResourceClass,

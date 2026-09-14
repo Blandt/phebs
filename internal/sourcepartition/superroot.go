@@ -210,8 +210,12 @@ func ReadSuperRootContext(ctx context.Context, directory, repository string) (Su
 	if err := readaccounting.Charge(ctx, readaccounting.ControlFileRead, 1); err != nil {
 		return SuperRoot{}, err
 	}
+	return readSuperRootObserved(ctx, directory, repository)
+}
+
+func readSuperRootObserved(ctx context.Context, directory, repository string) (SuperRoot, error) {
 	var root SuperRoot
-	if err := readCanonicalJSON(
+	if err := readCanonicalJSONContext(ctx,
 		filepath.Join(directory, SuperRootName(repository)), MaxManifestBytes, &root,
 	); err != nil {
 		return SuperRoot{}, err
@@ -369,7 +373,7 @@ func ValidateSuperRootStage(ctx context.Context, directory string, expected Supe
 	if err := ValidateSuperRoot(expected); err != nil {
 		return err
 	}
-	root, err := ReadSuperRoot(directory, expected.Repository)
+	root, err := readSuperRootObserved(ctx, directory, expected.Repository)
 	if err != nil {
 		return err
 	}
@@ -386,7 +390,7 @@ func ValidateSuperRootStage(ctx context.Context, directory string, expected Supe
 		if statErr != nil || !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
 			return invalidf("segment directory is missing or special")
 		}
-		manifest, err := ReadManifest(segmentDirectory, root.Repository)
+		manifest, err := readManifestContext(ctx, segmentDirectory, root.Repository)
 		if err != nil {
 			return err
 		}

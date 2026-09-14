@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/bmeddeb/phebs/internal/archiveevidence"
 	"github.com/bmeddeb/phebs/internal/storeaccounting"
 )
 
@@ -42,9 +43,10 @@ func (err *restoreReplayUnsupported) Error() string {
 type restoreReplaySpan struct{ Start, End int64 }
 
 type restoreReplayUnit struct {
-	Span       restoreReplaySpan
-	Count      int
-	Definition bool
+	Span          restoreReplaySpan
+	Count         int
+	Definition    bool
+	PayloadSHA256 [32]byte
 }
 
 type restoreReplayCensus struct {
@@ -65,17 +67,18 @@ func (census *restoreReplayCensus) add(unit restoreReplayUnit) {
 // Rereading these offsets for HTTP after recognition would have a parse/use
 // race. The executor instead spools bytes as the recognizer consumes them.
 type preparedRestoreReplay struct {
-	file        *os.File
-	path        string
-	info        os.FileInfo
-	artifact    Artifact
-	census      restoreReplayCensus
-	scanner     *restoreReplayScanner
-	reader      *contextReader
-	digest      hash.Hash
-	seen        restoreReplayCensus
-	terminal    error
-	spoolWriter *bufio.Writer
+	file              *os.File
+	path              string
+	info              os.FileInfo
+	artifact          Artifact
+	census            restoreReplayCensus
+	scanner           *restoreReplayScanner
+	reader            *contextReader
+	digest            hash.Hash
+	seen              restoreReplayCensus
+	terminal          error
+	spoolWriter       *bufio.Writer
+	installedPayloads archiveevidence.Stream
 }
 
 // A selected producer has no unaccounted native CLI fallback. Resolve support
@@ -143,6 +146,8 @@ func prepareRestoreReplay(ctx context.Context, path string, artifact Artifact) (
 	digest := sha256.New()
 	stream := io.TeeReader(io.LimitReader(contextReader{ctx: ctx, reader: file}, artifact.Size+1), digest)
 	scanner := newRestoreReplayScanner(stream)
+	scanner.measurePayloads = archiveevidence.Selected(ctx)
+	var archivedPayloads archiveevidence.Stream
 	var unsupported *restoreReplayUnsupported
 	for {
 		unit, err := scanner.next()
@@ -161,6 +166,11 @@ func prepareRestoreReplay(ctx context.Context, path string, artifact Artifact) (
 			break
 		}
 		prepared.census.add(unit)
+		if scanner.measurePayloads {
+			if err := archivedPayloads.Add(databasePayloadRecord(prepared.census.Units, unit, unit.PayloadSHA256)); err != nil {
+				return nil, err
+			}
+		}
 	}
 	if err := prepared.checkFile(ctx); err != nil {
 		return nil, err
@@ -170,6 +180,11 @@ func prepareRestoreReplay(ctx context.Context, path string, artifact Artifact) (
 	}
 	if unsupported != nil {
 		return nil, unsupported
+	}
+	if scanner.measurePayloads {
+		if err := archiveevidence.Emit(ctx, archiveevidence.Observation{Stage: archiveevidence.Archived, Path: DatabaseName, Identity: archivedPayloads.Identity()}); err != nil {
+			return nil, err
+		}
 	}
 	success = true
 	return prepared, nil
@@ -236,6 +251,7 @@ func (prepared *preparedRestoreReplay) nextUnit(ctx context.Context, capture *bu
 		prepared.scanner = newRestoreReplayScanner(io.TeeReader(
 			io.LimitReader(prepared.reader, prepared.artifact.Size+1), prepared.digest,
 		))
+		prepared.scanner.measurePayloads = archiveevidence.Selected(ctx)
 	}
 	prepared.reader.ctx = ctx
 	prepared.scanner.capture = capture
@@ -267,12 +283,17 @@ func (prepared *preparedRestoreReplay) close() error {
 // restoreReplayScanner recognizes native literal INSERT arrays and the finite
 // owned DEFINE recipe below. It does not parse arbitrary SQL or evaluate values.
 type restoreReplayScanner struct {
-	reader       *bufio.Reader
-	offset       int64
-	optionSeen   bool
-	insideInsert bool
-	capture      *bufio.Writer
-	captureErr   error
+	reader          *bufio.Reader
+	offset          int64
+	optionSeen      bool
+	insideInsert    bool
+	capture         *bufio.Writer
+	captureErr      error
+	measurePayloads bool
+	payload         hash.Hash
+	payloadHash     hash.Hash
+	payloadBuffer   []byte
+	payloadBuffered int
 }
 
 func newRestoreReplayScanner(reader io.Reader) *restoreReplayScanner {
@@ -305,6 +326,13 @@ func (scanner *restoreReplayScanner) take() (byte, error) {
 	value, err := scanner.reader.ReadByte()
 	if err == nil {
 		scanner.offset++
+		if scanner.payload != nil {
+			scanner.payloadBuffer[scanner.payloadBuffered] = value
+			scanner.payloadBuffered++
+			if scanner.payloadBuffered == len(scanner.payloadBuffer) {
+				scanner.flushPayload()
+			}
+		}
 		if scanner.capture != nil {
 			if writeErr := scanner.capture.WriteByte(value); writeErr != nil {
 				scanner.captureErr = writeErr
@@ -379,6 +407,8 @@ func (scanner *restoreReplayScanner) keyword(word string) error {
 }
 
 func (scanner *restoreReplayScanner) next() (restoreReplayUnit, error) {
+	scanner.payload = nil
+	scanner.payloadBuffered = 0
 	unit, err := scanner.scanNext()
 	if errors.Is(err, io.EOF) && scanner.insideInsert {
 		err = io.ErrUnexpectedEOF
@@ -406,12 +436,14 @@ func (scanner *restoreReplayScanner) scanNext() (restoreReplayUnit, error) {
 		}
 		if value, _ := scanner.peek(); value == 'D' {
 			start := scanner.offset
+			scanner.startPayload()
 			if err := scanner.definition(); err != nil {
 				return unit, err
 			}
 			unit.Span = restoreReplaySpan{Start: start, End: scanner.offset}
 			unit.Definition = true
 			unit.Count = 1
+			scanner.payloadDigest(&unit)
 			return unit, nil
 		} else if value != 'I' {
 			return unit, scanner.unsupported("unproven statement")
@@ -432,6 +464,9 @@ func (scanner *restoreReplayScanner) scanNext() (restoreReplayUnit, error) {
 			return unit, err
 		}
 		start := scanner.offset
+		if unit.Count == 0 {
+			scanner.startPayload()
+		}
 		if value, _ := scanner.peek(); value != '{' {
 			return unit, scanner.unsupported("non-object export record")
 		}
@@ -442,6 +477,7 @@ func (scanner *restoreReplayScanner) scanNext() (restoreReplayUnit, error) {
 			unit.Span.Start = start
 		}
 		unit.Span.End = scanner.offset
+		scanner.payloadDigest(&unit)
 		unit.Count++
 		if err := scanner.space(); err != nil {
 			return unit, err

@@ -16,6 +16,7 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/bmeddeb/phebs/internal/archiveevidence"
 	"github.com/bmeddeb/phebs/internal/reponame"
 	"github.com/bmeddeb/phebs/internal/resolvercatalogid"
 )
@@ -69,6 +70,10 @@ func (publication *Publication) Manifest() Manifest {
 	return cloneManifest(publication.manifest)
 }
 func (publication *Publication) State() State { return publication.manifest.State() }
+
+// State returns the already sealed immutable identity without installation,
+// pointer publication or another content read.
+func (prepared *Prepared) State() State { return prepared.manifest.State() }
 
 func cloneManifest(manifest Manifest) Manifest {
 	manifest.Identity.Declarations = append(
@@ -714,6 +719,9 @@ func open(
 	}
 	manifestPath := filepath.Join(root, expected.Manifest)
 	raw, fingerprint, err := readStableRegular(manifestPath, maxManifestBytes)
+	if err == nil {
+		err = archiveevidence.ObserveRead(ctx, manifestPath, raw)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("%w: manifest: %w", ErrInvalidManifest, err)
 	}
@@ -852,7 +860,12 @@ func validateMember(
 			ErrInvalidManifest, receipt.Name, err,
 		)
 	}
-	return count, "sha256:" + hex.EncodeToString(hash.Sum(nil)), fingerprint, nil
+	var sum [32]byte
+	_ = hash.Sum(sum[:0])
+	if err := archiveevidence.ObserveDigest(ctx, filePath, uint64(consumed), sum); err != nil {
+		return 0, "", fileFingerprint{}, err
+	}
+	return count, "sha256:" + hex.EncodeToString(sum[:]), fingerprint, nil
 }
 
 // Current performs only lstat/control identity checks over the paths captured

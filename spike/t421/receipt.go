@@ -1085,21 +1085,7 @@ func bindExecutionFreezeForReceipt(
 	if err != nil {
 		return ExecutionFreezeBinding{}, err
 	}
-	wantAdmissionSHA256, err := receiptSHA256(struct {
-		Schema                string `json:"schema"`
-		FreezeSHA256          string `json:"freeze_sha256"`
-		SignatureNamespace    string `json:"signature_namespace"`
-		SignerFingerprint     string `json:"signer_fingerprint"`
-		SignerNamespaceSHA256 string `json:"signer_namespace_sha256,omitempty"`
-		Order                 string `json:"order"`
-		EventOrdinal          uint64 `json:"event_ordinal"`
-	}{
-		Schema: plan.ReceiptContract.ExecutionAdmissionSchema, FreezeSHA256: freezeSHA256,
-		SignatureNamespace: plan.SealPolicy.FreezeSignatureNamespace,
-		SignerFingerprint:  expectedSignerFingerprint, Order: plan.ReceiptContract.ExecutionAdmissionOrder,
-		SignerNamespaceSHA256: expectedSignerNamespaceSHA256,
-		EventOrdinal:          1,
-	})
+	wantAdmissionSHA256, err := executionAdmissionEventDigest(plan, freezeSHA256, expectedSignerFingerprint, expectedSignerNamespaceSHA256)
 	if err != nil || admission.schema != plan.ReceiptContract.ExecutionAdmissionSchema ||
 		admission.freezeSHA256 != freezeSHA256 || admission.signatureNamespace != plan.SealPolicy.FreezeSignatureNamespace ||
 		admission.signerFingerprint != expectedSignerFingerprint || admission.admissionEventSHA256 != wantAdmissionSHA256 ||
@@ -1166,28 +1152,10 @@ func ValidateReceipt(
 	binding ExecutionFreezeBinding,
 	packageBinding ReturnedPackageBinding,
 ) error {
-	if err := validateReceiptAccountingVersion(receipt, plan); err != nil {
+	if err := validateReceiptFreezeBinding(receipt, plan, binding); err != nil {
 		return err
 	}
-	planSHA256, err := receiptSHA256(plan)
-	if err != nil {
-		return err
-	}
-	freezeSHA256, err := receiptSHA256(binding.freeze)
-	if err != nil {
-		return err
-	}
-	if binding.planSHA256 != planSHA256 || binding.freeze.PlanSHA256 != planSHA256 ||
-		binding.freeze.Commits != binding.expectedCommits ||
-		binding.freeze.SignerFingerprint != binding.expectedSignerFingerprint ||
-		binding.freeze.SignerNamespaceSHA256 != binding.expectedSignerNamespaceSHA256 ||
-		binding.freeze.Profile.SignerNamespaceSHA256 != binding.expectedSignerNamespaceSHA256 ||
-		plan.Schema == PlanV3Schema && !validExecutionHexSHA256(binding.expectedSignerNamespaceSHA256) ||
-		plan.Schema != PlanV3Schema && binding.expectedSignerNamespaceSHA256 != "" ||
-		binding.freezeSHA256 != freezeSHA256 || !validDigest(binding.freezeSHA256) {
-		return errors.New("T42.2 execution freeze binding is invalid")
-	}
-	freeze := binding.freeze
+	planSHA256, freezeSHA256 := binding.planSHA256, binding.freezeSHA256
 	receiptDigest, err := receiptSHA256(receipt)
 	if err != nil {
 		return err
@@ -1214,6 +1182,61 @@ func ValidateReceipt(
 		!slices.Equal(packageBinding.exactInventory, plan.SealPolicy.ExactInventory) {
 		return errors.New("T42.2 receipt lacks an authenticated returned-package binding")
 	}
+	return validateReceiptEvidence(receipt, plan, binding, packageBinding.sourceVerificationSHA256)
+}
+
+// The assembly path validates content before signing, but cannot authenticate
+// a package. Only ValidateReceipt accepts a ReturnedPackageBinding.
+func validateReceiptFreezeBinding(receipt Receipt, plan Plan, binding ExecutionFreezeBinding) error {
+	if err := validateReceiptAccountingVersion(receipt, plan); err != nil {
+		return err
+	}
+	planSHA256, err := receiptSHA256(plan)
+	if err != nil {
+		return err
+	}
+	freezeSHA256, err := receiptSHA256(binding.freeze)
+	if err != nil {
+		return err
+	}
+	if binding.planSHA256 != planSHA256 || binding.freeze.PlanSHA256 != planSHA256 ||
+		binding.freeze.Commits != binding.expectedCommits ||
+		binding.freeze.SignerFingerprint != binding.expectedSignerFingerprint ||
+		binding.freeze.SignerNamespaceSHA256 != binding.expectedSignerNamespaceSHA256 ||
+		binding.freeze.Profile.SignerNamespaceSHA256 != binding.expectedSignerNamespaceSHA256 ||
+		plan.Schema == PlanV3Schema && !validExecutionHexSHA256(binding.expectedSignerNamespaceSHA256) ||
+		plan.Schema != PlanV3Schema && binding.expectedSignerNamespaceSHA256 != "" ||
+		binding.freezeSHA256 != freezeSHA256 || !validDigest(binding.freezeSHA256) {
+		return errors.New("T42.2 execution freeze binding is invalid")
+	}
+	return nil
+}
+
+func validateReceiptEvidence(receipt Receipt, plan Plan, binding ExecutionFreezeBinding, sourceVerificationSHA256 string) error {
+	if receipt.ExecutionFreeze.AdmissionEventSHA256 != binding.admissionEventSHA256 || receipt.ExecutionFreeze.AdmissionEventOrdinal != binding.admissionEventOrdinal {
+		return errors.New("T42.2 receipt admission binding differs")
+	}
+	return validateReceiptFrozenEvidence(receipt, plan, binding.freeze, sourceVerificationSHA256)
+}
+
+// Frozen evidence validation consumes authenticated values only. It cannot
+// construct or issue the private admission capability used by execution.
+func validateReceiptFrozenEvidence(receipt Receipt, plan Plan, freeze ExecutionFreeze, sourceVerificationSHA256 string) error {
+	if err := validateReceiptAccountingVersion(receipt, plan); err != nil {
+		return err
+	}
+	planSHA256, err := receiptSHA256(plan)
+	if err != nil || freeze.PlanSHA256 != planSHA256 {
+		return errors.New("T42.2 receipt frozen plan differs")
+	}
+	freezeSHA256, err := receiptSHA256(freeze)
+	if err != nil {
+		return err
+	}
+	admissionSHA256, err := executionAdmissionEventDigest(plan, freezeSHA256, freeze.SignerFingerprint, freeze.SignerNamespaceSHA256)
+	if err != nil {
+		return err
+	}
 	profileSHA256, err := receiptSHA256(plan.Profile)
 	if err != nil {
 		return err
@@ -1236,24 +1259,24 @@ func ValidateReceipt(
 		!plan.ReceiptContract.CanonicalSourceFree ||
 		receipt.Authority.PlanSchema != plan.Schema || receipt.Authority.PlanSHA256 != planSHA256 ||
 		receipt.ExecutionFreeze.Schema != freeze.Schema ||
-		receipt.ExecutionFreeze.SHA256 != binding.freezeSHA256 ||
-		receipt.ExecutionFreeze.SignerFingerprint != binding.expectedSignerFingerprint ||
-		receipt.ExecutionFreeze.AdmissionEventSHA256 != binding.admissionEventSHA256 ||
-		receipt.ExecutionFreeze.AdmissionEventOrdinal != binding.admissionEventOrdinal ||
+		receipt.ExecutionFreeze.SHA256 != freezeSHA256 ||
+		receipt.ExecutionFreeze.SignerFingerprint != freeze.SignerFingerprint ||
+		receipt.ExecutionFreeze.AdmissionEventSHA256 != admissionSHA256 ||
+		receipt.ExecutionFreeze.AdmissionEventOrdinal != uint64(1) ||
 		receipt.ExecutionFreeze.Commits != freeze.Commits ||
 		receipt.Authority.SourceCommit != plan.SourceCommit ||
 		receipt.Authority.ProfileSHA256 != profileSHA256 ||
 		receipt.Authority.OracleSHA256 != oracleSHA256 ||
 		receipt.Authority.RevisionHistorySHA256 != revisionsSHA256 ||
 		receipt.Authority.MeterPolicySHA256 != meterPolicySHA256 ||
-		receipt.Authority.SourceVerificationSHA256 != packageBinding.sourceVerificationSHA256 ||
+		receipt.Authority.SourceVerificationSHA256 != sourceVerificationSHA256 ||
 		!reflect.DeepEqual(receipt.Inputs, plan.Inputs) {
 		return errors.New("T42.2 receipt authority binding is invalid")
 	}
 	if receipt.Seal != (ReceiptSeal{
 		PolicySchema:                         plan.SealPolicy.Schema,
-		SignerFingerprint:                    binding.expectedSignerFingerprint,
-		SignerNamespaceSHA256:                binding.expectedSignerNamespaceSHA256,
+		SignerFingerprint:                    freeze.SignerFingerprint,
+		SignerNamespaceSHA256:                freeze.SignerNamespaceSHA256,
 		FreezeSignatureNamespace:             plan.SealPolicy.FreezeSignatureNamespace,
 		SourceVerificationSignatureNamespace: plan.SealPolicy.SourceVerificationSignatureNamespace,
 		ReturnedSignatureNamespace:           plan.SealPolicy.ReturnedSignatureNamespace,
@@ -1272,7 +1295,7 @@ func ValidateReceipt(
 		return err
 	}
 	if err := validateReceiptMeasurements(
-		receipt.Measurements, outcomes, stopped, receipt.Teardown, binding.admissionEventOrdinal, plan, freeze,
+		receipt.Measurements, outcomes, stopped, receipt.Teardown, uint64(1), plan, freeze,
 	); err != nil {
 		return err
 	}
@@ -4146,66 +4169,11 @@ func validateReceiptTeardown(
 	freeze ExecutionFreeze,
 	ownedServerStarted bool,
 ) (bool, error) {
-	contract, rule := plan.ReceiptContract, plan.Teardown
-	if !value.Attempted || value.BackingVolumeIdentity != freeze.Host.BackingVolumeIdentity ||
-		!slices.Contains(contract.TeardownOutcomes, value.Outcome) {
-		return false, errors.New("T42.2 teardown authority is invalid")
+	failed, err := receiptTeardownFailedChecks(value, measurements, plan, freeze, ownedServerStarted)
+	if err != nil {
+		return false, err
 	}
-	if !validUnavailableMetricsForPlan(value.MeasurementUnavailable, plan.Schema) ||
-		uint64(len(value.MeasurementUnavailable)) != value.MeasurementErrors {
-		return false, errors.New("T42.2 teardown measurement-error inventory is invalid")
-	}
-	failed := make([]string, 0, 20)
-	add := func(name string, condition bool) {
-		if condition {
-			failed = append(failed, name)
-		}
-	}
-	add("teardown_incomplete", !value.Completed)
-	add("descendants_not_stopped", rule.StopDescendants && (!value.DescendantsStopped || value.DescendantStopErrors != 0))
-	add("store_not_closed", rule.CloseStore && (!value.StoreClosed || value.StoreCloseErrors != 0))
-	add("derived_custody_not_removed", rule.RemoveDerivedCustody && (value.DerivedCustodyPaths != 0 || value.DerivedRemovalErrors != 0))
-	add("scratch_source_not_removed", rule.RemoveScratchSource && (value.ScratchSourcePaths != 0 || value.ScratchRemovalErrors != 0))
-	add("children_remain", rule.RequireZeroChildren && value.ChildrenRemaining != 0)
-	if plan.Schema == PlanV3Schema {
-		var err error
-		failed, err = appendAccountingTeardownFailures(failed, value, measurements, ownedServerStarted)
-		if err != nil {
-			return false, err
-		}
-	}
-	add("pressure_ballast_not_removed", value.PressureBallastBytes != 0 || value.BallastRemovalErrors != 0)
-	add("pressure_volume_not_detached", !value.PressureVolumeDetached || value.VolumeDetachErrors != 0)
-	add("pressure_image_not_removed", value.PressureImagePaths != 0 || !value.PressureImageRemoved || value.ImageRemovalErrors != 0)
-	add("backing_custody_not_removed", value.BackingDerivedCustodyPaths != 0)
-	add("source_free_custody_not_established", rule.RetainSourceFreeOnly && !value.RetainedSourceFreeOnly)
-	for _, metric := range value.MeasurementUnavailable {
-		failed = append(failed, "measurement_"+metric+"_unavailable")
-	}
-	teardownIndex := slices.IndexFunc(measurements, func(measurement PhaseMeasurement) bool {
-		return measurement.Phase == "teardown"
-	})
-	deadlineIndex := slices.IndexFunc(plan.PhaseDeadlines, func(deadline PhaseDeadline) bool {
-		return deadline.Phase == "teardown"
-	})
-	if teardownIndex < 0 || deadlineIndex < 0 {
-		return false, errors.New("T42.2 teardown measurement or deadline is absent")
-	}
-	add("teardown_deadline_exceeded", uint64(measurements[teardownIndex].Metrics.WallMS) > plan.PhaseDeadlines[deadlineIndex].DeadlineMS)
-	var preTeardownWall, totalWall uint64
-	for index, measurement := range measurements {
-		wall := uint64(measurement.Metrics.WallMS)
-		if wall > math.MaxUint64-totalWall {
-			return false, errors.New("T42.2 teardown wall accounting overflowed")
-		}
-		totalWall += wall
-		if index < teardownIndex {
-			preTeardownWall = totalWall
-		}
-	}
-	add("teardown_total_wall_ceiling_exceeded",
-		preTeardownWall <= plan.SafetyEnvelope.MaximumTotalWallMS && totalWall > plan.SafetyEnvelope.MaximumTotalWallMS)
-	slices.Sort(failed)
+	contract := plan.ReceiptContract
 	if len(failed) == 0 {
 		if value.Outcome != "clean" || value.Failure != nil {
 			return false, errors.New("T42.2 clean teardown outcome is invalid")
@@ -4228,6 +4196,75 @@ func validateReceiptTeardown(
 		return false, errors.New("T42.2 teardown failure evidence is invalid")
 	}
 	return false, nil
+}
+
+// receiptTeardownFailedChecks computes the existing exact failure inventory
+// before a native adapter seals its teardown result. It accepts no alternate
+// cleanup policy and performs no mutation or observation of its own.
+func receiptTeardownFailedChecks(value ReceiptTeardown, measurements []PhaseMeasurement,
+	plan Plan, freeze ExecutionFreeze, ownedServerStarted bool,
+) ([]string, error) {
+	contract, rule := plan.ReceiptContract, plan.Teardown
+	if !value.Attempted || value.BackingVolumeIdentity != freeze.Host.BackingVolumeIdentity ||
+		!slices.Contains(contract.TeardownOutcomes, value.Outcome) {
+		return nil, errors.New("T42.2 teardown authority is invalid")
+	}
+	if !validUnavailableMetricsForPlan(value.MeasurementUnavailable, plan.Schema) ||
+		uint64(len(value.MeasurementUnavailable)) != value.MeasurementErrors {
+		return nil, errors.New("T42.2 teardown measurement-error inventory is invalid")
+	}
+	failed := make([]string, 0, 20)
+	add := func(name string, condition bool) {
+		if condition {
+			failed = append(failed, name)
+		}
+	}
+	add("teardown_incomplete", !value.Completed)
+	add("descendants_not_stopped", rule.StopDescendants && (!value.DescendantsStopped || value.DescendantStopErrors != 0))
+	add("store_not_closed", rule.CloseStore && (!value.StoreClosed || value.StoreCloseErrors != 0))
+	add("derived_custody_not_removed", rule.RemoveDerivedCustody && (value.DerivedCustodyPaths != 0 || value.DerivedRemovalErrors != 0))
+	add("scratch_source_not_removed", rule.RemoveScratchSource && (value.ScratchSourcePaths != 0 || value.ScratchRemovalErrors != 0))
+	add("children_remain", rule.RequireZeroChildren && value.ChildrenRemaining != 0)
+	if plan.Schema == PlanV3Schema {
+		var err error
+		failed, err = appendAccountingTeardownFailures(failed, value, measurements, ownedServerStarted)
+		if err != nil {
+			return nil, err
+		}
+	}
+	add("pressure_ballast_not_removed", value.PressureBallastBytes != 0 || value.BallastRemovalErrors != 0)
+	add("pressure_volume_not_detached", !value.PressureVolumeDetached || value.VolumeDetachErrors != 0)
+	add("pressure_image_not_removed", value.PressureImagePaths != 0 || !value.PressureImageRemoved || value.ImageRemovalErrors != 0)
+	add("backing_custody_not_removed", value.BackingDerivedCustodyPaths != 0)
+	add("source_free_custody_not_established", rule.RetainSourceFreeOnly && !value.RetainedSourceFreeOnly)
+	for _, metric := range value.MeasurementUnavailable {
+		failed = append(failed, "measurement_"+metric+"_unavailable")
+	}
+	teardownIndex := slices.IndexFunc(measurements, func(measurement PhaseMeasurement) bool {
+		return measurement.Phase == "teardown"
+	})
+	deadlineIndex := slices.IndexFunc(plan.PhaseDeadlines, func(deadline PhaseDeadline) bool {
+		return deadline.Phase == "teardown"
+	})
+	if teardownIndex < 0 || deadlineIndex < 0 {
+		return nil, errors.New("T42.2 teardown measurement or deadline is absent")
+	}
+	add("teardown_deadline_exceeded", uint64(measurements[teardownIndex].Metrics.WallMS) > plan.PhaseDeadlines[deadlineIndex].DeadlineMS)
+	var preTeardownWall, totalWall uint64
+	for index, measurement := range measurements {
+		wall := uint64(measurement.Metrics.WallMS)
+		if wall > math.MaxUint64-totalWall {
+			return nil, errors.New("T42.2 teardown wall accounting overflowed")
+		}
+		totalWall += wall
+		if index < teardownIndex {
+			preTeardownWall = totalWall
+		}
+	}
+	add("teardown_total_wall_ceiling_exceeded",
+		preTeardownWall <= plan.SafetyEnvelope.MaximumTotalWallMS && totalWall > plan.SafetyEnvelope.MaximumTotalWallMS)
+	slices.Sort(failed)
+	return failed, nil
 }
 
 type authorityState struct {
@@ -5040,4 +5077,19 @@ func rejectSourceBearingReceipt(raw []byte) error {
 		}
 	}
 	return nil
+}
+
+// Canonical identity of the frozen first admission event; this is metadata,
+// not evidence that a live authorization or admission capability exists.
+func executionAdmissionEventDigest(plan Plan, freezeSHA256, fingerprint, namespaceSHA256 string) (string, error) {
+	return receiptSHA256(struct {
+		Schema                string `json:"schema"`
+		FreezeSHA256          string `json:"freeze_sha256"`
+		SignatureNamespace    string `json:"signature_namespace"`
+		SignerFingerprint     string `json:"signer_fingerprint"`
+		SignerNamespaceSHA256 string `json:"signer_namespace_sha256,omitempty"`
+		Order                 string `json:"order"`
+		EventOrdinal          uint64 `json:"event_ordinal"`
+	}{plan.ReceiptContract.ExecutionAdmissionSchema, freezeSHA256, plan.SealPolicy.FreezeSignatureNamespace,
+		fingerprint, namespaceSHA256, plan.ReceiptContract.ExecutionAdmissionOrder, 1})
 }

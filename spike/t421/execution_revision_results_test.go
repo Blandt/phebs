@@ -51,3 +51,45 @@ func TestExecutionRevisionResultsUseJoinedAuthorEvidence(t *testing.T) {
 		}
 	}
 }
+
+func TestExecutionRevisionResultsStoppedPrefix(t *testing.T) {
+	plan := accountingTestPlan(t)
+	for _, test := range []struct {
+		name string
+		stop int
+	}{
+		{"preflight", 0}, {"cold", 1}, {"warm", 2}, {"physical", 3}, {"logical", 4}, {"late", 13},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			outcomes := make(map[string]string, len(plan.PhaseOrder))
+			for i, phase := range plan.PhaseOrder {
+				outcomes[phase] = "passed"
+				if i == test.stop {
+					outcomes[phase] = "stopped"
+				}
+				if i > test.stop {
+					outcomes[phase] = "not_run"
+				}
+			}
+			want := completeTestRevisionResults(t, plan, outcomes)
+			var authors []ExecutionAuthorResult
+			for i, row := range want {
+				if row.PhysicalOutcome != "passed" {
+					break
+				}
+				authors = append(authors, ExecutionAuthorResult{Revision: row.Name, ProducerID: uint32(7 + i), RootStarted: true, RootJoined: true, SessionEmpty: true, Completed: true,
+					Response:   &ExecutionCorpusAuthorResponse{Result: AuthoredExecutionRevision{Name: row.Name, Commit: row.PhysicalCommit, Tree: row.PhysicalTree, ParentCommit: row.PhysicalParentCommit, Manifest: row.AuthoredManifest}, ConfigSHA256: SHA256([]byte(row.Name))},
+					Accounting: dispatchadmission.Snapshot{Producers: []dispatchadmission.ProducerCount{{Producer: uint32(7 + i), Attached: true, Closed: true, Ordinal: authorCustodyAttempts(i)}}}})
+			}
+			got, err := composeExecutionRevisionResults(plan, outcomes, authors)
+			if err != nil || !reflect.DeepEqual(got, want) {
+				t.Fatalf("prefix differs: %v", err)
+			}
+			if len(authors) > 0 {
+				if _, err := composeExecutionRevisionResults(plan, outcomes, authors[:len(authors)-1]); err == nil {
+					t.Fatal("missing completed author accepted")
+				}
+			}
+		})
+	}
+}

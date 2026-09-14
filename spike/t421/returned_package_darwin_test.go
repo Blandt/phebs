@@ -3,7 +3,9 @@
 package t421
 
 import (
+	"bytes"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -73,5 +75,36 @@ func TestBuildExecutionReturnedPackageAuthenticatesExactInventoryOnce(t *testing
 	}
 	if _, _, err := buildExecutionReturnedPackage(t.Context(), plan, receipt, freezeBinding, seal); err == nil {
 		t.Fatal("returned-package authority was reusable")
+	}
+	selection, _ := testExecutionSelection(t)
+	selection.PlanSourceCommit = plan.SourceCommit
+	selection.IntegratedMainCommit = commits.IntegratedMainCommit
+	selection.SourceCommit = commits.T422SourceCommit
+	freezeDigest := strings.TrimPrefix(freezeBinding.freezeSHA256, "sha256:")
+	executionOuterSignedFixture(t, selection, packageRaw)
+	verified, err := verifyExecutionReturnedPackage(t.Context(), packageRaw, selection, freezeDigest)
+	if err != nil || verified.digest != SHA256(packageRaw) || !bytes.Equal(verified.raw, packageRaw) ||
+		!reflect.DeepEqual(verified.receipt, receipt) {
+		t.Fatal("outer did not independently authenticate the exact returned bytes", err)
+	}
+	frame, err := frameExecutionReturnedPackage(packageRaw, packageBinding)
+	if err != nil {
+		t.Fatal(err)
+	}
+	captured, err := captureExecutionReturnedPackage(bytes.NewReader(frame))
+	if err != nil || !bytes.Equal(captured, packageRaw) {
+		t.Fatal("framed package changed", err)
+	}
+	for _, name := range []string{"results.json", "source-verification.json.sig", "SHA256SUMS.sig", "allowed_signers", "signer.pub"} {
+		original := files[name]
+		files[name] = append(bytes.Clone(original), 'x')
+		changed, err := marshalExecutionReturnedPackage(files, plan)
+		files[name] = original
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := verifyExecutionReturnedPackage(t.Context(), changed, selection, freezeDigest); err == nil {
+			t.Fatalf("outer accepted changed %s", name)
+		}
 	}
 }

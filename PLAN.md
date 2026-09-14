@@ -3289,3 +3289,88 @@ in [docs/ROADMAP.md](./docs/ROADMAP.md).
   Owned-pipe tests cover actual inner launch/cleanup, full unread output,
   cancellation, final/caller expiry and prelaunch sink refusal; these do not
   establish full executor transport or readiness.
+
+- **2026-09-13 — T42.2n observed receipt assembly and returned delivery.**
+  Connect the admitted Author A result to the existing fifteen-phase sequence,
+  terminal observation composition, unsigned receipt validation, sole-use signed
+  package builder and framed delivery. Preflight ends before Author A: Author A
+  belongs to cold, matching its existing dispatch, store and byte accounting.
+  One new bounded workspace metadata traversal measures admitted preflight;
+  preparation measurements are not substituted for it. Each phase freezes its
+  native/disk endpoint before recording passed or stopped. The whole-inner
+  sampler uses the actual held launcher's basename, including Darwin's native
+  truncation, and covers author, server, offline and cleanup descendants. It
+  retains the existing sticky refusal and never retries an unavailable census.
+  Per-server samplers still bind runtime health; overlapping RSS is not summed.
+  The new sampler adds at most four probes per second before probe duration,
+  plus phase boundaries, within the existing 129-row/32-name bounds. With the
+  existing server sampler active, there can be eight probes per second before
+  duration. Missed ticks do not queue. One fixed fifteen-row native/disk snapshot
+  is retained. Disk checkpoints use the held workspace descriptor and stop
+  immediately before detach; no duplicate descriptor survives detach. An
+  unavailable disk scope projects zero per V3, with actual partial samples
+  retained privately; completed work/byte/RSS prefixes are preserved.
+
+  Required receipt populations now come from accepted native catalog/search/
+  extraction authority, completed source-census observations and actual author
+  changes. Resolver declaration/generated-descriptor counts are observed at the
+  completed builder; caller unresolved counts are accumulated in the existing
+  validated decode, preserving nil visitors and avoiding per-record reference
+  hashes. RPC postings and the RPC-only projection digest use existing reads
+  and serialization. Final authority retains these bounded optional observations.
+  There is no expected-zero or expected-population substitution. Successful
+  and stopped assembly both use the complete existing receipt predicates;
+  unavailable families remain explicit. A stopped operation attempts existing
+  native joins and guarded volume close, preserving retained custody when close
+  refuses. Failed cleanup cannot borrow the success route's healthy-server
+  assertion. Teardown is attempted once, including after a failed phase endpoint.
+
+  Six archive families independently record source, archive and restored
+  consumption. Derived files require actual validated readback matching each
+  archived member. Database after evidence binds consumed payloads only after
+  accepted statements and COMMIT; repaired live database semantics remain a
+  separate native comparison. Component records sort by relative path and hash
+  length-framed canonical path/size/digest records; the six-component outer
+  inventory uses `phebs-archive-artifact-inventory-v1`. Directory-backup receipt
+  archive identity is the committed manifest digest and bytes are the checked
+  sum of its six component payload lengths. It does not claim an outer tar.
+  Selected observation retains one digest map per component and reuses it for
+  restored verification. Existing path strings are shared; raw digest entries,
+  keys and sorted references total approximately 80 bytes per member, up to
+  1.6 GB at the existing twenty-million relationship-entry cap, plus Go map
+  capacity/growth overhead and the native inventories already present. This
+  memory remains subject to the unchanged sampled 20-GiB ceiling. Hashing tees
+  existing consumed bytes; no extra file read/open/seek or child is added.
+  Selected database parsing uses one 32-KiB buffer and computes checksum
+  snapshots after each parsed object in its before/archive/replay scans. The fixed AE inventory adds
+  at most 2,158 wire bytes within the unchanged 64-MiB output cap.
+
+  Inner output uses its exclusively owned child-to-parent pipe with nonblocking
+  writes and deadlines; external stdout still requires the previously admitted
+  nonblocking FIFO/socket. After the existing authorization line, exactly one
+  `T422PKG1` frame carries a big-endian uint32 length and at most four MiB of
+  package bytes, followed by EOF. The outer joins the inner/session even after
+  `WaitDelay`, verifies all three OpenSSH signatures in process, exact inventory,
+  checksums, canonical source-free values, frozen plan and the full receipt
+  semantics, and only then forwards one package. Pure frozen-value validation
+  cannot recreate a live admission capability. Exit status must agree with the
+  authenticated passed/stopped decision. Cancellation and partial output refuse;
+  neither authentication nor replay consumes a second signing attempt.
+
+  Receipt composition is terminal ceremony work over fifteen measurements,
+  thirteen authority/state rows, ten transitions and five server results, with
+  bounded cloning/canonical serialization and existing hashes. Verification
+  holds the existing four-MiB compressed and expanded limits plus bounded
+  raw/frame/JSON copies, performs three in-process Ed25519 checks, and regenerates
+  the plan through the existing contextless decoder with cancellation checks
+  around it. Recovery observations add scalar updates after existing operations
+  and a request-local schedule observation; selected transition reads add checked
+  scalar subtotals under the existing reader mutex. These add no native query.
+  Ordinary requests, sync ticks, startup/restart, retry/no-op and publication
+  acquire no new persistent lock, cache or child. Ordinary archive readers add
+  a context lookup/branch but allocate no observation inventory; ordinary caller
+  cold validation adds one scalar count and eight bytes per cached leaf.
+  Selected serialization/hashing extends the existing owner lock/operation
+  duration; no numerical cap, admission rule, retained V1/V2 byte, release or
+  scale claim changes. Full exact-tree and real launcher readiness remain gates,
+  not consequences of connecting the assembler.

@@ -106,6 +106,10 @@ func TestIndexOfferFinishStablePrefix(t *testing.T) {
 			if (err == nil) != (mode == "healthy") || result.IndexOffers.Complete != (mode == "healthy") || result.IndexOffers.Phases[1].Offers != want {
 				t.Fatal(result.IndexOffers, err)
 			}
+			wantScan := mode == "healthy" || mode == "process failed"
+			if result.IndexOffers.ScanComplete != wantScan || result.Attempts.ScanComplete != wantScan {
+				t.Fatal("capture failure/clean native failure EOF distinction lost", result.IndexOffers, result.Attempts)
+			}
 		})
 	}
 }

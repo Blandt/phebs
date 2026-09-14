@@ -15,6 +15,7 @@ import (
 	"path/filepath"
 	"slices"
 
+	"github.com/bmeddeb/phebs/internal/archiveevidence"
 	"github.com/bmeddeb/phebs/internal/gitobj"
 	"github.com/bmeddeb/phebs/internal/readaccounting"
 	"github.com/bmeddeb/phebs/internal/repopath"
@@ -165,14 +166,19 @@ func validateSourceMembers(
 		after, statErr := file.Stat()
 		closeErr := file.Close()
 		current, currentErr := os.Lstat(path)
+		var sum [32]byte
+		_ = hasher.Sum(sum[:0])
 		if statErr != nil || closeErr != nil || currentErr != nil ||
 			!os.SameFile(opened, after) || !os.SameFile(after, current) ||
 			!current.Mode().IsRegular() || after.Size() != info.Size() ||
 			!after.ModTime().Equal(info.ModTime()) || current.Size() != after.Size() ||
 			!current.ModTime().Equal(after.ModTime()) ||
 			memberRecords != member.RecordCount ||
-			"sha256:"+hex.EncodeToString(hasher.Sum(nil)) != member.Digest {
+			"sha256:"+hex.EncodeToString(sum[:]) != member.Digest {
 			return invalidf("source member %q content mismatch", member.Name)
+		}
+		if err := archiveevidence.ObserveDigest(ctx, path, uint64(member.ContentBytes), sum); err != nil {
+			return err
 		}
 		encodedBytes += member.ContentBytes
 	}

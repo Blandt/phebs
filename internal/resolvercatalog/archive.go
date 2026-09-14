@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/bmeddeb/phebs/internal/archiveevidence"
 	"github.com/bmeddeb/phebs/internal/custodybytes"
 )
 
@@ -78,6 +79,12 @@ func CreateArchiveWithReport(root, output string) (ArchiveReport, error) {
 }
 
 func CreateArchiveWithReportContext(ctx context.Context, root, output string) (_ ArchiveReport, retErr error) {
+	inventory := archiveevidence.New(ctx, "resolver-catalog.tar", maxArchiveEntries)
+	defer func() {
+		if retErr == nil {
+			retErr = inventory.Emit(ctx, archiveevidence.Before)
+		}
+	}()
 	var report ArchiveReport
 	if err := validateOptionalArchiveRoot(root); err != nil {
 		return report, err
@@ -123,6 +130,7 @@ func CreateArchiveWithReportContext(ctx context.Context, root, output string) (_
 			if err := appendStableTarFile(
 				writer, filepath.Join(root, name), name,
 				&archiveEntries, &logicalBytes,
+				inventory,
 			); err != nil {
 				_ = writer.Close()
 				return report, fmt.Errorf("archive resolver catalog %q: %w", name, err)
@@ -172,6 +180,10 @@ func validateOptionalArchiveRoot(root string) error {
 }
 
 func discoverPublications(root string) ([]*Publication, ArchiveReport, error) {
+	return discoverPublicationsContext(context.Background(), root)
+}
+
+func discoverPublicationsContext(ctx context.Context, root string) ([]*Publication, ArchiveReport, error) {
 	var report ArchiveReport
 	entries, err := readBoundedDirectory(root)
 	if errors.Is(err, os.ErrNotExist) {
@@ -198,6 +210,9 @@ func discoverPublications(root string) ([]*Publication, ArchiveReport, error) {
 		raw, _, readErr := readStableRegular(
 			filepath.Join(root, name), maxManifestBytes,
 		)
+		if readErr == nil {
+			readErr = archiveevidence.ObserveRead(ctx, filepath.Join(root, name), raw)
+		}
 		if readErr != nil {
 			report.omit(name, "invalid_manifest", true)
 			continue
@@ -214,7 +229,7 @@ func discoverPublications(root string) ([]*Publication, ArchiveReport, error) {
 			continue
 		}
 		publication, openErr := Open(
-			context.Background(), root, manifest.State(),
+			ctx, root, manifest.State(),
 		)
 		if openErr != nil {
 			report.omit(name, "invalid_publication", true)
@@ -269,7 +284,12 @@ func appendStableTarFile(
 	sourcePath, name string,
 	archiveEntries *int,
 	logicalBytes *int64,
+	inventories ...*archiveevidence.Inventory,
 ) error {
+	var inventory *archiveevidence.Inventory
+	if len(inventories) != 0 {
+		inventory = inventories[0]
+	}
 	info, err := os.Lstat(sourcePath)
 	if err != nil {
 		return err
@@ -300,7 +320,7 @@ func appendStableTarFile(
 	if err := writer.WriteHeader(header); err != nil {
 		return err
 	}
-	if _, err := io.CopyN(writer, file, info.Size()); err != nil {
+	if _, err := inventory.CopyN(writer, file, info.Size(), name); err != nil {
 		return err
 	}
 	return verifyFingerprint(file, fingerprint)
@@ -328,6 +348,12 @@ func RestoreArchive(archivePath, target string) error {
 }
 
 func RestoreArchiveContext(ctx context.Context, archivePath, target string) (retErr error) {
+	inventory := archiveevidence.New(ctx, "resolver-catalog.tar", maxArchiveEntries)
+	defer func() {
+		if retErr == nil {
+			retErr = inventory.Emit(ctx, archiveevidence.After)
+		}
+	}()
 	if _, err := os.Lstat(target); err == nil {
 		return errors.New("resolver catalog restore target already exists")
 	} else if !errors.Is(err, os.ErrNotExist) {
@@ -352,8 +378,12 @@ func RestoreArchiveContext(ctx context.Context, archivePath, target string) (ret
 	}
 	preflight, err := scanResolverArchive(
 		source, archiveInfo.Size(), "",
+		inventory,
 	)
 	if err != nil {
+		return err
+	}
+	if err := inventory.Emit(ctx, archiveevidence.Archived); err != nil {
 		return err
 	}
 	if _, err := source.Seek(0, io.SeekStart); err != nil {
@@ -396,7 +426,11 @@ func RestoreArchiveContext(ctx context.Context, archivePath, target string) (ret
 	if err != nil || !sameArchiveFileIdentity(archiveInfo, current) {
 		return errors.New("resolver catalog archive changed while it was restored")
 	}
-	publications, report, err := discoverPublications(stage)
+	validationContext, err := inventory.VerificationContext(ctx, stage)
+	if err != nil {
+		return err
+	}
+	publications, report, err := discoverPublicationsContext(validationContext, stage)
 	if err != nil {
 		return err
 	}
@@ -435,7 +469,12 @@ func scanResolverArchive(
 	source *os.File,
 	physicalSize int64,
 	destination string,
+	inventories ...*archiveevidence.Inventory,
 ) ([]string, error) {
+	var inventory *archiveevidence.Inventory
+	if len(inventories) != 0 {
+		inventory = inventories[0]
+	}
 	limited := &io.LimitedReader{R: source, N: physicalSize}
 	reader := tar.NewReader(limited)
 	extracted := make([]string, 0)
@@ -465,7 +504,7 @@ func scanResolverArchive(
 		seen[header.Name] = true
 		total += header.Size
 		if destination == "" {
-			if _, err := io.CopyN(io.Discard, reader, header.Size); err != nil {
+			if _, err := inventory.CopyN(io.Discard, reader, header.Size, header.Name); err != nil {
 				return nil, fmt.Errorf(
 					"read resolver catalog archive entry %q: %w",
 					header.Name, err,

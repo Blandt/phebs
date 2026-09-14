@@ -5,7 +5,6 @@ package t421
 import (
 	"context"
 	"errors"
-	"io"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -207,7 +206,7 @@ func prepareExecutionInnerPreparation(
 // authorizeAndAuthorA performs the sole live signed handoff. It emits one
 // bounded operator command, spends the first connection regardless of its
 // validity, and transfers only an exact post-authorization binding to AuthorA.
-func (prepared *executionInnerPreparation) authorizeAndAuthorA(ctx context.Context, output io.Writer) (result ExecutionAuthorResult, retErr error) {
+func (prepared *executionInnerPreparation) authorizeAndAuthorA(ctx context.Context, output *executionAuthorizationOutput) (result ExecutionAuthorResult, retErr error) {
 	if prepared == nil {
 		return ExecutionAuthorResult{}, ErrExecutionLauncher
 	}
@@ -259,7 +258,7 @@ func (prepared *executionInnerPreparation) authorizeAndAuthorA(ctx context.Conte
 	prepared.authorizationHandoff, err = buildExecutionAuthorizationHandoff(executePath, prepared.authorization.path, executeDigest,
 		prepared.outerDeadline.UnixNano(), prepared.finalAdmissionDeadline.UnixNano(), freezeSHA256,
 		prepared.sessionBinding.sha256, prepared.projection)
-	if err != nil || emitExecutionAuthorizationHandoff(output, prepared.authorizationHandoff) != nil {
+	if err != nil || forwardExecutionAuthorizationHandoff(finalCtx, output, prepared.authorizationHandoff.frame) != nil {
 		return ExecutionAuthorResult{}, ErrExecutionLauncher
 	}
 	expected := executionAuthorizationV1{
@@ -303,7 +302,9 @@ func (prepared *executionInnerPreparation) authorizeAndAuthorA(ctx context.Conte
 		!time.Now().Before(prepared.finalAdmissionDeadline) {
 		return ExecutionAuthorResult{}, ErrExecutionLauncher
 	}
-	return prepared.flow.authorAAdmitted(outerCtx, prepared.finalAdmissionDeadline, binding, prepared.ordinals)
+	// The admitted sampler and epoch sequence outlive this method. Bind them to
+	// the caller-owned inner lifetime, not outerCtx whose local defer cancels.
+	return prepared.flow.authorAAdmitted(ctx, prepared.finalAdmissionDeadline, binding, prepared.ordinals, executePath)
 }
 
 func createExecutionOperationalRoot(selection executionSelectionV1) (productionRoot, error) {

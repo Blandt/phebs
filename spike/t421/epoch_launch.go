@@ -295,10 +295,12 @@ func (flow *ExecutionEpochOne) Close() error {
 }
 
 type ExecutionEpochOneResult struct {
-	RootStarted, RootJoined, SessionEmpty bool
-	Accounting                            dispatchadmission.Snapshot
-	Store                                 storeaccounting.WireSnapshot
-	Attempts                              ExecutionAttemptObservation
+	RootStarted, RootJoined, SessionEmpty                                               bool
+	CheckpointHardDeath                                                                 bool // Verified native SIGKILL plus the accepted closed terminal prefix.
+	ArchiveInstallationDestroyed, ArchiveRestoreTargetEmpty, ArchiveScratchSourceAbsent bool
+	Accounting                                                                          dispatchadmission.Snapshot
+	Store                                                                               storeaccounting.WireSnapshot
+	Attempts                                                                            ExecutionAttemptObservation
 	// Separate actual joined offline streams. Producer-local completeness is
 	// not aggregate phase acceptance; epoch five must also be composed.
 	BackupWork, RestoreWork  ExecutionAttemptObservation
@@ -696,6 +698,7 @@ func (flow *ExecutionEpochOne) launchEpoch(runCtx, launchCtx context.Context, ca
 			flow.executionEvidenceTimes["server-start:"+strconv.FormatUint(number, 10)] = launchStarted
 		}
 	}
+	run.result.ServerProcesses = ExecutionServerProcessObservation{ServerEpoch: number, LaunchPhase: launchPhase, StartEventOrdinal: startEventOrdinal}
 	run.mu.Lock()
 	run.healthStarted = launchStarted
 	run.setHealthDeadlineLocked(launchCtx, launchStarted)
@@ -894,6 +897,25 @@ func (run *ExecutionEpochOneRun) Health(ctx context.Context) (retErr error) {
 		defer close(run.healthDone)
 		cancel()
 		if retErr != nil {
+			if run.processObservation != nil && run.flow.hasExecutionPhaseEvents() {
+				run.processObservation.mu.Lock()
+				observed := run.processObservation.result
+				run.processObservation.mu.Unlock()
+				if observed.NativeIdentityEventOrdinal != 0 && observed.HealthReadyEventOrdinal == 0 && observed.HealthStoppedEventOrdinal == 0 {
+					ordinal, eventErr := run.flow.recordNamedExecutionEvent(observed.LaunchPhase, "health-stopped:"+strconv.FormatUint(observed.ServerEpoch, 10))
+					run.mu.Lock()
+					started := run.healthStarted
+					run.mu.Unlock()
+					elapsed := time.Since(started)
+					elapsedMS := uint64(elapsed / time.Millisecond)
+					if elapsed%time.Millisecond != 0 {
+						elapsedMS++
+					}
+					if eventErr != nil || run.processObservation.stoppedStartup(ordinal, max(elapsedMS, 1)) != nil {
+						retErr = ErrExecutionEpochOne
+					}
+				}
+			}
 			run.mu.Lock()
 			run.err = ErrExecutionEpochOne
 			run.mu.Unlock()
@@ -1153,6 +1175,22 @@ func (run *ExecutionEpochOneRun) finish(ctx context.Context, cancel context.Canc
 	serverProcesses, processErr := run.processObservation.snapshot()
 	if processErr != nil {
 		failure = ErrExecutionEpochOne
+	}
+	if serverProcesses.ServerEpoch == 0 {
+		// Actual Start survives even when the first native census failed.
+		serverProcesses.ServerEpoch = run.result.ServerProcesses.ServerEpoch
+		serverProcesses.LaunchPhase = run.result.ServerProcesses.LaunchPhase
+		serverProcesses.StartEventOrdinal = run.result.ServerProcesses.StartEventOrdinal
+	}
+	if serverProcesses.StartEventOrdinal != 0 && serverProcesses.HealthReadyEventOrdinal == 0 && serverProcesses.HealthStoppedEventOrdinal == 0 && run.flow.hasExecutionPhaseEvents() {
+		ordinal, eventErr := run.flow.recordNamedExecutionEvent(serverProcesses.LaunchPhase, "health-stopped:"+strconv.FormatUint(serverProcesses.ServerEpoch, 10))
+		if eventErr != nil {
+			failure = ErrExecutionEpochOne
+		} else {
+			serverProcesses.HealthStoppedEventOrdinal = ordinal
+			elapsed := time.Since(run.healthStarted)
+			serverProcesses.HealthElapsedMS = max(uint64((elapsed+time.Millisecond-1)/time.Millisecond), 1)
+		}
 	}
 	result := ExecutionEpochOneResult{RootStarted: true, RootJoined: joined, SessionEmpty: sessionEmpty, ServerProcesses: serverProcesses,
 		BackupWork: run.backupWork, RestoreWork: run.result.RestoreWork, ParentMidphaseSamples: run.midphaseParentPrefix(), RecoverySamples: run.recoveryWorkspacePrefixSnapshot(), MarkerWorkspace: run.markerWorkspaceSnapshot()}

@@ -15,6 +15,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/bmeddeb/phebs/internal/archiveevidence"
 	"github.com/bmeddeb/phebs/internal/gitobj"
 	"github.com/bmeddeb/phebs/internal/pipelinerefusal"
 	"github.com/bmeddeb/phebs/internal/reponame"
@@ -142,8 +143,12 @@ func ValidateManifest(manifest Manifest) error {
 }
 
 func ReadManifest(directory, repository string) (Manifest, error) {
+	return readManifestContext(context.Background(), directory, repository)
+}
+
+func readManifestContext(ctx context.Context, directory, repository string) (Manifest, error) {
 	var manifest Manifest
-	if err := readCanonicalJSON(
+	if err := readCanonicalJSONContext(ctx,
 		filepath.Join(directory, ManifestName(repository)), MaxManifestBytes, &manifest,
 	); err != nil {
 		return Manifest{}, err
@@ -163,7 +168,7 @@ func ValidateStage(ctx context.Context, directory string, expected Manifest) err
 	if err := ValidateManifest(expected); err != nil {
 		return err
 	}
-	opened, err := ReadManifest(directory, expected.Repository)
+	opened, err := readManifestContext(ctx, directory, expected.Repository)
 	if err != nil {
 		return err
 	}
@@ -223,7 +228,8 @@ func readMember(
 	}
 	hasher := sha256.New()
 	_, _ = hasher.Write([]byte("phebs-source-partition-member-v1\x00"))
-	reader := bufio.NewReaderSize(io.TeeReader(file, hasher), 64<<10)
+	observedReader, observed := archiveevidence.TrackRead(ctx, path, file)
+	reader := bufio.NewReaderSize(io.TeeReader(observedReader, hasher), 64<<10)
 	records := make([]BlobRecord, 0, expected.BlobCount)
 	placements := 0
 	var declared int64
@@ -284,10 +290,15 @@ func readMember(
 		"sha256:"+hex.EncodeToString(hasher.Sum(nil)) != expected.Digest {
 		return nil, invalidf("partition member disagrees with its manifest")
 	}
+	if observed != nil {
+		if err := observed(); err != nil {
+			return nil, err
+		}
+	}
 	return records, nil
 }
 
-func readCanonicalJSON(path string, maximum int, value any) error {
+func readCanonicalJSONContext(ctx context.Context, path string, maximum int, value any) error {
 	info, err := os.Lstat(path)
 	if err != nil || !info.Mode().IsRegular() || info.Size() < 1 || info.Size() > int64(maximum) {
 		return invalidf("control file is missing, special, or oversized")
@@ -330,7 +341,7 @@ func readCanonicalJSON(path string, maximum int, value any) error {
 	if !bytes.Equal(raw, canonical) {
 		return invalidf("control file is not canonical")
 	}
-	return nil
+	return archiveevidence.ObserveRead(ctx, path, raw)
 }
 
 func hashHasPrefix(objectID, prefix string) bool {

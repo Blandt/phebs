@@ -47,7 +47,9 @@ func runExecutionLauncherWithOutput(t *testing.T, command *exec.Cmd) ([]byte, er
 	}
 	done := make(chan capture, 1)
 	go func() {
-		raw, err := io.ReadAll(io.LimitReader(reader, maxExecutionAuthorizationHandoffFrameBytes+1))
+		defer func() { _ = reader.Close() }()
+		limit := int64(maxExecutionAuthorizationHandoffFrameBytes+len(executionReturnedFrameMagic)+4) + int64(frozenSealPolicy().MaximumPackageBytes)
+		raw, err := io.ReadAll(io.LimitReader(reader, limit+1))
 		done <- capture{raw: raw, err: err}
 	}()
 	runErr := command.Run()

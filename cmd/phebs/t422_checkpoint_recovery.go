@@ -12,6 +12,7 @@ import (
 	"github.com/bmeddeb/phebs/internal/candidate"
 	"github.com/bmeddeb/phebs/internal/dispatchadmission"
 	"github.com/bmeddeb/phebs/internal/extractionpublication"
+	"github.com/bmeddeb/phebs/internal/readaccounting"
 	"github.com/bmeddeb/phebs/internal/store"
 )
 
@@ -29,7 +30,7 @@ type t422CheckpointRecoveryInput struct {
 func validT422CheckpointRecoveryInput(input t422CheckpointRecoveryInput) bool {
 	hit, prior := input.Hit, input.Prior
 	if input.Offset < 0 || hit.Domain != "proto-contract" || hit.Ordinal != 2 ||
-		hit.Point != store.GenerationStaleLeaseTransitionCheckpointHit || hit.Attempt != 0 || hit.Priority != store.GenerationPriorityNeverRun ||
+		hit.PrivateLeaseChanged || hit.Point != store.GenerationStaleLeaseTransitionCheckpointHit || hit.Attempt != 0 || hit.Priority != store.GenerationPriorityNeverRun ||
 		hit.ScheduleStatus != store.GenerationScheduleActive || hit.ChunkStatus != store.GenerationChunkRunning || !hit.Leased ||
 		!hit.CanonicalResultExists || !hit.CompletionFileExists || hit.CompletionBitSet || hit.RootExists || hit.Current || hit.RootDigest != "" ||
 		hit.CheckpointStateDigest != "" || hit.PrivateLeaseTokenDigest != "" || hit.TargetGeneration == hit.ScheduleGeneration ||
@@ -233,6 +234,11 @@ func (control *t422CheckpointRecoveryControl) matchesRecovered(value extractionp
 		}
 	}
 	want.PrivateLeaseTokenDigest, want.CheckpointStateDigest = event.PrivateLeaseTokenDigest, value.CheckpointStateDigest
+	// The runtime result precedes the request-owned schedule projection.
+	if value.ObservedScheduleChunks != 0 || value.ObservedScheduleSuccesses != 0 {
+		return false
+	}
+	want.ObservedScheduleChunks, want.ObservedScheduleSuccesses = 0, 0
 	return t422SemanticDigest(value.CheckpointStateDigest) && value == want
 }
 
@@ -262,13 +268,23 @@ func (control *t422CheckpointRecoveryControl) read(ctx context.Context) ([]byte,
 	observer, event, hit := control.recovered.observer, control.recovered.transition, control.input.Hit
 	control.mu.Unlock()
 	operation, finish := control.operationContext(ctx, observer)
-	value, err := control.reconciler.Runtime.ReadCheckpointRestartTransition(operation, extractionpublication.CheckpointRestartTransitionRequest{
+	observedContext, scheduleObservation := readaccounting.CaptureRecoverySchedule(operation)
+	value, err := control.reconciler.Runtime.ReadCheckpointRestartTransition(observedContext, extractionpublication.CheckpointRestartTransitionRequest{
 		Transition: event, TargetGeneration: hit.TargetGeneration, PriorScheduleDigest: hit.PriorScheduleDigest,
 		Domain: hit.Domain, Ordinal: hit.Ordinal, PlanDigest: hit.PlanDigest, ResultIdentity: hit.ResultIdentity})
 	if err != nil || !control.matchesRecovered(value, event) {
 		finish()
 		return nil, nil, control.stop(errors.Join(err, errT422StaleControl))
 	}
+	schedule, observed := scheduleObservation.Observation()
+	if !observed || schedule.ScheduleSHA256 != value.ScheduleDigest {
+		finish()
+		return nil, nil, control.stop(errT422StaleControl)
+	}
+	value.ObservedScheduleChunks, value.ObservedScheduleSuccesses = schedule.Chunks, schedule.Successes
+	// transition and matchesRecovered already proved the reclaimed lease
+	// differs from the killed native lease without exporting either token.
+	value.PrivateLeaseChanged = true
 	body, err := json.Marshal(value)
 	if err != nil {
 		finish()

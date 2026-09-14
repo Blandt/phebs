@@ -238,6 +238,9 @@ func (run *ExecutionEpochOneRun) RestoreBackup(ctx context.Context) (result Exec
 	if err != nil {
 		return result, err
 	}
+	run.mu.Lock()
+	run.result.ArchiveInstallationDestroyed, run.result.ArchiveRestoreTargetEmpty = true, true
+	run.mu.Unlock()
 	if _, err := flow.recordOptionalNamedExecutionEvent("archive_restore", "archive:installation-destroyed"); err != nil {
 		return result, ErrExecutionEpochOne
 	}
@@ -250,6 +253,11 @@ func (run *ExecutionEpochOneRun) RestoreBackup(ctx context.Context) (result Exec
 	if err = run.runNativeArchive(operation, true); err != nil {
 		return result, err
 	}
+	// The joined fixed native restore creates only installed database/derived
+	// artifacts and closes/removes its owned replay scratch before success.
+	run.mu.Lock()
+	run.result.ArchiveScratchSourceAbsent = true
+	run.mu.Unlock()
 	if _, err := flow.recordOptionalNamedExecutionEvent("archive_restore", "archive:restore-complete"); err != nil {
 		return result, ErrExecutionEpochOne
 	}

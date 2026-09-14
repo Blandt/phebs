@@ -20,6 +20,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/bmeddeb/phebs/internal/archiveevidence"
 	"github.com/bmeddeb/phebs/internal/callerpublication"
 	"github.com/bmeddeb/phebs/internal/custodybytes"
 	"github.com/bmeddeb/phebs/internal/dispatchadmission"
@@ -315,6 +316,7 @@ func Create(ctx context.Context, opts BackupOptions) (_ Manifest, retErr error) 
 	if err := ctx.Err(); err != nil {
 		return Manifest{}, err
 	}
+	ctx = databaseSourceObservationContext(ctx)
 	output, err := absoluteCleanPath("backup output", opts.Output)
 	if err != nil {
 		return Manifest{}, err
@@ -722,7 +724,7 @@ func Restore(ctx context.Context, opts RestoreOptions) (_ Manifest, retErr error
 	if err != nil {
 		return Manifest{}, err
 	}
-	manifest, err := VerifyContext(ctx, backup, opts.Options)
+	manifest, err := VerifyContext(archiveevidence.WithoutObserver(ctx), backup, opts.Options)
 	if err != nil {
 		return Manifest{}, err
 	}
@@ -1305,7 +1307,8 @@ func inspectArtifact(
 	if !info.Mode().IsRegular() || !validArtifactSize(name, info.Size()) {
 		return Artifact{}, fmt.Errorf("%s artifact is empty, special, or exceeds its limit", name)
 	}
-	digest, err := digestFile(ctx, path, limit)
+	observe, _ := ctx.Value(databaseSourceObservationKey{}).(bool)
+	digest, err := digestObservedFile(ctx, path, limit, observe && name == DatabaseName)
 	if err != nil {
 		return Artifact{}, fmt.Errorf("digest %s artifact: %w", name, err)
 	}
@@ -1475,6 +1478,10 @@ func validSHA256(value string) bool {
 }
 
 func digestFile(ctx context.Context, path string, maxBytes int64) (string, error) {
+	return digestObservedFile(ctx, path, maxBytes, false)
+}
+
+func digestObservedFile(ctx context.Context, path string, maxBytes int64, observe bool) (string, error) {
 	if ctx == nil {
 		return "", errors.New("file digest context is required")
 	}
@@ -1487,10 +1494,17 @@ func digestFile(ctx context.Context, path string, maxBytes int64) (string, error
 	}
 	defer func() { _ = file.Close() }()
 	hash := sha256.New()
-	written, err := io.Copy(
-		hash,
-		io.LimitReader(contextReader{ctx: ctx, reader: file}, maxBytes+1),
-	)
+	var written int64
+	var identity archiveevidence.Identity
+	var readErr error
+	if observe {
+		counter := &payloadReadCounter{reader: io.TeeReader(io.LimitReader(contextReader{ctx: ctx, reader: file}, maxBytes+1), hash)}
+		identity, readErr = scanDatabasePayloads(counter)
+		written = counter.bytes
+	} else {
+		written, readErr = io.Copy(hash, io.LimitReader(contextReader{ctx: ctx, reader: file}, maxBytes+1))
+	}
+	err = readErr
 	if err != nil {
 		return "", err
 	}
@@ -1499,6 +1513,11 @@ func digestFile(ctx context.Context, path string, maxBytes int64) (string, error
 	}
 	if written > maxBytes {
 		return "", errors.New("file exceeds its digest limit")
+	}
+	if identity.SHA256 != "" {
+		if err := archiveevidence.Emit(ctx, archiveevidence.Observation{Stage: archiveevidence.Before, Path: DatabaseName, Identity: identity}); err != nil {
+			return "", err
+		}
 	}
 	return "sha256:" + hex.EncodeToString(hash.Sum(nil)), nil
 }

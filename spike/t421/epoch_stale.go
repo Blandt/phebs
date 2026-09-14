@@ -183,22 +183,23 @@ func (reader *executionEpochInspection) beginStale() error {
 // Private actual native preparation fields, not a RecoveryPreparationResult:
 // no invented event ordinals, cold opens, completion writes or full-work counts.
 type epochStalePreparation struct {
-	Schema             string                        `json:"schema"`
-	Authority          epochFinalAuthority           `json:"authority"`
-	TargetGeneration   string                        `json:"target_generation"`
-	PriorSchedule      string                        `json:"prior_schedule"`
-	RecoveryGeneration string                        `json:"recovery_generation"`
-	RecoverySchedule   string                        `json:"recovery_schedule"`
-	Domain             string                        `json:"domain"`
-	Ordinal            int                           `json:"ordinal"`
-	Offset             int                           `json:"offset"`
-	PlanDigest         string                        `json:"plan_digest"`
-	ResultIdentity     string                        `json:"result_identity"`
-	ControlFileReads   uint64                        `json:"control_file_reads"`
-	StoreReadAttempts  uint64                        `json:"store_read_attempts"`
-	MemberReads        uint64                        `json:"member_reads"`
-	StoreWriteAttempts uint64                        `json:"store_write_attempts"`
-	Workspace          *epochRecoveryWorkspaceSample `json:"workspace,omitempty"`
+	Operations         *extractionpublication.RecoveryPreparationObservation `json:"operations,omitempty"`
+	Schema             string                                                `json:"schema"`
+	Authority          epochFinalAuthority                                   `json:"authority"`
+	TargetGeneration   string                                                `json:"target_generation"`
+	PriorSchedule      string                                                `json:"prior_schedule"`
+	RecoveryGeneration string                                                `json:"recovery_generation"`
+	RecoverySchedule   string                                                `json:"recovery_schedule"`
+	Domain             string                                                `json:"domain"`
+	Ordinal            int                                                   `json:"ordinal"`
+	Offset             int                                                   `json:"offset"`
+	PlanDigest         string                                                `json:"plan_digest"`
+	ResultIdentity     string                                                `json:"result_identity"`
+	ControlFileReads   uint64                                                `json:"control_file_reads"`
+	StoreReadAttempts  uint64                                                `json:"store_read_attempts"`
+	MemberReads        uint64                                                `json:"member_reads"`
+	StoreWriteAttempts uint64                                                `json:"store_write_attempts"`
+	Workspace          *epochRecoveryWorkspaceSample                         `json:"workspace,omitempty"`
 }
 
 func (reader *executionEpochInspection) prepareStale(ctx context.Context) (retErr error) {
@@ -347,11 +348,18 @@ func (reader *executionEpochInspection) stale(ctx context.Context, point store.G
 		value.Domain != prepared.Domain || value.Ordinal != prepared.Ordinal || value.PlanDigest != prepared.PlanDigest || value.ResultIdentity != prepared.ResultIdentity {
 		return errEpochInspection
 	}
+	if value.ObservedScheduleSuccesses > value.ObservedScheduleChunks {
+		return errEpochInspection
+	}
 	if point == store.GenerationStaleLeaseTransitionHit {
 		reader.staleHit = value
 	} else {
 		hit := reader.staleHit
 		hit.Point = point
+		if value.ObservedScheduleChunks != hit.ObservedScheduleChunks || value.ObservedScheduleSuccesses != value.ObservedScheduleChunks {
+			return errEpochInspection
+		}
+		hit.ObservedScheduleSuccesses = value.ObservedScheduleSuccesses
 		if !reflect.DeepEqual(hit, value) {
 			return errEpochInspection
 		}

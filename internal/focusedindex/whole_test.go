@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/bmeddeb/phebs/internal/archiveevidence"
 	"github.com/sourcegraph/zoekt"
 	"github.com/sourcegraph/zoekt/index"
 
@@ -182,6 +183,11 @@ func TestRepositorySearchGenerationArchiveIsExactAndFailClosed(t *testing.T) {
 }
 
 func TestArchivePreservesSelectedSearchGenerationAfterCurrentAdvances(t *testing.T) {
+	var observations []archiveevidence.Observation
+	ctx, bindErr := archiveevidence.WithObserver(t.Context(), func(value archiveevidence.Observation) error { observations = append(observations, value); return nil })
+	if bindErr != nil {
+		t.Fatal(bindErr)
+	}
 	repositoryDir := t.TempDir()
 	git(t, repositoryDir, "init", "-b", "main")
 	const repository = "example.com/acme/selected-search"
@@ -231,14 +237,14 @@ func TestArchivePreservesSelectedSearchGenerationAfterCurrentAdvances(t *testing
 	}
 	archive := filepath.Join(t.TempDir(), "selected-search.tar")
 	if _, err := CreateArchiveWithSelections(
-		t.Context(), indexDir, archive, []ArchiveSearchGeneration{{
+		ctx, indexDir, archive, []ArchiveSearchGeneration{{
 			Repository: repository, GenerationDigest: first.Current.GenerationDigest,
 		}},
 	); err != nil {
 		t.Fatal(err)
 	}
 	restored := filepath.Join(t.TempDir(), "index")
-	if err := RestoreArchive(archive, restored); err != nil {
+	if err := RestoreArchiveContext(ctx, archive, restored); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := ValidateSearchGeneration(
@@ -251,6 +257,9 @@ func TestArchivePreservesSelectedSearchGenerationAfterCurrentAdvances(t *testing
 	}
 	if _, err := VerifyArchiveWithReport(archive); err != nil {
 		t.Fatalf("verify selected search archive: %v", err)
+	}
+	if len(observations) != 3 || observations[0].Identity != observations[1].Identity || observations[0].Identity != observations[2].Identity {
+		t.Fatalf("selected archive observations = %+v", observations)
 	}
 }
 

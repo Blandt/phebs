@@ -44,7 +44,7 @@ func TestExecutionEpochSequenceRefusesUnavailableInputs(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			if _, err := test.flow.authorAAdmitted(test.ctx, time.Time{}, ExecutionFreezeBinding{}, nil); !errors.Is(err, ErrExecutionEpochOne) {
+			if _, err := test.flow.authorAAdmitted(test.ctx, time.Time{}, ExecutionFreezeBinding{}, nil, ""); !errors.Is(err, ErrExecutionEpochOne) {
 				t.Fatal("unavailable admission was accepted", err)
 			}
 			result, err := runExecutionEpochSequence(test.ctx, test.flow, test.volume)
@@ -76,7 +76,7 @@ func TestExecutionEpochSequenceRetainsDetachedFailedPrefix(t *testing.T) {
 	}
 	// No epoch/tool/dispatch owners exist, so the real start must refuse before
 	// launching anything while preserving the attempted cold-phase event row.
-	flow := &ExecutionEpochOne{executionPhaseEvents: recorder}
+	flow := &ExecutionEpochOne{executionPhaseEvents: recorder, executionEvidenceEvents: make(map[string]uint64), executionEvidenceTimes: make(map[string]time.Time)}
 	result, err := runExecutionEpochSequence(t.Context(), flow, &executionPressureVolume{})
 	if !errors.Is(err, ErrExecutionEpochOne) || result == nil || result.current != nil || flow.used {
 		t.Fatal("missing admission acquired an owner", result, err)

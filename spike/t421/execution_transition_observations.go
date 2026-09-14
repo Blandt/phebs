@@ -26,6 +26,14 @@ type executionTransitionObservations struct {
 }
 
 func cloneExecutionTransitionObservations(value executionTransitionObservations) executionTransitionObservations {
+	if value.stalePreparation.Operations != nil {
+		operation := *value.stalePreparation.Operations
+		value.stalePreparation.Operations = &operation
+	}
+	if value.checkpointPreparation.Operations != nil {
+		operation := *value.checkpointPreparation.Operations
+		value.checkpointPreparation.Operations = &operation
+	}
 	if value.stalePreparation.Workspace != nil {
 		workspace := *value.stalePreparation.Workspace
 		value.stalePreparation.Workspace = &workspace

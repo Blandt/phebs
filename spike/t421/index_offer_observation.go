@@ -21,6 +21,7 @@ type ExecutionIndexOfferCount struct {
 type ExecutionIndexObservation struct {
 	Phases          [15]ExecutionIndexOfferCount
 	Bound, Complete bool
+	ScanComplete    bool // Only clean joined scanner EOF, independent of native exit success.
 }
 
 func (out ExecutionIndexObservation) coherent() bool {
@@ -49,6 +50,7 @@ func observeExecutionIndexOffers(raw []byte, plan Plan, producer uint32, input [
 	for {
 		line, readErr := reader.ReadSlice('\n')
 		if len(line) == 0 && errors.Is(readErr, io.EOF) {
+			out.ScanComplete = true
 			break
 		}
 		if bytes.HasPrefix(line, []byte("IXB")) {

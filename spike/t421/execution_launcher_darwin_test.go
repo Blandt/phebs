@@ -3,6 +3,7 @@
 package t421
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/json"
@@ -12,6 +13,7 @@ import (
 	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"syscall"
 	"testing"
@@ -24,7 +26,7 @@ import (
 func TestMain(m *testing.M) {
 	if len(os.Args) == 4 && os.Args[2] == "--selection-base64url" && os.Args[1] == executionInnerMode {
 		selected, _ := executionSelection(os.Args[3])
-		if selected.CeremonyID == "t422-handoff-test" || selected.CeremonyID == "t422-handoff-extra-test" {
+		if selected.CeremonyID == "t422-handoff-test" || selected.CeremonyID == "t422-handoff-extra-test" || selected.CeremonyID == "t422-waitdelay-test" {
 			liveness, livenessErr := executionLiveness(os.Environ())
 			frame, err := executionLauncherTestHandoff(os.Args[0], liveness.ExecuteImageSHA256, liveness.OuterDeadlineUnixNano)
 			if livenessErr != nil || err != nil {
@@ -34,8 +36,57 @@ func TestMain(m *testing.M) {
 			if writeErr != nil || written != len(frame) {
 				os.Exit(63)
 			}
+			if selected.CeremonyID == "t422-waitdelay-test" {
+				child := exec.Command(os.Args[0], "t422-session-row-test")
+				child.Stderr = os.Stderr // Hold only exec's stderr copy pipe.
+				if child.Start() != nil {
+					os.Exit(67)
+				}
+				if os.WriteFile(selected.RepositoryRoot, []byte(strconv.Itoa(child.Process.Pid)), 0o600) != nil {
+					os.Exit(68)
+				}
+				raw := []byte("modeled package; native cleanup precedes authentication")
+				frame, err := frameExecutionReturnedPackage(raw, returnedTransportTestBinding(raw))
+				if err != nil {
+					os.Exit(69)
+				}
+				if _, err := os.Stdout.Write(frame); err != nil {
+					os.Exit(70)
+				}
+			}
 			if selected.CeremonyID == "t422-handoff-extra-test" {
 				_, _ = os.Stdout.Write([]byte("x"))
+			}
+			os.Exit(0)
+		}
+		if selected.CeremonyID == "t422-package-test" || selected.CeremonyID == "t422-package-wrong-exit-test" {
+			// A real signed fixture exercises native outer delivery; it models
+			// inner execution and does not establish a full launcher rehearsal.
+			liveness, err := executionLiveness(os.Environ())
+			raw, readErr := os.ReadFile(selected.RepositoryRoot)
+			files, inspectErr := inspectExecutionReturnedPackage(raw, Plan{SealPolicy: frozenSealPolicy()})
+			if err != nil || readErr != nil || inspectErr != nil {
+				os.Exit(73)
+			}
+			socket := "/tmp/t422/auth.sock"
+			projection, err := projectExecutionAuthorizationHandoff(os.Args[0], socket, liveness.ExecuteImageSHA256, liveness.OuterDeadlineUnixNano)
+			if err != nil {
+				os.Exit(74)
+			}
+			handoff, err := buildExecutionAuthorizationHandoff(os.Args[0], socket, liveness.ExecuteImageSHA256, liveness.OuterDeadlineUnixNano,
+				liveness.OuterDeadlineUnixNano-1, strings.TrimPrefix(SHA256(files["execution-freeze.json"]), "sha256:"), strings.Repeat("b", 64), projection)
+			if err != nil || emitExecutionAuthorizationHandoff(os.Stdout, handoff) != nil {
+				os.Exit(75)
+			}
+			frame, err := frameExecutionReturnedPackage(raw, returnedTransportTestBinding(raw))
+			if err != nil {
+				os.Exit(76)
+			}
+			if _, err := os.Stdout.Write(frame); err != nil {
+				os.Exit(77)
+			}
+			if selected.CeremonyID == "t422-package-wrong-exit-test" {
+				os.Exit(78)
 			}
 			os.Exit(0)
 		}
@@ -73,13 +124,7 @@ func TestMain(m *testing.M) {
 				os.Exit(59)
 			}
 		}
-		err := RunExecutionCommand(context.Background(), os.Args, os.Environ())
-		if errors.Is(err, errExecutionAuthorityPending) {
-			if _, present := os.LookupEnv(executionLivenessEnvironment); present {
-				os.Exit(52)
-			}
-			os.Exit(43)
-		}
+		_ = RunExecutionCommand(context.Background(), os.Args, os.Environ())
 		os.Exit(44)
 	}
 	if len(os.Args) == 4 && os.Args[2] == "--selection-base64url" && os.Args[1] == executionOuterMode {
@@ -107,6 +152,12 @@ func TestMain(m *testing.M) {
 			}()
 		}
 		err := RunExecutionCommand(ctx, os.Args, os.Environ())
+		if selected.CeremonyID == "t422-package-test" || selected.CeremonyID == "t422-package-wrong-exit-test" {
+			if err == nil {
+				os.Exit(0)
+			}
+			os.Exit(79)
+		}
 		if selected.CeremonyID == "t422-handoff-test" {
 			if err == nil {
 				os.Exit(0)
@@ -118,6 +169,14 @@ func TestMain(m *testing.M) {
 				os.Exit(65)
 			}
 			os.Exit(66)
+		}
+		if selected.CeremonyID == "t422-waitdelay-test" {
+			data, readErr := os.ReadFile(selected.RepositoryRoot)
+			pid, parseErr := strconv.Atoi(string(data))
+			if errors.Is(err, ErrExecutionLauncher) && readErr == nil && parseErr == nil && unix.Kill(pid, 0) == unix.ESRCH {
+				os.Exit(71)
+			}
+			os.Exit(72)
 		}
 		if selected.CeremonyID == "t422-cancel-test" {
 			rows, observeErr := t4013.ObserveProcessTreeRecords(context.Background(), os.Getpid())
@@ -221,7 +280,7 @@ func TestExecutionOuterRefusesInnerWithoutHandoff(t *testing.T) {
 	}
 }
 
-func TestExecutionOuterForwardsOneCanonicalInheritedHandoff(t *testing.T) {
+func TestExecutionOuterForwardsHandoffButRefusesMissingPackage(t *testing.T) {
 	selection, _ := testExecutionSelection(t)
 	selection.CeremonyID = "t422-handoff-test"
 	executable := protectedExecutionTestImage(t)
@@ -230,7 +289,7 @@ func TestExecutionOuterForwardsOneCanonicalInheritedHandoff(t *testing.T) {
 	output, err := runExecutionLauncherWithOutput(t, command)
 	value, decodeErr := decodeExecutionAuthorizationHandoff(output)
 	digest, digestErr := t4013.DigestHostExecutable(t.Context(), executable)
-	if err != nil || decodeErr != nil || digestErr != nil || value.clientArgvPath() != executable || value.T422ExecuteImageSHA256 != digest {
+	if exitCode(t, err) != 64 || decodeErr != nil || digestErr != nil || value.clientArgvPath() != executable || value.T422ExecuteImageSHA256 != digest {
 		t.Fatalf("outer handoff = %d bytes, %v; decode %v, digest %v", len(output), err, decodeErr, digestErr)
 	}
 }
@@ -521,5 +580,50 @@ func TestExecutionImageCTimeStrictlyPrecedesParent(t *testing.T) {
 	}
 	if !validExecutionImageCTime(1, 2) || !validExecutionImageCTime(1, 0) {
 		t.Fatal("valid ctime ordering refused")
+	}
+}
+
+func TestExecutionOuterWaitDelayStillCleansDescendants(t *testing.T) {
+	selection, _ := testExecutionSelection(t)
+	selection.CeremonyID = "t422-waitdelay-test"
+	selection.RepositoryRoot = filepath.Join(t.TempDir(), "child-pid")
+	executable := protectedExecutionTestImage(t)
+	ctx, cancel := context.WithTimeout(t.Context(), 25*time.Second)
+	defer cancel()
+	command := exec.CommandContext(ctx, executable, executionOuterMode, "--selection-base64url", encodeExecutionSelection(t, selection))
+	command.Env = []string{}
+	_, err := runExecutionLauncherWithOutput(t, command)
+	if code := exitCode(t, err); code != 71 {
+		t.Fatalf("WaitDelay cleanup exit = %d", code)
+	}
+}
+
+func executionOuterSignedFixture(t *testing.T, selection executionSelectionV1, raw []byte) {
+	t.Helper()
+	selection.RepositoryRoot = filepath.Join(t.TempDir(), "signed-package")
+	if err := os.WriteFile(selection.RepositoryRoot, raw, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	executable := protectedExecutionTestImage(t)
+	for _, mode := range []string{"t422-package-test", "t422-package-wrong-exit-test"} {
+		selection.CeremonyID = mode
+		ctx, cancel := context.WithTimeout(t.Context(), 2*time.Minute)
+		command := exec.CommandContext(ctx, executable, executionOuterMode, "--selection-base64url", encodeExecutionSelection(t, selection))
+		command.Env = []string{}
+		output, err := runExecutionLauncherWithOutput(t, command)
+		cancel()
+		frames, packages := make(chan executionAuthorizationHandoffFrame, 1), make(chan executionReturnedOutput, 1)
+		captureExecutionReturnedOutput(bytes.NewReader(output), frames, packages)
+		if captured := <-frames; captured.err != nil {
+			t.Fatal("missing outer handoff", captured.err)
+		}
+		returned := <-packages
+		if mode == "t422-package-test" {
+			if err != nil || returned.err != nil || !bytes.Equal(returned.raw, raw) {
+				t.Fatal("native outer signed delivery failed", err, returned.err)
+			}
+		} else if exitCode(t, err) != 79 || returned.err == nil {
+			t.Fatal("outer accepted passed package with failed native exit", err)
+		}
 	}
 }

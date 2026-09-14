@@ -141,11 +141,16 @@ func (run *ExecutionEpochOneRun) pressurePhase(ctx context.Context, ballast *exe
 		if err != nil || workspace.AllocatedBytes < limits.MinimumPrePressureBytes || workspace.AllocatedBytes > limits.MaximumPrePressureBytes {
 			return ErrExecutionEpochOne
 		}
+		reader.mu.Lock()
+		reader.pressure.prePressureWorkspace = workspace
+		reader.pressure.prePressureWorkspaceObserved = true
+		reader.mu.Unlock()
 	}
 	if run.control.FenceRequests(ctx) != nil {
 		return ErrExecutionEpochOne
 	}
 	mutation, err := ballast.nextTarget(ctx, run, workspace)
+	reader.retainPressureBallast(phase-9, mutation, err)
 	if err != nil {
 		return fmt.Errorf("%w: %w", ErrExecutionEpochOne, err)
 	}
@@ -172,6 +177,7 @@ func (run *ExecutionEpochOneRun) pressurePhase(ctx context.Context, ballast *exe
 			return ErrExecutionEpochOne
 		}
 		removed, err := ballast.remove(ctx, run)
+		reader.retainPressureBallast(3, removed, err)
 		if err != nil || run.control.OpenRequests(ctx) != nil {
 			return ErrExecutionEpochOne
 		}

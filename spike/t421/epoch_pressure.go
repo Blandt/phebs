@@ -7,22 +7,42 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/bmeddeb/phebs/internal/custodybytes"
 	"github.com/bmeddeb/phebs/internal/dispatchadmission"
 	"github.com/bmeddeb/phebs/internal/lifecycle"
 )
 
+// Native filesystem facts only. These are the actual samples around the
+// existing fixed mutation, never capacity targets or workspace-byte estimates.
+type executionPressureBallastSample struct {
+	Used, Available, Allocated uint64
+}
+
+type executionPressureBallastMutation struct {
+	Before, After executionPressureBallastSample
+	Fence         time.Time
+}
+
+type executionPressureBallastObservation struct {
+	Mutation            executionPressureBallastMutation
+	Attempted, Complete bool
+}
+
 // Native lifecycle reports, not pressure receipts or allocated-data gauges.
 // The bounded parent retains only the two completed cycles and four capacities.
 type epochPressureObservations struct {
-	step             uint8
-	normal, recovery lifecycle.CycleObservation
-	collect          lifecycle.Pressure80Observation
-	refuse           lifecycle.Pressure90Observation
-	latched          lifecycle.Pressure75Observation
-	resumed          lifecycle.Pressure75RecoveryObservation
-	recoveryFence    time.Time
-	sampleOrdinal    uint8
-	samples          ExecutionPressureSamples
+	step                         uint8
+	normal, recovery             lifecycle.CycleObservation
+	collect                      lifecycle.Pressure80Observation
+	refuse                       lifecycle.Pressure90Observation
+	latched                      lifecycle.Pressure75Observation
+	resumed                      lifecycle.Pressure75RecoveryObservation
+	recoveryFence                time.Time
+	sampleOrdinal                uint8
+	samples                      ExecutionPressureSamples
+	ballast                      [4]executionPressureBallastObservation
+	prePressureWorkspace         custodybytes.Sample
+	prePressureWorkspaceObserved bool
 }
 
 func checkpointPressureEpochBounds(plan Plan) (epochOneLimits, error) {
@@ -246,4 +266,15 @@ func pressureCycleValid(c lifecycle.CycleObservation, allowJobBacklog bool) bool
 	final, err := validateLifecycleOwners(rows, plan, uint64(c.FenceAt.UnixMilli()), uint64(c.Capacity.ObservedAt.UnixMilli()))
 	total := lifecycleAggregate{scanned: c.Scanned, deleted: c.Deleted, logicalBytes: c.LogicalBytes, rootBytes: c.RootBytes, memberBytes: c.MemberBytes}
 	return err == nil && validateLifecycleTotals(total, final, c.OwnerTurns, uint64(len(rows)), plan.Schema) == nil
+}
+
+// Preserve failed native prefixes too: Complete reports mutation acceptance,
+// not whether some Before/After fields happened to be populated. No I/O runs
+// under this short existing reader lock.
+func (reader *executionEpochInspection) retainPressureBallast(index uint32, mutation executionPressureBallastMutation, err error) {
+	reader.mu.Lock()
+	defer reader.mu.Unlock()
+	reader.pressure.ballast[index] = executionPressureBallastObservation{
+		Mutation: mutation, Attempted: true, Complete: err == nil,
+	}
 }

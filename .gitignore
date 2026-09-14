@@ -60,3 +60,7 @@ uber-phebs.yaml
 # T43.4 screenshot-receipt run artifacts (baselines ARE committed)
 ui/receipts/.artifacts/
 ui/receipts/.auth/
+
+# Local agent scratch and diagnostics.
+.cowork-reverted/
+Claude outputs/

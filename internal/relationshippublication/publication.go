@@ -14,6 +14,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/bmeddeb/phebs/internal/archiveevidence"
 	"github.com/bmeddeb/phebs/internal/dispatchadmission"
 	"github.com/bmeddeb/phebs/internal/readaccounting"
 	"github.com/bmeddeb/phebs/internal/reponame"
@@ -354,7 +355,7 @@ func Recover(ctx context.Context, root, repository string) (bool, error) {
 		}
 		return false, syncDirectory(base)
 	}
-	raw, err := readRegular(filepath.Join(base, "publishing.json"), MaxRootBytes)
+	raw, err := readRegularContext(ctx, filepath.Join(base, "publishing.json"), MaxRootBytes)
 	if errors.Is(err, os.ErrNotExist) {
 		return false, nil
 	}
@@ -432,7 +433,7 @@ func OpenGeneration(
 		return nil, fmt.Errorf("%w: generation lookup", ErrInvalid)
 	}
 	directory := generationPath(root, repository, generation)
-	raw, err := readRegular(filepath.Join(directory, "root.json"), MaxRootBytes)
+	raw, err := readRegularContext(ctx, filepath.Join(directory, "root.json"), MaxRootBytes)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return nil, ErrNotFound
@@ -611,7 +612,7 @@ func openDirectoryComplete(ctx context.Context, directory string, expected Root)
 	if err != nil || !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
 		return nil, fmt.Errorf("%w: generation directory", ErrInvalid)
 	}
-	raw, err := readRegular(filepath.Join(directory, "root.json"), MaxRootBytes)
+	raw, err := readRegularContext(ctx, filepath.Join(directory, "root.json"), MaxRootBytes)
 	if err != nil {
 		return nil, err
 	}
@@ -675,7 +676,7 @@ func (publication *Publication) openRepositoryMember(
 	if err := ctx.Err(); err != nil {
 		return RepositoryMember{}, err
 	}
-	raw, err := readRegular(filepath.Join(publication.directory, receipt.Name), MaxRepositoryMemberBytes)
+	raw, err := readRegularContext(ctx, filepath.Join(publication.directory, receipt.Name), MaxRepositoryMemberBytes)
 	if err != nil || int64(len(raw)) != receipt.ContentBytes {
 		return RepositoryMember{}, fmt.Errorf("%w: repository member bytes", ErrInvalid)
 	}
@@ -700,7 +701,7 @@ func (publication *Publication) openServiceMember(
 	if err := ctx.Err(); err != nil {
 		return ServiceMember{}, err
 	}
-	raw, err := readRegular(filepath.Join(publication.directory, receipt.Name), MaxServiceMemberBytes)
+	raw, err := readRegularContext(ctx, filepath.Join(publication.directory, receipt.Name), MaxServiceMemberBytes)
 	if err != nil || int64(len(raw)) != receipt.ContentBytes {
 		return ServiceMember{}, fmt.Errorf("%w: service member bytes", ErrInvalid)
 	}
@@ -1054,6 +1055,14 @@ func replaceFile(path string, raw []byte) error {
 		return err
 	}
 	return syncDirectory(filepath.Dir(path))
+}
+
+func readRegularContext(ctx context.Context, path string, limit int) ([]byte, error) {
+	raw, err := readRegular(path, limit)
+	if err == nil {
+		err = archiveevidence.ObserveRead(ctx, path, raw)
+	}
+	return raw, err
 }
 
 func readRegular(path string, limit int) ([]byte, error) {

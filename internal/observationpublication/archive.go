@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/bmeddeb/phebs/internal/archiveevidence"
 	"github.com/bmeddeb/phebs/internal/custodybytes"
 )
 
@@ -45,6 +46,12 @@ type archiveFile struct {
 // or marker-covered derived generation is omitted rather than blocking backup
 // of precious state.
 func CreateArchive(ctx context.Context, root, output string) (_ ArchiveReport, retErr error) {
+	inventory := archiveevidence.New(ctx, "observation-publication.tar", MaxArchiveEntries)
+	defer func() {
+		if retErr == nil {
+			retErr = inventory.Emit(ctx, archiveevidence.Before)
+		}
+	}()
 	var report ArchiveReport
 	if !filepath.IsAbs(root) || !filepath.IsAbs(output) {
 		return report, invalid("archive paths must be absolute")
@@ -161,7 +168,7 @@ func CreateArchive(ctx context.Context, root, output string) (_ ArchiveReport, r
 			_ = writer.Close()
 			return report, err
 		}
-		written, copyErr := io.CopyN(writer, source, item.size)
+		written, copyErr := inventory.CopyN(writer, source, item.size, item.name)
 		after, statErr := source.Stat()
 		closeErr := source.Close()
 		current, currentErr := os.Lstat(item.path)
@@ -188,7 +195,7 @@ func CreateArchive(ctx context.Context, root, output string) (_ ArchiveReport, r
 	if err := file.Close(); err != nil {
 		return report, err
 	}
-	verified, err := VerifyArchive(ctx, output)
+	verified, err := VerifyArchive(archiveevidence.WithoutObserver(ctx), output)
 	if err != nil || verified.Publications != report.Publications ||
 		verified.V1Publications != report.V1Publications || verified.V2Publications != report.V2Publications ||
 		verified.Files != report.Files || verified.Bytes != report.Bytes {
@@ -314,6 +321,12 @@ func RestoreArchive(ctx context.Context, archivePath, root string) error {
 // leaves that directory empty and a subsequent invocation can resume. The
 // stage and destination must be disjoint.
 func RestoreArchiveWithStage(ctx context.Context, archivePath, root, stage string) (retErr error) {
+	inventory := archiveevidence.New(ctx, "observation-publication.tar", MaxArchiveEntries)
+	defer func() {
+		if retErr == nil {
+			retErr = inventory.Emit(ctx, archiveevidence.After)
+		}
+	}()
 	if !filepath.IsAbs(archivePath) || !filepath.IsAbs(root) || !filepath.IsAbs(stage) ||
 		filepath.Clean(archivePath) != archivePath || filepath.Clean(root) != root ||
 		filepath.Clean(stage) != stage || pathsOverlap(root, stage) {
@@ -427,6 +440,14 @@ func RestoreArchiveWithStage(ctx context.Context, archivePath, root, stage strin
 				_ = file.Close()
 				return errors.Join(existingErr, closeErr, archiveErr, invalid("resumed observation archive entry differs"))
 			}
+			if inventory != nil {
+				var sum [32]byte
+				_ = archiveHash.Sum(sum[:0])
+				if err := inventory.Add(header.Name, uint64(header.Size), sum); err != nil {
+					_ = file.Close()
+					return err
+				}
+			}
 		} else if !errors.Is(statErr, os.ErrNotExist) {
 			_ = file.Close()
 			return statErr
@@ -441,7 +462,7 @@ func RestoreArchiveWithStage(ctx context.Context, archivePath, root, stage strin
 				_ = file.Close()
 				return err
 			}
-			written, copyErr := io.CopyN(output, reader, header.Size)
+			written, copyErr := inventory.CopyN(output, reader, header.Size, header.Name)
 			syncErr := output.Sync()
 			closeErr := output.Close()
 			if copyErr != nil || syncErr != nil || closeErr != nil || written != header.Size {
@@ -468,6 +489,13 @@ func RestoreArchiveWithStage(ctx context.Context, archivePath, root, stage strin
 	if err := file.Close(); err != nil {
 		return err
 	}
+	if err := inventory.Emit(ctx, archiveevidence.Archived); err != nil {
+		return err
+	}
+	ctx, err = inventory.VerificationContext(ctx, stage)
+	if err != nil {
+		return err
+	}
 	repositories, err := boundedDirectory(stage, MaxLifecycleRepositories)
 	if err != nil {
 		return err
@@ -477,7 +505,7 @@ func RestoreArchiveWithStage(ctx context.Context, archivePath, root, stage strin
 			return invalid("restore root artifact")
 		}
 		validAuthority := false
-		raw, pointerErr := readBoundedRegular(filepath.Join(stage, repository.Name(), "current.json"), MaxManifestBytes)
+		raw, pointerErr := readBoundedRegularContext(ctx, filepath.Join(stage, repository.Name(), "current.json"), MaxManifestBytes)
 		if pointerErr == nil {
 			var encoded Pointer
 			if decodeCanonical(raw, &encoded) != nil || repositoryHash(encoded.Repository) != repository.Name() {
@@ -487,7 +515,7 @@ func RestoreArchiveWithStage(ctx context.Context, archivePath, root, stage strin
 			if err != nil || pointer != encoded {
 				return errors.Join(err, invalid("restored pointer"))
 			}
-			manifest, err := restoreEmptyObservationObjectDirectory(stage, pointer, seenDirectories)
+			manifest, err := restoreEmptyObservationObjectDirectory(ctx, stage, pointer, seenDirectories)
 			if err != nil {
 				return err
 			}
@@ -498,7 +526,7 @@ func RestoreArchiveWithStage(ctx context.Context, archivePath, root, stage strin
 		} else if !errors.Is(pointerErr, os.ErrNotExist) {
 			return pointerErr
 		}
-		v2Raw, v2Err := readBoundedRegular(
+		v2Raw, v2Err := readBoundedRegularContext(ctx,
 			filepath.Join(stage, repository.Name(), InventoryPublicationDirectoryV2, InventoryPublicationRootNameV2),
 			MaxManifestBytes,
 		)
@@ -556,11 +584,11 @@ func RestoreArchiveWithStage(ctx context.Context, archivePath, root, stage strin
 }
 
 func restoreEmptyObservationObjectDirectory(
-	stage string,
+	ctx context.Context, stage string,
 	pointer Pointer,
 	directories map[string]bool,
 ) (Manifest, error) {
-	raw, err := readBoundedRegular(
+	raw, err := readBoundedRegularContext(ctx,
 		filepath.Join(repositoryDirectory(stage, pointer.Repository), pointer.ManifestName),
 		MaxManifestBytes,
 	)

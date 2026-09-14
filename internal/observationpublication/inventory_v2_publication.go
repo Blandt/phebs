@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/bmeddeb/phebs/internal/archiveevidence"
 	"github.com/bmeddeb/phebs/internal/readaccounting"
 	"github.com/bmeddeb/phebs/internal/sourcepartition"
 )
@@ -388,7 +389,13 @@ func ReadInventoryPublicationRootV2Context(ctx context.Context, root, repository
 func validateInventoryPublicationStageV2(
 	ctx context.Context, transition InventoryPublicationTransitionV2,
 ) (InventoryGenerationRefV2, error) {
-	sourceRoot, err := sourcepartition.ReadSuperRoot(transition.SourceDirectory, transition.Repository)
+	var sourceRoot sourcepartition.SuperRoot
+	var err error
+	if archiveevidence.Reading(ctx) {
+		sourceRoot, err = sourcepartition.ReadSuperRootContext(ctx, transition.SourceDirectory, transition.Repository)
+	} else {
+		sourceRoot, err = sourcepartition.ReadSuperRoot(transition.SourceDirectory, transition.Repository)
+	}
 	if err != nil {
 		return InventoryGenerationRefV2{}, err
 	}
@@ -396,7 +403,7 @@ func validateInventoryPublicationStageV2(
 	if err != nil {
 		return InventoryGenerationRefV2{}, err
 	}
-	inventoryRoot, err := ReadInventoryRootV2(transition.InventoryDirectory, transition.Repository)
+	inventoryRoot, err := readInventoryRootV2Observed(ctx, transition.InventoryDirectory, transition.Repository)
 	if err != nil {
 		return InventoryGenerationRefV2{}, err
 	}

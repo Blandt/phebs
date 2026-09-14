@@ -9,8 +9,10 @@ import (
 	"slices"
 
 	"github.com/bmeddeb/phebs/internal/callerexecute"
+	"github.com/bmeddeb/phebs/internal/callerpublication"
 	"github.com/bmeddeb/phebs/internal/candidate"
 	"github.com/bmeddeb/phebs/internal/config"
+	"github.com/bmeddeb/phebs/internal/dispatchadmission"
 	"github.com/bmeddeb/phebs/internal/extractionpublication"
 	"github.com/bmeddeb/phebs/internal/focusedindex"
 	"github.com/bmeddeb/phebs/internal/kafkatopicposting"
@@ -77,12 +79,29 @@ type t421FinalStateProjection struct {
 	ProductRelationship       t421relationshipprojection.ProductSummary  `json:"product_relationship"`
 }
 
+type t422CatalogPopulation struct {
+	AcceptedServices uint64 `json:"accepted_services"`
+}
+
 type t421FinalAuthorityResponse struct {
-	Schema          string                                `json:"schema"`
-	Authority       t421FinalAuthorityState               `json:"authority"`
-	Projection      t421FinalStateProjection              `json:"projection"`
-	ExtractionRoots []t421extractionprojection.RootResult `json:"extraction_roots"`
-	QueryAuthority  *t422QueryAuthority                   `json:"query_authority,omitempty"`
+	CatalogPopulation     *t422CatalogPopulation                `json:"catalog_population,omitempty"`
+	Schema                string                                `json:"schema"`
+	Authority             t421FinalAuthorityState               `json:"authority"`
+	Projection            t421FinalStateProjection              `json:"projection"`
+	ExtractionRoots       []t421extractionprojection.RootResult `json:"extraction_roots"`
+	CallerPublication     *t422CallerPublicationObservation     `json:"caller_publication,omitempty"`
+	ResolverCatalogCounts *readaccounting.ResolverCatalogCounts `json:"resolver_catalog_counts,omitempty"`
+	RPCPostings           *t422RPCPostingObservation            `json:"rpc_postings,omitempty"`
+	QueryAuthority        *t422QueryAuthority                   `json:"query_authority,omitempty"`
+}
+
+type t422CallerPublicationObservation struct {
+	RelationshipRootReads       uint64                              `json:"relationship_root_reads"`
+	RelationshipGenerationReads uint64                              `json:"relationship_generation_reads"`
+	GenerationSHA256            string                              `json:"generation_sha256"`
+	ManifestSHA256              string                              `json:"manifest_sha256"`
+	Leaves                      []callerpublication.LeafObservation `json:"leaves"`
+	RPCProjection               t421FinalSetIdentity                `json:"rpc_projection"`
 }
 
 type t422QueryAuthority struct {
@@ -276,11 +295,17 @@ func (reader *t421FinalAuthorityReader) Read(
 	) {
 		return nil, nil, errors.Join(err, errors.New("relationship authority changed"))
 	}
+	// This F has completed one root-bound semantic generation snapshot.
+	// These count the returned logical reads, not every filesystem control
+	// access already tracked independently by the request ledger.
+	var relationshipRootReads, relationshipGenerationReads uint64
+	relationshipRootReads++
+	relationshipGenerationReads++
 	semantic, err := t421relationshipprojection.Derive(ctx, relationship.Projections)
 	if err != nil {
 		return nil, nil, err
 	}
-	resolver, err := reader.openRelationshipComponents(ctx, relationship.Root, relationship.Projections)
+	resolver, rpcPostings, err := reader.openRelationshipComponents(ctx, relationship.Root, relationship.Projections)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -335,6 +360,23 @@ func (reader *t421FinalAuthorityReader) Read(
 			RelationshipResults: semantic.Families, ProductRelationship: semantic.Product,
 		},
 		ExtractionRoots: extractionRoots,
+		RPCPostings:     rpcPostings,
+	}
+	if dispatchadmission.ProductionWorkSelected() {
+		response.CatalogPopulation = &t422CatalogPopulation{AcceptedServices: uint64(catalogRoot.Dispositions.Accepted)}
+		if caller.Lease() == nil || caller.Lease().Publication() == nil {
+			return nil, nil, errors.New("caller observation unavailable")
+		}
+		response.CallerPublication = &t422CallerPublicationObservation{
+			RelationshipRootReads: relationshipRootReads, RelationshipGenerationReads: relationshipGenerationReads,
+			GenerationSHA256: caller.State.Generation.Digest, ManifestSHA256: caller.State.ManifestDigest,
+			Leaves:        caller.Lease().Publication().LeafObservations(),
+			RPCProjection: t421FinalSetIdentity{Records: semantic.RPCRecords, FramedBytes: semantic.RPCFramedBytes, SHA256: semantic.RPCSHA256},
+		}
+	}
+	response.ResolverCatalogCounts, err = t422FinalResolverCatalogCounts(ctx, resolver.Authority.ResolverGenerationDigest, resolver.Authority.ResolverManifestDigest)
+	if err != nil {
+		return nil, nil, err
 	}
 	response.QueryAuthority, err = t422FinalQueryAuthority(ctx, catalogRoot, resolver)
 	if err != nil {
@@ -576,48 +618,58 @@ func (reader *t421FinalAuthorityReader) openRelationshipComponents(
 	ctx context.Context,
 	root relationshippublication.RootV3,
 	projections []relationshippublication.Projection,
-) (resolvernamespace.Root, error) {
+) (resolvernamespace.Root, *t422RPCPostingObservation, error) {
 	authority := root.Authority
 	resolver, err := resolvernamespace.OpenGeneration(
 		ctx, filepath.Join(reader.dataDir, "relationship-resolver-namespaces"), reader.repository,
 		authority.ResolverGenerationDigest, authority.ResolverRootDigest,
 	)
 	if err != nil {
-		return resolvernamespace.Root{}, err
+		return resolvernamespace.Root{}, nil, err
 	}
 	if err := resolver.ValidateComplete(ctx); err != nil {
-		return resolvernamespace.Root{}, err
+		return resolvernamespace.Root{}, nil, err
 	}
 	resolverRoot := resolver.Root()
 	expected, err := t421FinalNewComponentInventory(projections)
 	if err != nil {
-		return resolvernamespace.Root{}, err
+		return resolvernamespace.Root{}, nil, err
 	}
 	rpc, err := rpccallerposting.OpenGeneration(
 		ctx, filepath.Join(reader.dataDir, "relationship-rpc-postings"), reader.repository,
 		authority.RPCGenerationDigest, authority.RPCRootDigest,
 	)
 	if err != nil {
-		return resolvernamespace.Root{}, err
+		return resolvernamespace.Root{}, nil, err
+	}
+	var counts *t422RPCPostingObservation
+	if dispatchadmission.ProductionWorkSelected() {
+		counts = &t422RPCPostingObservation{}
 	}
 	if err := rpc.WalkPostings(ctx, func(posting rpccallerposting.Posting) error {
-		return expected.take(t421FinalRPCComponentIdentity(posting))
+		if err := expected.take(t421FinalRPCComponentIdentity(posting)); err != nil {
+			return err
+		}
+		if counts != nil {
+			return counts.observe(posting.Class)
+		}
+		return nil
 	}); err != nil {
-		return resolvernamespace.Root{}, err
+		return resolvernamespace.Root{}, nil, err
 	}
 	kafka, err := kafkatopicposting.OpenGeneration(
 		ctx, filepath.Join(reader.dataDir, "relationship-kafka-postings"), reader.repository,
 		authority.KafkaGenerationDigest, authority.KafkaRootDigest,
 	)
 	if err != nil {
-		return resolvernamespace.Root{}, err
+		return resolvernamespace.Root{}, nil, err
 	}
 	if err := kafka.WalkPostings(ctx, func(posting kafkatopicposting.Posting) error {
 		return expected.take(t421FinalKafkaComponentIdentity(posting))
 	}); err != nil {
-		return resolvernamespace.Root{}, err
+		return resolvernamespace.Root{}, nil, err
 	}
-	return resolverRoot, expected.complete()
+	return resolverRoot, counts, expected.complete()
 }
 
 type t421FinalComponentIdentity struct {

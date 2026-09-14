@@ -3,9 +3,11 @@ package recovery
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"hash"
 	"io"
 	"net"
 	"net/http"
@@ -15,6 +17,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/bmeddeb/phebs/internal/archiveevidence"
 	"github.com/bmeddeb/phebs/internal/custodybytes"
 	"github.com/bmeddeb/phebs/internal/storeaccounting"
 )
@@ -31,6 +34,9 @@ func executeRestoreReplay(ctx context.Context, prepared *preparedRestoreReplay, 
 		return prepared.terminal
 	}
 	defer func() {
+		if resultErr == nil && archiveevidence.Selected(ctx) {
+			resultErr = archiveevidence.Emit(ctx, archiveevidence.Observation{Stage: archiveevidence.After, Path: DatabaseName, Identity: prepared.installedPayloads.Identity()})
+		}
 		if resultErr != nil {
 			prepared.terminal = resultErr
 		}
@@ -92,6 +98,11 @@ func executeRestoreReplay(ctx context.Context, prepared *preparedRestoreReplay, 
 		if err != nil {
 			return fmt.Errorf("native import unit %d: %w", prepared.seen.Units, err)
 		}
+		if archiveevidence.Selected(ctx) {
+			if err := prepared.installedPayloads.Add(databasePayloadRecord(prepared.seen.Units, unit, unit.PayloadSHA256)); err != nil {
+				return err
+			}
+		}
 	}
 }
 
@@ -118,15 +129,31 @@ func submitRestoreReplayUnit(ctx context.Context, client *http.Client, endpoint 
 		prefix += "INSERT ["
 		suffix = "];" + suffix
 	}
-	body := io.MultiReader(
-		strings.NewReader(prefix), io.NewSectionReader(file, unit.Span.Start, unit.Span.End-unit.Span.Start), strings.NewReader(suffix),
-	)
+	var payload io.Reader = io.NewSectionReader(file, unit.Span.Start, unit.Span.End-unit.Span.Start)
+	var measured *payloadReadCounter
+	var digest hash.Hash
+	if archiveevidence.Selected(ctx) {
+		digest = sha256.New()
+		measured = &payloadReadCounter{reader: io.TeeReader(payload, digest)}
+		payload = measured
+	}
+	body := io.MultiReader(strings.NewReader(prefix), payload, strings.NewReader(suffix))
 	size := int64(len(prefix)+len(suffix)) + unit.Span.End - unit.Span.Start
 	rows := uint64(unit.Count)
 	if unit.Definition {
 		rows = 1
 	}
-	return submitRestoreReplayRequest(ctx, client, endpoint, database, body, size, unit.Definition, false, rows, owner)
+	if err := submitRestoreReplayRequest(ctx, client, endpoint, database, body, size, unit.Definition, false, rows, owner); err != nil {
+		return err
+	}
+	if measured != nil {
+		var actual [32]byte
+		_ = digest.Sum(actual[:0])
+		if measured.bytes != unit.Span.End-unit.Span.Start || actual != unit.PayloadSHA256 {
+			return archiveevidence.ErrObservation
+		}
+	}
+	return nil
 }
 
 func submitRestoreReplayRequest(ctx context.Context, client *http.Client, endpoint string, database DatabaseIdentity, source io.Reader, size int64, definition, bootstrap bool, rows uint64, owner *storeaccounting.SDKOwner) error {

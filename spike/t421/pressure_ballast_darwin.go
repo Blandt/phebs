@@ -13,17 +13,6 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-// Native filesystem facts only. The caller must separately measure complete
-// custody allocation and bind lifecycle, authority and event observations.
-type executionPressureBallastSample struct {
-	Used, Available, Allocated uint64
-}
-
-type executionPressureBallastMutation struct {
-	Before, After executionPressureBallastSample
-	Fence         time.Time
-}
-
 // The volume's existing mutex and mutation lease serialize the four fixed
 // mutations. No arbitrary path, desired size, or capacity assertion is accepted.
 type executionPressureBallast struct {

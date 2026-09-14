@@ -18,6 +18,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/bmeddeb/phebs/internal/archiveevidence"
 	"github.com/bmeddeb/phebs/internal/custodybytes"
 	"github.com/bmeddeb/phebs/internal/repositoryindex"
 )
@@ -125,6 +126,12 @@ func CreateArchiveWithSelections(
 	indexDir, destination string,
 	selections []ArchiveSearchGeneration,
 ) (_ ArchiveReport, retErr error) {
+	inventory := archiveevidence.New(ctx, "focused-index.tar", maxArchiveEntries)
+	defer func() {
+		if retErr == nil {
+			retErr = inventory.Emit(ctx, archiveevidence.Before)
+		}
+	}()
 	expectations, report, err := archivablePublications(ctx, indexDir, selections)
 	if err != nil {
 		return report, err
@@ -217,6 +224,11 @@ func CreateArchiveWithSelections(
 		written, copyErr := io.CopyN(
 			io.MultiWriter(writer, digest), source, info.Size(),
 		)
+		if copyErr == nil && inventory != nil {
+			var sum [32]byte
+			_ = digest.Sum(sum[:0])
+			copyErr = inventory.Add(filepath.ToSlash(name), uint64(written), sum)
+		}
 		after, afterErr := source.Stat()
 		closeErr := source.Close()
 		current, currentErr := os.Lstat(path)
@@ -371,6 +383,12 @@ func RestoreArchive(archivePath, indexDir string) error {
 }
 
 func RestoreArchiveContext(ctx context.Context, archivePath, indexDir string) (retErr error) {
+	inventory := archiveevidence.New(ctx, "focused-index.tar", maxArchiveEntries)
+	defer func() {
+		if retErr == nil {
+			retErr = inventory.Emit(ctx, archiveevidence.After)
+		}
+	}()
 	pathInfo, err := os.Lstat(archivePath)
 	if err != nil || !pathInfo.Mode().IsRegular() {
 		return errors.New("focused archive is missing or special")
@@ -389,7 +407,7 @@ func RestoreArchiveContext(ctx context.Context, archivePath, indexDir string) (r
 		)
 	}
 
-	preflight, err := scanArchive(archive, archiveInfo.Size(), "")
+	preflight, err := scanArchive(archive, archiveInfo.Size(), "", inventory)
 	if err != nil {
 		return err
 	}
@@ -428,15 +446,22 @@ func RestoreArchiveContext(ctx context.Context, archivePath, indexDir string) (r
 	if !slices.Equal(preflight, extracted) {
 		return errors.New("focused archive changed between validation passes")
 	}
-	materialized, err := materializeSelectedCurrentSearchGenerations(stage)
+	if err := inventory.Emit(ctx, archiveevidence.Archived); err != nil {
+		return err
+	}
+	ctx, err = inventory.VerificationContext(ctx, stage)
+	if err != nil {
+		return err
+	}
+	materialized, err := materializeSelectedCurrentSearchGenerationsContext(ctx, stage)
 	if err != nil {
 		return fmt.Errorf("materialize selected current search generation: %w", err)
 	}
-	_, declared, err := validatedPublications(stage)
+	_, declared, err := validatedPublicationsContext(ctx, stage)
 	if err != nil {
 		return fmt.Errorf("validate focused restore archive: %w", err)
 	}
-	selected, err := validatedSelectedSearchGenerations(stage)
+	selected, err := validatedSelectedSearchGenerationsContext(ctx, stage)
 	if err != nil {
 		return fmt.Errorf("validate selected search restore archive: %w", err)
 	}
@@ -511,7 +536,12 @@ func scanArchive(
 	archive *os.File,
 	physicalSize int64,
 	destination string,
+	inventories ...*archiveevidence.Inventory,
 ) ([]string, error) {
+	var inventory *archiveevidence.Inventory
+	if len(inventories) != 0 {
+		inventory = inventories[0]
+	}
 	limited := &io.LimitedReader{R: archive, N: physicalSize}
 	reader := tar.NewReader(limited)
 	extracted := make([]string, 0)
@@ -541,7 +571,7 @@ func scanArchive(
 		seen[header.Name] = true
 		total += header.Size
 		if destination == "" {
-			if _, err := io.CopyN(io.Discard, reader, header.Size); err != nil {
+			if _, err := inventory.CopyN(io.Discard, reader, header.Size, header.Name); err != nil {
 				return nil, fmt.Errorf(
 					"read focused archive entry %q: %w", header.Name, err,
 				)
@@ -934,9 +964,7 @@ func archiveSelectedSearchGenerationExpectations(
 	return files, nil
 }
 
-func validatedSelectedSearchGenerations(
-	indexDir string,
-) (map[string]bool, error) {
+func validatedSelectedSearchGenerationsContext(ctx context.Context, indexDir string) (map[string]bool, error) {
 	files := map[string]bool{}
 	root := SearchGenerationRootDirectory(indexDir)
 	repositories, err := os.ReadDir(root)
@@ -969,7 +997,7 @@ func validatedSelectedSearchGenerations(
 			}
 			directory := filepath.Join(repositoryDirectory, generationEntry.Name())
 			var envelope SearchGenerationReceipt
-			if err := readControlFile(
+			if err := readControlFileContext(ctx,
 				filepath.Join(directory, searchGenerationReceiptName), &envelope,
 			); err != nil {
 				return nil, err
@@ -980,7 +1008,7 @@ func validatedSelectedSearchGenerations(
 				return nil, errors.New("archived search generation path identity mismatch")
 			}
 			receipt, err := validateImmutableSearchGeneration(
-				context.Background(), indexDir, envelope.Repository, digest,
+				ctx, indexDir, envelope.Repository, digest,
 			)
 			envelope.AllocatedBytes = receipt.AllocatedBytes
 			envelope.AllocatedState = receipt.AllocatedState
@@ -1027,9 +1055,7 @@ func validatedSelectedSearchGenerations(
 	return files, nil
 }
 
-func materializeSelectedCurrentSearchGenerations(
-	indexDir string,
-) (map[string]bool, error) {
+func materializeSelectedCurrentSearchGenerationsContext(ctx context.Context, indexDir string) (map[string]bool, error) {
 	materialized := map[string]bool{}
 	root := SearchGenerationRootDirectory(indexDir)
 	repositories, err := os.ReadDir(root)
@@ -1061,7 +1087,7 @@ func materializeSelectedCurrentSearchGenerations(
 				continue
 			}
 			var envelope SearchGenerationReceipt
-			if err := readControlFile(
+			if err := readControlFileContext(ctx,
 				filepath.Join(directory, searchGenerationReceiptName), &envelope,
 			); err != nil {
 				return nil, err
@@ -1075,7 +1101,7 @@ func materializeSelectedCurrentSearchGenerations(
 			if err != nil || search.Digest != receipt.SearchDigest {
 				return nil, errors.Join(err, errors.New("selected receipt-only generation is not current"))
 			}
-			if _, err := validateFlatSearchGenerationReceipt(
+			if _, err := validateFlatSearchGenerationReceiptContext(ctx,
 				indexDir, receipt.Repository, search,
 			); err != nil {
 				return nil, err
@@ -1199,6 +1225,10 @@ func archiveControlExpectation(
 }
 
 func validatedPublications(indexDir string) (map[string]string, []string, error) {
+	return validatedPublicationsContext(context.Background(), indexDir)
+}
+
+func validatedPublicationsContext(ctx context.Context, indexDir string) (map[string]string, []string, error) {
 	entries, err := os.ReadDir(indexDir)
 	if errors.Is(err, os.ErrNotExist) {
 		return map[string]string{}, []string{}, nil
@@ -1218,7 +1248,7 @@ func validatedPublications(indexDir string) (map[string]string, []string, error)
 			continue
 		}
 		var envelope Manifest
-		if err := readControlFile(filepath.Join(indexDir, entry.Name()), &envelope); err != nil {
+		if err := readControlFileContext(ctx, filepath.Join(indexDir, entry.Name()), &envelope); err != nil {
 			return nil, nil, err
 		}
 		if entry.Name() != ManifestName(envelope.Repository) ||
@@ -1227,7 +1257,7 @@ func validatedPublications(indexDir string) (map[string]string, []string, error)
 				"focused manifest filename or repository is ambiguous",
 			)
 		}
-		manifest, err := ValidateSelfContained(indexDir, envelope.Repository)
+		manifest, err := validateSelfContained(ctx, indexDir, envelope.Repository, false)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -1244,7 +1274,7 @@ func validatedPublications(indexDir string) (map[string]string, []string, error)
 			continue
 		}
 		var envelope repositoryindex.SearchManifest
-		if err := readControlFile(filepath.Join(indexDir, entry.Name()), &envelope); err != nil {
+		if err := readControlFileContext(ctx, filepath.Join(indexDir, entry.Name()), &envelope); err != nil {
 			return nil, nil, err
 		}
 		key := "search:" + envelope.Repository
@@ -1255,7 +1285,7 @@ func validatedPublications(indexDir string) (map[string]string, []string, error)
 			)
 		}
 		search, err := ValidateRepositorySearchGeneration(
-			context.Background(), indexDir, envelope.Repository, envelope.Revisions,
+			ctx, indexDir, envelope.Repository, envelope.Revisions,
 		)
 		if err != nil {
 			return nil, nil, err
@@ -1280,7 +1310,7 @@ func validatedPublications(indexDir string) (map[string]string, []string, error)
 		}
 		receiptName := searchGenerationArchiveReceiptName(search.Repository)
 		if _, statErr := os.Lstat(filepath.Join(indexDir, receiptName)); statErr == nil {
-			if _, err := validateFlatSearchGenerationReceipt(
+			if _, err := validateFlatSearchGenerationReceiptContext(ctx,
 				indexDir, search.Repository, search,
 			); err != nil {
 				return nil, nil, err

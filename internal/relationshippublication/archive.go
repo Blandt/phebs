@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/bmeddeb/phebs/internal/archiveevidence"
 	"github.com/bmeddeb/phebs/internal/custodybytes"
 	"github.com/bmeddeb/phebs/internal/kafkatopicposting"
 	"github.com/bmeddeb/phebs/internal/resolvernamespace"
@@ -83,6 +84,12 @@ func CreateArchiveWithSelections(
 	dataDir, output string,
 	selections []ArchiveRelationshipGeneration,
 ) (_ ArchiveReport, retErr error) {
+	inventory := archiveevidence.New(ctx, "relationship-publication.tar", MaxArchiveEntries)
+	defer func() {
+		if retErr == nil {
+			retErr = inventory.Emit(ctx, archiveevidence.Before)
+		}
+	}()
 	var report ArchiveReport
 	if !filepath.IsAbs(dataDir) || !filepath.IsAbs(output) {
 		return report, invalidLifecycle("archive paths")
@@ -211,7 +218,7 @@ func CreateArchiveWithSelections(
 			_ = writer.Close()
 			return report, err
 		}
-		written, copyErr := io.CopyN(writer, source, item.size)
+		written, copyErr := inventory.CopyN(writer, source, item.size, item.name)
 		after, statErr := source.Stat()
 		closeErr := source.Close()
 		current, currentErr := os.Lstat(item.path)
@@ -233,7 +240,7 @@ func CreateArchiveWithSelections(
 	if err := file.Close(); err != nil {
 		return report, err
 	}
-	verified, err := VerifyArchive(ctx, output)
+	verified, err := VerifyArchive(archiveevidence.WithoutObserver(ctx), output)
 	if err != nil || verified.Publications != report.Publications ||
 		verified.Files != report.Files || verified.Bytes != report.Bytes {
 		return report, errors.Join(err, invalidLifecycle("created archive verification"))
@@ -345,7 +352,7 @@ func archiveCurrentPublication(
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return nil, err
 	}
-	pointerRaw, err := readRegular(filepath.Join(repositoryDirectory, "current.json"), MaxRootBytes)
+	pointerRaw, err := readRegularContext(ctx, filepath.Join(repositoryDirectory, "current.json"), MaxRootBytes)
 	if err != nil {
 		return nil, err
 	}
@@ -434,7 +441,7 @@ func archiveCurrentPublicationV3(
 		return nil, err
 	}
 	pointerPath := filepath.Join(repositoryDirectory, "current.json")
-	pointerRaw, err := readRegular(pointerPath, MaxRootBytesV3)
+	pointerRaw, err := readRegularContext(ctx, pointerPath, MaxRootBytesV3)
 	if err != nil {
 		return nil, err
 	}
@@ -578,7 +585,7 @@ func openArchivedResolver(
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return resolvernamespace.Root{}, nil, err
 	}
-	pointerRaw, err := readRegular(filepath.Join(base, "current.json"), MaxRootBytes)
+	pointerRaw, err := readRegularContext(ctx, filepath.Join(base, "current.json"), MaxRootBytes)
 	if err != nil {
 		return resolvernamespace.Root{}, nil, err
 	}
@@ -729,6 +736,12 @@ func VerifyArchive(ctx context.Context, archivePath string) (_ ArchiveReport, re
 }
 
 func RestoreArchive(ctx context.Context, archivePath, dataDir string) (retErr error) {
+	inventory := archiveevidence.New(ctx, "relationship-publication.tar", MaxArchiveEntries)
+	defer func() {
+		if retErr == nil {
+			retErr = inventory.Emit(ctx, archiveevidence.After)
+		}
+	}()
 	if !filepath.IsAbs(archivePath) || !filepath.IsAbs(dataDir) {
 		return invalidLifecycle("restore paths")
 	}
@@ -750,7 +763,14 @@ func RestoreArchive(ctx context.Context, archivePath, dataDir string) (retErr er
 			retErr = errors.Join(retErr, err)
 		}
 	}()
-	if _, err := extractArchive(ctx, archivePath, stage); err != nil {
+	if _, err := extractArchive(inventory.CaptureContext(ctx), archivePath, stage); err != nil {
+		return err
+	}
+	if err := inventory.Emit(ctx, archiveevidence.Archived); err != nil {
+		return err
+	}
+	ctx, err = inventory.VerificationContext(ctx, stage)
+	if err != nil {
 		return err
 	}
 	if _, err := validateArchiveTree(ctx, stage); err != nil {
@@ -826,7 +846,7 @@ func extractArchive(ctx context.Context, archivePath, root string) (ArchiveRepor
 		if err != nil {
 			return report, err
 		}
-		written, copyErr := io.CopyN(output, reader, header.Size)
+		written, copyErr := archiveevidence.Capturing(ctx).CopyN(output, reader, header.Size, header.Name)
 		syncErr := output.Sync()
 		closeErr := output.Close()
 		if copyErr != nil || syncErr != nil || closeErr != nil || written != header.Size {
@@ -938,7 +958,7 @@ func validateArchivedRelationshipGenerations(
 			if namespace.v3 {
 				pointerLimit = MaxRootBytesV3
 			}
-			pointerRaw, err := readRegular(filepath.Join(directory, "current.json"), pointerLimit)
+			pointerRaw, err := readRegularContext(ctx, filepath.Join(directory, "current.json"), pointerLimit)
 			if err != nil && !errors.Is(err, os.ErrNotExist) {
 				return err
 			}
@@ -984,7 +1004,7 @@ func validateArchivedRelationshipGenerations(
 				}
 				if namespace.v3 {
 					generationDirectory := filepath.Join(directory, entry.Name())
-					raw, err := readRegular(
+					raw, err := readRegularContext(ctx,
 						filepath.Join(generationDirectory, "root.json"), MaxRootBytesV3,
 					)
 					if err != nil {
@@ -1024,7 +1044,7 @@ func validateArchivedRelationshipGenerations(
 					continue
 				}
 				generationDirectory := filepath.Join(directory, entry.Name())
-				raw, err := readRegular(
+				raw, err := readRegularContext(ctx,
 					filepath.Join(generationDirectory, "root.json"), MaxRootBytes,
 				)
 				if err != nil {

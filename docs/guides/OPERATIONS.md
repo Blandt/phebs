@@ -7505,3 +7505,27 @@ replay report the validated root after publication and before notification.
 Every report must be zero, every parsing phase needs one, and a sixth report in
 one phase refuses. This does not mean all source languages are supported, and
 the record is not a phase metric or freeze authorization by itself.
+
+### T42.2 returned launcher output
+
+The admitted launcher emits its canonical authorization line first. After
+execution and cleanup, it emits one authenticated package as `T422PKG1`, a
+four-byte big-endian length, and that many package bytes, then closes output.
+The length must be positive and at most four MiB. A collector must preserve the
+binary package exactly and reject missing, truncated, duplicate or trailing
+output. Receipt decision and process exit must agree: a verified stopped
+receipt accompanies a nonzero exit. Receiving an authorization line alone is
+not a completed run or returned package.
+
+The outer launcher verifies all signatures, exact inventory and full receipt
+semantics before publishing the package. It accepts only an already nonblocking
+FIFO/socket as external stdout; ordinary shell redirection to a regular file,
+a terminal or a blocking pipe refuses before inner launch. The private inner
+pipe has separate owned deadline handling. This transport does not establish
+readiness for unsupported output sinks.
+
+Stopped cleanup can retain the pressure image, generated source or derived
+workspace when the existing custody checks refuse removal. Preserve that
+receipt and custody for review; do not force detach, replace a failed outcome
+with a passed one, or automatically retry. No completed native launcher
+readiness, ceremony or freeze is implied by the presence of this implementation.

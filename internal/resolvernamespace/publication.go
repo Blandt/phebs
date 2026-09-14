@@ -13,6 +13,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/bmeddeb/phebs/internal/archiveevidence"
 	"github.com/bmeddeb/phebs/internal/readaccounting"
 )
 
@@ -118,7 +119,7 @@ func Recover(ctx context.Context, root, repository string) (*Publication, error)
 		return nil, err
 	}
 	base := repositoryRoot(root, repository)
-	raw, err := readRegular(filepath.Join(base, "publishing.json"), MaxRootBytes)
+	raw, err := readRegularContext(ctx, filepath.Join(base, "publishing.json"), MaxRootBytes)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return OpenCurrent(ctx, root, repository)
@@ -168,7 +169,7 @@ func OpenCurrent(ctx context.Context, root, repository string) (*Publication, er
 		return nil, err
 	}
 	base := repositoryRoot(root, repository)
-	raw, err := readRegular(filepath.Join(base, "current.json"), MaxRootBytes)
+	raw, err := readRegularContext(ctx, filepath.Join(base, "current.json"), MaxRootBytes)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return nil, ErrNotFound
@@ -323,7 +324,7 @@ func LookupCurrent(
 	if err != nil {
 		return nil, nil, err
 	}
-	current, err := readRegular(filepath.Join(publication.base, "current.json"), MaxRootBytes)
+	current, err := readRegularContext(ctx, filepath.Join(publication.base, "current.json"), MaxRootBytes)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -341,7 +342,7 @@ func readRootContext(ctx context.Context, directory string, pointer Pointer) (Ro
 	if err := readaccounting.Charge(ctx, readaccounting.ControlFileRead, 1); err != nil {
 		return Root{}, err
 	}
-	raw, err := readRegular(filepath.Join(directory, pointer.RootFile), MaxRootBytes)
+	raw, err := readRegularContext(ctx, filepath.Join(directory, pointer.RootFile), MaxRootBytes)
 	if err != nil {
 		return Root{}, err
 	}
@@ -371,7 +372,7 @@ func openGeneration(
 	if !complete {
 		return publication, nil
 	}
-	raw, err := readRegular(filepath.Join(directory, "root.json"), MaxRootBytes)
+	raw, err := readRegularContext(ctx, filepath.Join(directory, "root.json"), MaxRootBytes)
 	if err != nil {
 		return nil, err
 	}
@@ -440,7 +441,7 @@ func (publication *Publication) openMember(
 	if err := readaccounting.Charge(ctx, readaccounting.ControlFileRead, 1); err != nil {
 		return Member{}, nil, err
 	}
-	raw, err := readRegular(filepath.Join(publication.directory, receipt.Member), MaxMemberBytes)
+	raw, err := readRegularContext(ctx, filepath.Join(publication.directory, receipt.Member), MaxMemberBytes)
 	if err != nil {
 		return Member{}, nil, err
 	}
@@ -573,6 +574,14 @@ func writeAtomic(path string, value any) error {
 	}
 	failed = false
 	return syncDirectory(filepath.Dir(path))
+}
+
+func readRegularContext(ctx context.Context, path string, limit int) ([]byte, error) {
+	raw, err := readRegular(path, limit)
+	if err == nil {
+		err = archiveevidence.ObserveRead(ctx, path, raw)
+	}
+	return raw, err
 }
 
 func readRegular(path string, limit int) ([]byte, error) {

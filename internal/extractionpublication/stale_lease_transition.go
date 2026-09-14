@@ -34,16 +34,18 @@ type StaleLeaseTransitionRequest struct {
 // StaleLeaseTransition is the bounded, source-free identity returned after
 // the mutable store state is confirmed around the immutable control reads.
 type StaleLeaseTransition struct {
-	Point               store.GenerationStaleLeaseTransitionPoint `json:"point"`
-	TargetGeneration    string                                    `json:"target_generation"`
-	ScheduleGeneration  string                                    `json:"schedule_generation"`
-	PriorScheduleDigest string                                    `json:"prior_schedule_digest"`
-	ScheduleDigest      string                                    `json:"schedule_digest"`
-	ChunkIdentity       string                                    `json:"chunk_identity"`
-	Domain              string                                    `json:"domain"`
-	Ordinal             int                                       `json:"ordinal"`
-	PlanDigest          string                                    `json:"plan_digest"`
-	ResultIdentity      string                                    `json:"result_identity"`
+	ObservedScheduleChunks    uint64                                    `json:"observed_schedule_chunks,omitempty"`
+	ObservedScheduleSuccesses uint64                                    `json:"observed_schedule_successes,omitempty"`
+	Point                     store.GenerationStaleLeaseTransitionPoint `json:"point"`
+	TargetGeneration          string                                    `json:"target_generation"`
+	ScheduleGeneration        string                                    `json:"schedule_generation"`
+	PriorScheduleDigest       string                                    `json:"prior_schedule_digest"`
+	ScheduleDigest            string                                    `json:"schedule_digest"`
+	ChunkIdentity             string                                    `json:"chunk_identity"`
+	Domain                    string                                    `json:"domain"`
+	Ordinal                   int                                       `json:"ordinal"`
+	PlanDigest                string                                    `json:"plan_digest"`
+	ResultIdentity            string                                    `json:"result_identity"`
 }
 
 type preparedTransitionTarget struct {

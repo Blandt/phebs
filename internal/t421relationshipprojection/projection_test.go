@@ -41,6 +41,9 @@ func TestDeriveFullFrozenProjectionParity(t *testing.T) {
 		ProjectionRecords: 20_999, ProjectionFramedBytes: 4_673_604,
 		ProjectionSHA256: "sha256:742f20fff1ca76f036b1114f5e2d556682b642e3257ab9c1ebba794dfe66653d",
 	}
+	if result.RPCRecords != 10_999 || result.RPCFramedBytes != 2_823_595 || result.RPCSHA256 != "sha256:0626d9b1c29811b896b126a1872a2bc8126d9873225045927e9e87c85df0cf29" {
+		t.Fatalf("RPC-only projection=%d/%d/%s", result.RPCRecords, result.RPCFramedBytes, result.RPCSHA256)
+	}
 	if result.Product != wantProduct {
 		t.Fatalf("product projection mismatch:\n got: %+v\nwant: %+v", result.Product, wantProduct)
 	}

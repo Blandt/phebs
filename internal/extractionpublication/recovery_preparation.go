@@ -57,6 +57,7 @@ type CurrentRecoveryPreparationRequest struct {
 // RecoveryPreparationTarget retains the bounded native schedule and target
 // identities, not plans, result inventories, source data, or an authority graph.
 type RecoveryPreparationTarget struct {
+	Observation         RecoveryPreparationObservation
 	Schedule            store.GenerationSchedule
 	TargetGeneration    string
 	PriorScheduleDigest string
@@ -65,6 +66,18 @@ type RecoveryPreparationTarget struct {
 	Offset              int
 	PlanDigest          string
 	ResultIdentity      string
+}
+
+// RecoveryPreparationObservation counts only operations that actually
+// completed in the one selected native preparation, not its frozen budget.
+type RecoveryPreparationObservation struct {
+	Completed         bool   `json:"completed"`
+	ScheduleWrites    uint64 `json:"schedule_writes"`
+	Chunks            uint64 `json:"chunks"`
+	CompletionWrites  uint64 `json:"completion_writes"`
+	Deletes           uint64 `json:"deletes"`
+	DirectoriesSynced bool   `json:"directories_synced"`
+	LocksReleased     bool   `json:"locks_released"`
 }
 
 // PrepareCurrentRecovery captures the settled predecessor in the first
@@ -84,6 +97,7 @@ func (reconciler *Reconciler) PrepareCurrentRecovery(
 	if err != nil {
 		return RecoveryPreparationTarget{}, err
 	}
+	target.Observation.Completed, target.Observation.LocksReleased = true, true
 	return target, nil
 }
 
@@ -238,8 +252,12 @@ func (reconciler *Reconciler) prepareRecovery(
 	if err := reconciler.confirmRecoveryAuthority(ctx, &request, generation); err != nil {
 		return nil, err
 	}
+	var observation *RecoveryPreparationObservation
+	if selected != nil {
+		observation = &selected.Observation
+	}
 	if request.Mode == RecoveryPreparationCheckpoint {
-		if err := runtime.prepareRecoveryCheckpoint(ctx, directory, targetDomain, request.TargetOrdinal); err != nil {
+		if err := runtime.prepareRecoveryCheckpointObserved(ctx, directory, targetDomain, request.TargetOrdinal, observation); err != nil {
 			return nil, err
 		}
 	}
@@ -248,6 +266,9 @@ func (reconciler *Reconciler) prepareRecovery(
 	}
 	if err := runtime.enqueue(ctx, generation); err != nil {
 		return nil, err
+	}
+	if observation != nil {
+		observation.ScheduleWrites++
 	}
 	current, err := runtime.Store.GetGenerationSchedule(ctx, repository, ScheduleStage)
 	if err != nil {
@@ -269,6 +290,8 @@ func (reconciler *Reconciler) prepareRecovery(
 	}
 	if selected != nil {
 		selected.Schedule, selected.PriorScheduleDigest = *current, request.PriorScheduleDigest
+		selected.Observation.Chunks = uint64(current.TotalChunks)
+		selected.Observation.DirectoriesSynced = true
 	}
 	// Workers may already have claimed the successor. Its counters need not be
 	// pristine; the exact operational identity and native binding are the result.
@@ -426,6 +449,10 @@ func (reconciler *Reconciler) validateRecoveryDomain(
 }
 
 func (runtime *Runtime) prepareRecoveryCheckpoint(ctx context.Context, directory string, domain DomainPlan, ordinal int) error {
+	return runtime.prepareRecoveryCheckpointObserved(ctx, directory, domain, ordinal, nil)
+}
+
+func (runtime *Runtime) prepareRecoveryCheckpointObserved(ctx context.Context, directory string, domain DomainPlan, ordinal int, observation *RecoveryPreparationObservation) error {
 	resultDirectory := filepath.Join(directory, domainKey(domain.Plan.Domain))
 	completionPath := filepath.Join(resultDirectory, completionName())
 	completion, err := readCompletionControlContext(ctx, completionPath, domain.Plan)
@@ -440,6 +467,9 @@ func (runtime *Runtime) prepareRecoveryCheckpoint(ctx context.Context, directory
 	if err := writeAtomicCanonical(completionPath, completion); err != nil {
 		return err
 	}
+	if observation != nil {
+		observation.CompletionWrites++
+	}
 	// Remove the pointer before its root: even an interrupted prefix must not
 	// leave a dangling pointer that the ordinary pointer-only reuse path accepts.
 	for _, path := range []string{runtime.currentPath(domain.Plan.Repository, domain.Plan.Domain), filepath.Join(resultDirectory, rootName())} {
@@ -448,6 +478,9 @@ func (runtime *Runtime) prepareRecoveryCheckpoint(ctx context.Context, directory
 		}
 		if err := os.Remove(path); err != nil {
 			return err
+		}
+		if observation != nil {
+			observation.Deletes++
 		}
 		if err := syncDirectory(filepath.Dir(path)); err != nil {
 			return err

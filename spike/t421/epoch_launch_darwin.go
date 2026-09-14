@@ -25,6 +25,8 @@ type executionEpochPlatform struct {
 	profileHost                *executionHostObservation
 	profileHostUsed            bool
 	profileWorkspace           *executionWorkspaceCustodyCapability
+	executionWholeResources    *executionWholeResources
+	executionColdAuthorActive  bool
 	executionFreezeBinding     *ExecutionFreezeBinding
 	executionEventOrdinals     *admittedExecutionEventOrdinals
 }
@@ -108,6 +110,7 @@ func (flow *ExecutionEpochOne) authorAAdmitted(
 	finalAdmissionDeadline time.Time,
 	binding ExecutionFreezeBinding,
 	ordinals *executionEventOrdinals,
+	executePath string,
 ) (ExecutionAuthorResult, error) {
 	if flow == nil || ctx == nil {
 		return ExecutionAuthorResult{}, ErrExecutionEpochOne
@@ -142,16 +145,67 @@ func (flow *ExecutionEpochOne) authorAAdmitted(
 	flow.executionPhaseEvents = recorder
 	flow.executionEvidenceEvents = make(map[string]uint64, 48)
 	flow.executionEvidenceTimes = make(map[string]time.Time, 48)
-	result, authorErr := flow.authorALockedAt(ctx, started)
-	outcome := "passed"
-	if authorErr != nil || !result.Completed {
-		outcome = "stopped"
-		if authorErr == nil {
-			authorErr = ErrExecutionEpochOne
-		}
+	resources, resourceErr := startExecutionWholeResources(ctx, executePath)
+	flow.executionWholeResources = resources
+	preflightErr := resourceErr
+	if preflightErr == nil {
+		preflightErr = flow.sampleAdmittedPreflightLocked(resources.ctx)
 	}
-	finishErr := recorder.finish(flow.plan.PhaseOrder[0], outcome)
-	return result, errors.Join(authorErr, finishErr)
+	preflightErr = errors.Join(preflightErr, resources.finish())
+	if preflightErr != nil {
+		ordinal, _ := recorder.event("preflight")
+		flow.executionEvidenceEvents["failure:preflight"] = ordinal
+		return ExecutionAuthorResult{}, errors.Join(preflightErr, recorder.finish("preflight", "stopped"))
+	}
+	if recorder.finish("preflight", "passed") != nil {
+		return ExecutionAuthorResult{}, ErrExecutionEpochOne
+	}
+	// Author A has always been admitted/accounted in phase two. Its cold
+	// phase remains active until the real server's cold gate finishes.
+	coldStarted := time.Now()
+	if recorder.beginAt("cold", coldStarted) != nil || resources.begin("cold") != nil {
+		return ExecutionAuthorResult{}, ErrExecutionEpochOne
+	}
+	var result ExecutionAuthorResult
+	authorErr := resources.sampleDiskRoot(flow.workspace, false)
+	if authorErr == nil {
+		result, authorErr = flow.authorALockedAt(resources.ctx, coldStarted)
+	}
+	if authorErr != nil || !result.Completed {
+		authorErr = errors.Join(authorErr, resources.finish())
+		ordinal, _ := recorder.event("cold")
+		flow.executionEvidenceEvents["failure:cold"] = ordinal
+		return result, errors.Join(ErrExecutionEpochOne, authorErr, recorder.finish("cold", "stopped"))
+	}
+	flow.executionColdAuthorActive = true
+	return result, nil
+}
+
+// One bounded actual phase-one observation, after admission and before any
+// author/server start. Preparation snapshots cannot supply this timed sample.
+// The existing root and no-child owner checks are retained across the walk.
+func (flow *ExecutionEpochOne) sampleAdmittedPreflightLocked(ctx context.Context) error {
+	if flow.workspaceBytes == nil || flow.workspace == nil || !flow.authorAReadyLocked(ctx) {
+		return ErrExecutionEpochOne
+	}
+	confirm := func() bool {
+		if !flow.authorAReadyLocked(ctx) {
+			return false
+		}
+		author, epochs := flow.epochs.author, flow.epochs
+		author.mu.Lock()
+		epochs.mu.Lock()
+		valid := !author.active && !author.closed && author.err == nil && author.borrowedBy == nil && author.next == 0 && !epochs.active && !epochs.closed && epochs.err == nil && epochs.released == 0
+		epochs.mu.Unlock()
+		author.mu.Unlock()
+		state, err := flow.store.Snapshot()
+		return valid && err == nil && state.Store.Phase == 2 && state.Opened == 0 && state.TerminalEOF == 0
+	}
+	value, err := flow.workspaceBytes.SampleConfirmed(ctx, 1, confirm)
+	if err != nil || value.LogicalBytes > flow.plan.WorkEnvelope.MaximumDataLogicalBytes || value.AllocatedBytes > flow.plan.SafetyEnvelope.MaximumDataAllocatedBytes {
+		return errors.Join(ErrExecutionEpochOne, err)
+	}
+	return nil
 }
 
 func validateObservedExecutionRuntime(observed *executionRuntimeObservation, plan Plan, profile ExecutionProfile, tools []ExecutionToolIdentity, path, directory string) error {

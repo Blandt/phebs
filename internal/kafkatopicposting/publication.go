@@ -14,6 +14,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/bmeddeb/phebs/internal/archiveevidence"
 	"github.com/bmeddeb/phebs/internal/readaccounting"
 	"github.com/bmeddeb/phebs/internal/reponame"
 )
@@ -76,7 +77,7 @@ func Open(ctx context.Context, root string, expected Root) (*Publication, error)
 	if err := readaccounting.Charge(ctx, readaccounting.ControlFileRead, 1); err != nil {
 		return nil, err
 	}
-	raw, err := readRegular(filepath.Join(directory, "root.json"), MaxRootBytes)
+	raw, err := readRegularContext(ctx, filepath.Join(directory, "root.json"), MaxRootBytes)
 	if err != nil {
 		return nil, err
 	}
@@ -107,7 +108,7 @@ func OpenGeneration(
 	if err := readaccounting.Charge(ctx, readaccounting.ControlFileRead, 1); err != nil {
 		return nil, err
 	}
-	raw, err := readRegular(filepath.Join(directory, "root.json"), MaxRootBytes)
+	raw, err := readRegularContext(ctx, filepath.Join(directory, "root.json"), MaxRootBytes)
 	if err != nil {
 		return nil, err
 	}
@@ -281,7 +282,7 @@ func openDirectory(
 	if !complete {
 		return publication, nil
 	}
-	raw, err := readRegular(filepath.Join(directory, "root.json"), MaxRootBytes)
+	raw, err := readRegularContext(ctx, filepath.Join(directory, "root.json"), MaxRootBytes)
 	if err != nil {
 		return nil, err
 	}
@@ -346,7 +347,7 @@ func (publication *Publication) openMember(ctx context.Context, receipt MemberRe
 	if err := readaccounting.Charge(ctx, readaccounting.ControlFileRead, 1); err != nil {
 		return Member{}, err
 	}
-	raw, err := readRegular(filepath.Join(publication.directory, receipt.Name), MaxMemberBytes)
+	raw, err := readRegularContext(ctx, filepath.Join(publication.directory, receipt.Name), MaxMemberBytes)
 	if err != nil || int64(len(raw)) != receipt.ContentBytes {
 		return Member{}, fmt.Errorf("%w: member bytes", ErrInvalid)
 	}
@@ -433,6 +434,14 @@ func writeExclusive(path string, raw []byte) error {
 	}
 	failed = false
 	return nil
+}
+
+func readRegularContext(ctx context.Context, path string, limit int) ([]byte, error) {
+	raw, err := readRegular(path, limit)
+	if err == nil {
+		err = archiveevidence.ObserveRead(ctx, path, raw)
+	}
+	return raw, err
 }
 
 func readRegular(path string, limit int) ([]byte, error) {

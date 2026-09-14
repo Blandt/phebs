@@ -17,6 +17,7 @@ import (
 	"github.com/bmeddeb/phebs/internal/extract"
 	"github.com/bmeddeb/phebs/internal/extract/extractors/gocaller"
 	"github.com/bmeddeb/phebs/internal/gitobj"
+	"github.com/bmeddeb/phebs/internal/readaccounting"
 	"github.com/bmeddeb/phebs/internal/repopath"
 	"github.com/bmeddeb/phebs/internal/resolvercatalog"
 	"github.com/bmeddeb/phebs/internal/resolverinput"
@@ -240,6 +241,16 @@ func Build(ctx context.Context, request BuildRequest) (*resolvercatalog.Prepared
 	prepared, err := stage.Seal(ctx)
 	if err != nil {
 		return nil, err
+	}
+	if dispatchadmission.ProductionWorkSelected() || readaccounting.ResolverCatalogObserverBound(ctx) {
+		state := prepared.State()
+		if err := dispatchadmission.ObserveProductionResolverCatalog(ctx, readaccounting.ResolverCatalogCounts{
+			GenerationSHA256: state.GenerationDigest, ManifestSHA256: state.ManifestDigest,
+			DeclarationRecords:   uint64(materialization.declarationRecords),
+			GeneratedDescriptors: uint64(materialization.generatedSymbolDescriptors),
+		}); err != nil {
+			return nil, errors.Join(err, prepared.Discard())
+		}
 	}
 	return prepared, nil
 }

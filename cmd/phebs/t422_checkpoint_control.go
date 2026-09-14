@@ -171,7 +171,7 @@ func (control *t422CheckpointControl) command(writer http.ResponseWriter, reques
 		TargetGeneration: target.TargetGeneration, PriorSchedule: target.PriorScheduleDigest,
 		RecoveryGeneration: target.Schedule.Generation, RecoverySchedule: target.Schedule.Digest,
 		Domain: target.Domain, Ordinal: target.Ordinal, Offset: target.Offset, PlanDigest: target.PlanDigest, ResultIdentity: target.ResultIdentity,
-		ControlFileReads: counts.ControlFileReads, StoreReadAttempts: counts.StoreReadAttempts, MemberReads: counts.MemberVisits, StoreWriteAttempts: counts.StoreWriteAttempts, Workspace: workspace})
+		ControlFileReads: counts.ControlFileReads, StoreReadAttempts: counts.StoreReadAttempts, MemberReads: counts.MemberVisits, StoreWriteAttempts: counts.StoreWriteAttempts, Workspace: workspace, Operations: &target.Observation})
 	if err != nil {
 		return
 	}
@@ -263,13 +263,20 @@ func (control *t422CheckpointControl) read(ctx context.Context) ([]byte, func(er
 	observer, event, target := control.hit.observer, control.hit.transition, control.target
 	control.mu.Unlock()
 	operation, finish := control.operationContext(ctx, observer)
-	value, err := control.reconciler.Runtime.ReadCheckpointRestartTransition(operation, extractionpublication.CheckpointRestartTransitionRequest{
+	observedContext, scheduleObservation := readaccounting.CaptureRecoverySchedule(operation)
+	value, err := control.reconciler.Runtime.ReadCheckpointRestartTransition(observedContext, extractionpublication.CheckpointRestartTransitionRequest{
 		Transition: event, TargetGeneration: target.TargetGeneration, PriorScheduleDigest: target.PriorScheduleDigest,
 		Domain: target.Domain, Ordinal: target.Ordinal, PlanDigest: target.PlanDigest, ResultIdentity: target.ResultIdentity})
 	if err != nil {
 		finish()
 		return nil, nil, control.stop(err)
 	}
+	schedule, observed := scheduleObservation.Observation()
+	if !observed || schedule.ScheduleSHA256 != value.ScheduleDigest {
+		finish()
+		return nil, nil, control.stop(errT422StaleControl)
+	}
+	value.ObservedScheduleChunks, value.ObservedScheduleSuccesses = schedule.Chunks, schedule.Successes
 	body, err := json.Marshal(value)
 	if err != nil {
 		finish()

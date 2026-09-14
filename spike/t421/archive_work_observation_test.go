@@ -158,6 +158,9 @@ func TestArchiveWorkCompactHeadroom(t *testing.T) {
 	// include it alongside both actual offline streams under the same cap.
 	workspaceReports += 79 + 86*(workspaceCheckpointMaximum(5, 9)+workspaceCheckpointMaximum(5, 10)+workspaceCheckpointMaximum(5, 11))
 	combined := uint64(11_453_721+2*79) + 2*perProducer + workspaceReports
+	// One bound AE family per offline producer and exactly six source plus
+	// twelve archive/readback records. No per-member log output is retained.
+	combined += 2*80 + 18*111
 	if combined >= 64<<20 {
 		t.Fatal("known accepted compact subtotal exceeds shared cap", combined)
 	}

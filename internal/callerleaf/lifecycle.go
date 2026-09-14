@@ -17,6 +17,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/bmeddeb/phebs/internal/archiveevidence"
 	"github.com/bmeddeb/phebs/internal/callerleafid"
 	"github.com/bmeddeb/phebs/internal/callerpublicationid"
 	"github.com/bmeddeb/phebs/internal/pipelinerefusal"
@@ -71,6 +72,7 @@ type Prepared struct {
 }
 
 type Publication struct {
+	unresolved    uint64
 	root          string
 	path          string
 	receipt       Receipt
@@ -658,7 +660,7 @@ func VerifyReader(
 	if err := ValidateReceipt(generation, pair, receipt); err != nil {
 		return err
 	}
-	return verifyReader(ctx, reader, pair, receipt, visit)
+	return verifyReader(ctx, reader, pair, receipt, visit, nil)
 }
 
 func verifyReader(
@@ -667,13 +669,15 @@ func verifyReader(
 	pair PairIdentity,
 	receipt Receipt,
 	visit func(Record) error,
+	unresolved *uint64,
+	observed ...*[32]byte,
 ) error {
 	if visit == nil {
-		return verifyReaderAt(ctx, reader, pair, receipt, nil)
+		return verifyReaderAt(ctx, reader, pair, receipt, nil, unresolved, observed...)
 	}
 	return verifyReaderAt(
 		ctx, reader, pair, receipt,
-		func(_ RecordReference, record Record) error { return visit(record) },
+		func(_ RecordReference, record Record) error { return visit(record) }, unresolved, observed...,
 	)
 }
 
@@ -683,6 +687,8 @@ func verifyReaderAt(
 	pair PairIdentity,
 	receipt Receipt,
 	visit func(RecordReference, Record) error,
+	unresolved *uint64,
+	observed ...*[32]byte,
 ) error {
 	if ctx == nil {
 		return errors.New("caller leaf verification context is required")
@@ -724,6 +730,9 @@ func verifyReaderAt(
 				counts.ResultCount++
 			case RecordAbstention:
 				counts.AbstentionCount++
+				if unresolved != nil && record.Reason == AbstentionReasonUnresolvedCaller {
+					*unresolved++
+				}
 			case RecordCoverage:
 				if record.Coverage == nil ||
 					validateCoverageForPair(*record.Coverage, pair) != nil {
@@ -770,6 +779,9 @@ func verifyReaderAt(
 		if err := validateCoverageReceipt(*compactCoverage, pair, receipt); err != nil {
 			return err
 		}
+	}
+	if len(observed) != 0 && observed[0] != nil {
+		_ = hash.Sum(observed[0][:0])
 	}
 	return nil
 }
@@ -822,7 +834,12 @@ func openArtifactAt(
 	if !sameFile(before, opened) {
 		return nil, fmt.Errorf("%w: artifact changed while opening", ErrInvalidArtifact)
 	}
-	if err := verifyReader(ctx, file, pair, receipt, visit); err != nil {
+	var observed *[32]byte
+	if archiveevidence.Reading(ctx) {
+		observed = new([32]byte)
+	}
+	var unresolved uint64
+	if err := verifyReader(ctx, file, pair, receipt, visit, &unresolved, observed); err != nil {
 		return nil, err
 	}
 	after, err := file.Stat()
@@ -837,11 +854,20 @@ func openArtifactAt(
 		!sameFile(after, current) {
 		return nil, fmt.Errorf("%w: artifact changed while reading", ErrInvalidArtifact)
 	}
+	if observed != nil {
+		if err := archiveevidence.ObserveDigest(ctx, artifactPath, uint64(receipt.ContentBytes), *observed); err != nil {
+			return nil, err
+		}
+	}
 	return &Publication{
 		root: repositoryDirectory, path: artifactPath, receipt: receipt, info: current,
-		directoryInfo: authority.info,
+		directoryInfo: authority.info, unresolved: unresolved,
 	}, nil
 }
+
+// UnresolvedCount is measured during this artifact's completed immutable open,
+// not inferred from its aggregate abstention count.
+func (publication *Publication) UnresolvedCount() uint64 { return publication.unresolved }
 
 func (publication *Publication) Current() bool {
 	if publication == nil || publication.info == nil {
@@ -910,7 +936,7 @@ func (publication *Publication) ScanRecords(
 	if !sameFile(before, opened) {
 		return fmt.Errorf("%w: caller leaf changed while opening", ErrInvalidArtifact)
 	}
-	if err := verifyReaderAt(ctx, file, pair, publication.receipt, visit); err != nil {
+	if err := verifyReaderAt(ctx, file, pair, publication.receipt, visit, nil); err != nil {
 		return err
 	}
 	after, err := file.Stat()

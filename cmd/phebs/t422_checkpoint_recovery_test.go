@@ -184,6 +184,8 @@ func TestT422CheckpointRecoveredNativeIdentity(t *testing.T) {
 				field.SetBool(!field.Bool())
 			case reflect.Int:
 				field.SetInt(field.Int() + 1)
+			case reflect.Uint64:
+				field.SetUint(field.Uint() + 1)
 			default:
 				t.Fatal("new unchecked native field")
 			}

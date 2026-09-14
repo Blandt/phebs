@@ -37,7 +37,7 @@ func runExecutionOuter(ctx context.Context, started time.Time, executable, selec
 	}
 	ctx, cancel := context.WithDeadline(ctx, deadline)
 	defer cancel()
-	_, err := executionSelection(selection)
+	selected, err := executionSelection(selection)
 	if err != nil || !time.Now().Before(time.Unix(0, deadlineNano)) || !validExecutionLauncherPath(executable) {
 		return ErrExecutionLauncher
 	}
@@ -115,11 +115,11 @@ func runExecutionOuter(ctx context.Context, started time.Time, executable, selec
 	waited := make(chan error, 1)
 	go func() { waited <- command.Wait() }()
 	frames := make(chan executionAuthorizationHandoffFrame, 1)
-	tails := make(chan error, 1)
+	packages := make(chan executionReturnedOutput, 1)
 	captureDone := make(chan struct{})
 	go func() {
 		defer close(captureDone)
-		captureExecutionAuthorizationHandoff(handoffReader, frames, tails)
+		captureExecutionReturnedOutput(handoffReader, frames, packages)
 	}()
 	defer func() {
 		_ = closeExecutionFile(handoffReader)
@@ -152,6 +152,7 @@ func runExecutionOuter(ctx context.Context, started time.Time, executable, selec
 		return stopExecutionInner(command, waited, stoppedWriter, time.Unix(0, deadlineNano))
 	}
 	var handoffFrame []byte
+	var freezeSHA256 string
 	select {
 	case captured := <-frames:
 		if captured.err != nil || len(captured.raw) == 0 || captured.value.clientArgvPath() != executable ||
@@ -161,6 +162,7 @@ func runExecutionOuter(ctx context.Context, started time.Time, executable, selec
 			return stopExecutionInner(command, waited, stoppedWriter, time.Unix(0, deadlineNano))
 		}
 		handoffFrame = captured.raw
+		freezeSHA256 = captured.value.FreezeSHA256
 	case <-ctx.Done():
 		stoppedWriter := writer
 		writer = nil
@@ -175,14 +177,16 @@ func runExecutionOuter(ctx context.Context, started time.Time, executable, selec
 	joined := false
 	tailJoined := false
 	var tailErr error
-	waitChannel, tailChannel := (<-chan error)(waited), (<-chan error)(tails)
+	var returned executionReturnedOutput
+	waitChannel, tailChannel := (<-chan error)(waited), (<-chan executionReturnedOutput)(packages)
 	done := ctx.Done()
 	for !joined || !tailJoined {
 		select {
 		case waitErr = <-waitChannel:
 			joined = true
 			waitChannel = nil
-		case tailErr = <-tailChannel:
+		case returned = <-tailChannel:
+			tailErr = returned.err
 			tailJoined = true
 			tailChannel = nil
 			if tailErr != nil && !joined {
@@ -202,13 +206,13 @@ func runExecutionOuter(ctx context.Context, started time.Time, executable, selec
 			done = nil
 		}
 	}
-	if waitErr != nil {
-		_ = closeExecutionFile(writer)
-		writer = nil
-	}
+	// A typed nonzero native exit can accompany an authenticated stopped
+	// receipt. Reader/WaitDelay failures cannot masquerade as that outcome.
+	var nativeExit *exec.ExitError
+	invalidExit := waitErr != nil && !errors.As(waitErr, &nativeExit)
 	stopDeadline := executionFinishDeadline(time.Unix(0, deadlineNano))
-	joined, empty, finishErr := finishExecutionProcessSession(pid, waited, joined, waitErr, stopDeadline)
-	if !joined || !tailJoined || tailErr != nil || !empty || finishErr != nil || ctx.Err() != nil {
+	joined, empty, finishErr := finishExecutionProcessSession(pid, waited, joined, nil, stopDeadline)
+	if invalidExit || !joined || !tailJoined || tailErr != nil || !empty || finishErr != nil || ctx.Err() != nil {
 		return errors.Join(ErrExecutionLauncher, tailErr, finishErr, ctx.Err())
 	}
 	if startedInner.PID != pid || startedInner.ParentPID != os.Getpid() || startedInner.StartIdentity == "" {
@@ -218,6 +222,20 @@ func runExecutionOuter(ctx context.Context, started time.Time, executable, selec
 		return ErrExecutionLauncher
 	}
 	if ctx.Err() != nil || !time.Now().Before(time.Unix(0, deadlineNano)) {
+		return ErrExecutionLauncher
+	}
+	verified, err := verifyExecutionReturnedPackage(ctx, returned.raw, selected, freezeSHA256)
+	if err != nil {
+		return ErrExecutionLauncher
+	}
+	passed := verified.receipt.Decision.Outcome == "passed" && verified.receipt.Teardown.Outcome == "clean"
+	if passed && waitErr != nil || !passed && waitErr == nil {
+		return ErrExecutionLauncher
+	}
+	if emitExecutionVerifiedReturnedPackage(ctx, output, verified) != nil {
+		return ErrExecutionLauncher
+	}
+	if !passed {
 		return ErrExecutionLauncher
 	}
 	return nil
@@ -287,12 +305,57 @@ func runExecutionInner(ctx context.Context, entered time.Time, executable, selec
 	if err != nil || prepared == nil {
 		return ErrExecutionLauncher
 	}
-	if _, err := prepared.authorizeAndAuthorA(innerCtx, os.Stdout); err != nil {
+	output, err := prepareExecutionInnerOutput(innerCtx, parent, os.Stdout)
+	if err != nil {
 		return ErrExecutionLauncher
 	}
-	// The next composition slice consumes the admitted AuthorA result and runs
-	// the complete phase sequence before receipt construction.
-	return errExecutionAuthorityPending
+	defer func() { retErr = errors.Join(retErr, output.file.Close()) }()
+	_, executionErr := prepared.authorizeAndAuthorA(innerCtx, output)
+	flow := prepared.flow
+	if flow == nil || flow.executionFreezeBinding == nil || flow.executionWholeResources == nil {
+		return ErrExecutionLauncher
+	}
+	sequence := &executionEpochSequenceResult{}
+	if executionErr == nil {
+		sequence, executionErr = runExecutionEpochSequence(innerCtx, flow, prepared.volume)
+	}
+	if sequence == nil {
+		sequence = &executionEpochSequenceResult{}
+	}
+	phaseEvents, eventErr := flow.executionPhaseEventEvidence()
+	if eventErr != nil {
+		executionErr = errors.Join(executionErr, sequence.observeStoppedTeardown(innerCtx, flow, prepared.volume))
+	} else if len(phaseEvents) == 15 && phaseEvents[14].StartEventOrdinal == 0 {
+		executionErr = errors.Join(executionErr, sequence.stopAndObserve(innerCtx, flow, prepared.volume))
+	}
+	resources, resourceErr := flow.executionWholeResources.close()
+	sequence.resources = resources
+	executionErr = errors.Join(executionErr, eventErr, resourceErr)
+	binding := *flow.executionFreezeBinding
+	receipt, err := composeExecutionSequenceReceipt(flow.plan, binding, sequence, flow, resources)
+	if err != nil {
+		return errors.Join(ErrExecutionLauncher, err)
+	}
+	passed := receipt.Decision.Outcome == "passed" && receipt.Teardown.Outcome == "clean"
+	if passed && executionErr != nil {
+		return ErrExecutionLauncher
+	}
+	raw, packageBinding, err := buildExecutionReturnedPackage(innerCtx, flow.plan, receipt, binding, prepared.seal)
+	if err != nil {
+		return ErrExecutionLauncher
+	}
+	// Keep the signer, namespace and live admission graph until signing is
+	// complete. Only successful volume teardown permits their existing release.
+	if passed && prepared.Close() != nil {
+		return ErrExecutionLauncher
+	}
+	if emitExecutionReturnedPackage(innerCtx, output, raw, packageBinding) != nil {
+		return ErrExecutionLauncher
+	}
+	if !passed {
+		return ErrExecutionLauncher
+	}
+	return nil
 }
 
 func validExecutionLauncherPath(path string) bool {
@@ -682,5 +745,3 @@ func decodeExecutionLiveness(encoded string) (executionParentLivenessV1, error) 
 	}
 	return value, nil
 }
-
-var errExecutionAuthorityPending = errors.New("T42.2 execution authority is not implemented")

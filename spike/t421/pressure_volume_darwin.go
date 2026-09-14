@@ -396,6 +396,11 @@ func (v *executionPressureVolume) remove(ctx context.Context, emptyOnly bool) er
 			}
 		}
 	}
+	if v.flow != nil && v.flow.executionWholeResources != nil {
+		// Keep measurement refusal in the receipt; it does not authorize keeping
+		// an otherwise safely detachable owned mount alive.
+		_ = v.flow.executionWholeResources.sampleDiskLocked(v, true)
+	}
 	v.ready = false // One teardown attempt; a busy/uncertain detach retains all disk custody.
 	if errors.Join(v.workspace.file.Close(), v.mount.file.Close()) != nil {
 		return errPressureVolume

@@ -1,6 +1,7 @@
 package extractionpublication
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"reflect"
@@ -87,6 +88,22 @@ func TestCurrentRecoveryPreparationBindsNativePredecessorWithoutExtraReads(t *te
 			if after.enqueues != before.enqueues+1 || after.acquired != before.acquired || after.executions != before.executions ||
 				!reflect.DeepEqual(after.publications, before.publications) {
 				t.Fatal("current preparation repeated source/evidence work or enqueue")
+			}
+			observed := target.Observation
+			if !observed.Completed || !observed.DirectoriesSynced || !observed.LocksReleased ||
+				observed.ScheduleWrites != uint64(after.enqueues-before.enqueues) || observed.Chunks != uint64(target.Schedule.TotalChunks) {
+				t.Fatalf("completed native operations lost: %+v", observed)
+			}
+			var completionWrites, deletes uint64
+			for path, raw := range before.files {
+				if afterRaw, exists := after.files[path]; !exists {
+					deletes++
+				} else if !bytes.Equal(raw, afterRaw) {
+					completionWrites++
+				}
+			}
+			if observed.CompletionWrites != completionWrites || observed.Deletes != deletes {
+				t.Fatalf("native filesystem operation observations differ from the actual before/after files: %+v", observed)
 			}
 			assertCurrentRecoveryLocksReleased(t, fixture)
 		})

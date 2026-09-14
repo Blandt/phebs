@@ -19,3 +19,17 @@ func ObserveProductionResolverBlob(ctx context.Context, bytes uint64) error {
 	}
 	return err
 }
+
+// The existing selected lifetime makes unavailable sealed-catalog evidence
+// sticky. Ordinary execution has no observer, allocation or report write.
+func ObserveProductionResolverCatalog(ctx context.Context, counts readaccounting.ResolverCatalogCounts) error {
+	selected := ProductionWorkSelected()
+	err := readaccounting.ObserveResolverCatalog(ctx, selected, counts)
+	if err != nil && selected {
+		if lifetime := productionRuntime.Load(); lifetime != nil && lifetime.client != nil {
+			return lifetime.client.fail(ErrProtocol)
+		}
+		return ErrProductionBootstrap
+	}
+	return err
+}

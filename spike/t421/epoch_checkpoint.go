@@ -359,8 +359,16 @@ func (reader *executionEpochInspection) validateCheckpoint(value extractionpubli
 		value.Attempt != 0 || !value.CanonicalResultExists || !value.CompletionFileExists || value.CheckpointStateDigest != "" || value.PrivateLeaseTokenDigest != "" {
 		return errEpochInspection
 	}
+	if value.ObservedScheduleSuccesses > value.ObservedScheduleChunks || !recovered && value.PrivateLeaseChanged {
+		return errEpochInspection
+	}
 	if recovered {
 		want := reader.checkpointHit
+		if value.ObservedScheduleChunks != want.ObservedScheduleChunks || value.ObservedScheduleSuccesses != value.ObservedScheduleChunks ||
+			value.ObservedScheduleChunks != 0 && !value.PrivateLeaseChanged {
+			return errEpochInspection
+		}
+		want.ObservedScheduleSuccesses, want.PrivateLeaseChanged = value.ObservedScheduleSuccesses, value.PrivateLeaseChanged
 		want.Point, want.Priority, want.ChunkStatus, want.Leased = store.GenerationStaleLeaseTransitionRecovered, store.GenerationPriorityStale, store.GenerationChunkDone, false
 		want.CompletionBitSet, want.RootExists, want.Current = true, true, true
 		want.ScheduleStatus = store.GenerationScheduleSettled

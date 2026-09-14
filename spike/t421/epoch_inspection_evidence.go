@@ -18,14 +18,23 @@ type ExecutionPhaseInspection struct {
 	Final                                      *ExecutionInspectionFinal
 	SelectorAccepted                           bool
 	LogicalChanges                             ExecutionLogicalChangeObservation
+	TransitionReads                            *TransitionReadSubtotal
 }
 
 // Compact native identities only: detailed extraction partition results remain
 // in the existing authority owners, not duplicated in every result snapshot.
+type ExecutionCatalogPopulation struct {
+	AcceptedServices uint64 `json:"accepted_services"`
+}
+
 type ExecutionInspectionFinal struct {
-	Ordinal    uint64
-	Authority  AuthorityState
-	Projection PhaseStateProjection
+	CatalogPopulation     *ExecutionCatalogPopulation
+	Ordinal               uint64
+	Authority             AuthorityState
+	Projection            PhaseStateProjection
+	RPCPostings           *ExecutionRPCPostingObservation
+	ResolverCatalogCounts *readaccounting.ResolverCatalogCounts
+	CallerPublication     *ExecutionCallerPublicationObservation
 }
 
 type epochInspectionLedger struct {
@@ -136,6 +145,10 @@ func cloneExecutionAuthorityResults(values []AuthorityPhaseResult) []AuthorityPh
 func cloneInspectionEvidence(rows []ExecutionPhaseInspection) []ExecutionPhaseInspection {
 	result := slices.Clone(rows)
 	for i := range result {
+		if result[i].TransitionReads != nil {
+			value := *result[i].TransitionReads
+			result[i].TransitionReads = &value
+		}
 		if result[i].Final != nil {
 			result[i].Final = cloneInspectionFinal(*result[i].Final)
 		}
@@ -144,6 +157,23 @@ func cloneInspectionEvidence(rows []ExecutionPhaseInspection) []ExecutionPhaseIn
 }
 
 func cloneInspectionFinal(value ExecutionInspectionFinal) *ExecutionInspectionFinal {
+	if value.CatalogPopulation != nil {
+		counts := *value.CatalogPopulation
+		value.CatalogPopulation = &counts
+	}
+	if value.ResolverCatalogCounts != nil {
+		counts := *value.ResolverCatalogCounts
+		value.ResolverCatalogCounts = &counts
+	}
+	if value.CallerPublication != nil {
+		caller := *value.CallerPublication
+		caller.Leaves = slices.Clone(caller.Leaves)
+		value.CallerPublication = &caller
+	}
+	if value.RPCPostings != nil {
+		counts := *value.RPCPostings
+		value.RPCPostings = &counts
+	}
 	value.Projection.ExtractionRoots = slices.Clone(value.Projection.ExtractionRoots)
 	value.Projection.RelationshipResults = slices.Clone(value.Projection.RelationshipResults)
 	return &value

@@ -15,6 +15,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/bmeddeb/phebs/internal/archiveevidence"
 	"github.com/bmeddeb/phebs/internal/gitobj"
 	"github.com/bmeddeb/phebs/internal/pipelinerefusal"
 	"github.com/bmeddeb/phebs/internal/repopath"
@@ -245,7 +246,7 @@ func openGeneration(ctx context.Context, root string, manifest Manifest) (*Publi
 				continue
 			}
 			objects[record.ObservationName] = struct{}{}
-			if err := validateObservation(directory, record); err != nil {
+			if err := validateObservationContext(ctx, directory, record); err != nil {
 				return nil, err
 			}
 			info, err := os.Lstat(filepath.Join(directory, record.ObservationName))
@@ -383,7 +384,7 @@ func validateManifest(value Manifest) error {
 
 func readMember(ctx context.Context, directory string, ordinal, count int) (Member, []Record, error) {
 	name := memberName(ordinal)
-	raw, err := readBoundedRegular(filepath.Join(directory, name), int(MaxMemberBytes))
+	raw, err := readBoundedRegularContext(ctx, filepath.Join(directory, name), int(MaxMemberBytes))
 	if err != nil {
 		return Member{}, nil, err
 	}
@@ -554,7 +555,11 @@ func validUnsupportedReason(reason string) bool {
 }
 
 func validateObservation(directory string, record Record) error {
-	_, err := readObservation(directory, record)
+	return validateObservationContext(context.Background(), directory, record)
+}
+
+func validateObservationContext(ctx context.Context, directory string, record Record) error {
+	_, err := readObservationContext(ctx, directory, record)
 	return err
 }
 
@@ -562,7 +567,11 @@ func readObservation(
 	directory string,
 	record Record,
 ) (sourceobservation.Observation, error) {
-	raw, err := readBoundedRegular(filepath.Join(directory, record.ObservationName), MaxObservationBytes)
+	return readObservationContext(context.Background(), directory, record)
+}
+
+func readObservationContext(ctx context.Context, directory string, record Record) (sourceobservation.Observation, error) {
+	raw, err := readBoundedRegularContext(ctx, filepath.Join(directory, record.ObservationName), MaxObservationBytes)
 	if err != nil || digest("phebs-observation-bytes-v1", string(raw)) != record.ObservationDigest {
 		return sourceobservation.Observation{}, invalid("observation bytes")
 	}
@@ -589,6 +598,14 @@ func readPointer(root, repository string) (Pointer, error) {
 		return Pointer{}, invalid("current pointer")
 	}
 	return pointer, nil
+}
+
+func readBoundedRegularContext(ctx context.Context, path string, limit int) ([]byte, error) {
+	raw, err := readBoundedRegular(path, limit)
+	if err == nil {
+		err = archiveevidence.ObserveRead(ctx, path, raw)
+	}
+	return raw, err
 }
 
 func readBoundedRegular(path string, limit int) ([]byte, error) {

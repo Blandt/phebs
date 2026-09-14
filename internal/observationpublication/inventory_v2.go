@@ -273,7 +273,11 @@ func ReadInventoryRootV2Context(ctx context.Context, directory, repository strin
 	if err := readaccounting.Charge(ctx, readaccounting.ControlFileRead, 1); err != nil {
 		return InventoryRootV2{}, err
 	}
-	raw, err := readBoundedRegular(filepath.Join(directory, InventoryRootNameV2), MaxInventoryRootBytesV2)
+	return readInventoryRootV2Observed(ctx, directory, repository)
+}
+
+func readInventoryRootV2Observed(ctx context.Context, directory, repository string) (InventoryRootV2, error) {
+	raw, err := readBoundedRegularContext(ctx, filepath.Join(directory, InventoryRootNameV2), MaxInventoryRootBytesV2)
 	if err != nil {
 		return InventoryRootV2{}, err
 	}
@@ -285,7 +289,11 @@ func ReadInventoryRootV2Context(ctx context.Context, directory, repository strin
 }
 
 func readInventorySegmentV2(directory string, root InventoryRootV2, entry InventorySegmentEntryV2) (InventorySegmentV2, error) {
-	raw, err := readBoundedRegular(filepath.Join(directory, entry.Directory, "segment.json"), MaxInventorySegmentBytesV2)
+	return readInventorySegmentV2Context(context.Background(), directory, root, entry)
+}
+
+func readInventorySegmentV2Context(ctx context.Context, directory string, root InventoryRootV2, entry InventorySegmentEntryV2) (InventorySegmentV2, error) {
+	raw, err := readBoundedRegularContext(ctx, filepath.Join(directory, entry.Directory, "segment.json"), MaxInventorySegmentBytesV2)
 	if err != nil {
 		return InventorySegmentV2{}, err
 	}
@@ -487,7 +495,7 @@ func ValidateInventoryStageV2(ctx context.Context, directory string, expected In
 	if !filepath.IsAbs(directory) || ValidateInventoryRootV2(expected) != nil {
 		return invalid("inventory v2 validation input")
 	}
-	root, err := ReadInventoryRootV2(directory, expected.Repository)
+	root, err := readInventoryRootV2Observed(ctx, directory, expected.Repository)
 	if err != nil || root.Digest != expected.Digest {
 		return errors.Join(err, invalid("inventory v2 root changed"))
 	}
@@ -496,7 +504,7 @@ func ValidateInventoryStageV2(ctx context.Context, directory string, expected In
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		segment, err := readInventorySegmentV2(directory, root, entry)
+		segment, err := readInventorySegmentV2Context(ctx, directory, root, entry)
 		if err != nil {
 			return err
 		}
@@ -532,7 +540,7 @@ func validateInventorySegmentFilesV2(ctx context.Context, directory string, segm
 			}
 			if record.State == "observed" {
 				if _, seen := objects[record.ObservationName]; !seen {
-					if err := validateObservation(directory, record); err != nil {
+					if err := validateObservationContext(ctx, directory, record); err != nil {
 						return err
 					}
 					objects[record.ObservationName] = struct{}{}

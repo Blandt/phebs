@@ -199,7 +199,7 @@ func ReadSearchGenerationRootContext(
 	if err := readaccounting.Charge(ctx, readaccounting.ControlFileRead, 1); err != nil {
 		return SearchGenerationRoot{}, err
 	}
-	if err := readControlFile(path, &root); err != nil {
+	if err := readControlFileContext(ctx, path, &root); err != nil {
 		return SearchGenerationRoot{}, err
 	}
 	if err := validateSearchGenerationRoot(root, repository); err != nil {
@@ -265,8 +265,12 @@ func readSearchGenerationReceiptContext(
 }
 
 func readSearchGenerationReceiptFile(path, repository string) (SearchGenerationReceipt, error) {
+	return readSearchGenerationReceiptFileContext(context.Background(), path, repository)
+}
+
+func readSearchGenerationReceiptFileContext(ctx context.Context, path, repository string) (SearchGenerationReceipt, error) {
 	var receipt SearchGenerationReceipt
-	if err := readControlFile(path, &receipt); err != nil {
+	if err := readControlFileContext(ctx, path, &receipt); err != nil {
 		return SearchGenerationReceipt{}, err
 	}
 	if receipt.Schema != SearchGenerationReceiptSchema || receipt.Repository != repository ||
@@ -301,7 +305,11 @@ func validateFlatSearchGenerationReceipt(
 	indexDir, repository string,
 	search repositoryindex.SearchManifest,
 ) (SearchGenerationReceipt, error) {
-	receipt, err := readSearchGenerationReceiptFile(
+	return validateFlatSearchGenerationReceiptContext(context.Background(), indexDir, repository, search)
+}
+
+func validateFlatSearchGenerationReceiptContext(ctx context.Context, indexDir, repository string, search repositoryindex.SearchManifest) (SearchGenerationReceipt, error) {
+	receipt, err := readSearchGenerationReceiptFileContext(ctx,
 		filepath.Join(indexDir, searchGenerationArchiveReceiptName(repository)), repository,
 	)
 	if err != nil {
@@ -475,7 +483,7 @@ func readSearchGenerationMarkerContext(
 	if err := readaccounting.Charge(ctx, readaccounting.ControlFileRead, 1); err != nil {
 		return searchGenerationMarker{}, err
 	}
-	if err := readControlFile(path, &marker); err != nil {
+	if err := readControlFileContext(ctx, path, &marker); err != nil {
 		return searchGenerationMarker{}, err
 	}
 	if marker.Schema != SearchGenerationMarkerSchema || marker.Repository != repository ||

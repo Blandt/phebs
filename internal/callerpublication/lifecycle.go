@@ -17,6 +17,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/bmeddeb/phebs/internal/archiveevidence"
 	"github.com/bmeddeb/phebs/internal/callerleaf"
 	"github.com/bmeddeb/phebs/internal/callerpublicationid"
 	"github.com/bmeddeb/phebs/internal/readaccounting"
@@ -105,6 +106,36 @@ func (publication *Publication) ArtifactRefs() []ArtifactRef {
 		return nil
 	}
 	return ArtifactRefs(publication.manifest)
+}
+
+// LeafObservation projects exact cached leaf receipts and the independently
+// counted unresolved records from their completed cold validation. It carries
+// no source path or record payload and opens no artifact.
+type LeafObservation struct {
+	Domain           string `json:"domain"`
+	Prefix           string `json:"prefix"`
+	CandidateRecords uint64 `json:"candidate_records"`
+	Results          uint64 `json:"results"`
+	Abstentions      uint64 `json:"abstentions"`
+	Records          uint64 `json:"records"`
+	Unresolved       uint64 `json:"unresolved"`
+	ContentBytes     uint64 `json:"content_bytes"`
+	ContentSHA256    string `json:"content_sha256"`
+}
+
+func (publication *Publication) LeafObservations() []LeafObservation {
+	if publication == nil || len(publication.leaves) != len(publication.manifest.Pairs) {
+		return nil
+	}
+	out := make([]LeafObservation, len(publication.leaves))
+	for index, leaf := range publication.leaves {
+		pair := publication.manifest.Pairs[index]
+		out[index] = LeafObservation{Domain: pair.Pair.Domain, Prefix: pair.Pair.Leaf.Prefix,
+			CandidateRecords: uint64(pair.Pair.Leaf.RecordCount), Results: uint64(pair.Receipt.ResultCount),
+			Abstentions: uint64(pair.Receipt.AbstentionCount), Records: uint64(pair.Receipt.RecordCount),
+			Unresolved: leaf.UnresolvedCount(), ContentBytes: uint64(pair.Receipt.ContentBytes), ContentSHA256: pair.Receipt.ContentDigest}
+	}
+	return out
 }
 
 func (publication *Publication) Manifest() Manifest {
@@ -481,6 +512,9 @@ func open(
 	raw, manifestInfo, err := readStableRegularAt(
 		authority, expected.Manifest, MaxManifestBytes,
 	)
+	if err == nil {
+		err = archiveevidence.ObserveRead(ctx, filepath.Join(directory, expected.Manifest), raw)
+	}
 	if err != nil {
 		if errors.Is(err, ErrPublicationIO) {
 			return nil, err

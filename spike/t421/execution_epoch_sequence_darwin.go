@@ -14,9 +14,12 @@ import (
 // failed caller must stop; on success it names the already-joined final run.
 type executionEpochSequenceResult struct {
 	current *ExecutionEpochOneRun
+	runs    [5]*ExecutionEpochOneRun
+	stopped executionStoppedTeardown
 	// Exact global phase-event prefix in frozen order. Missing suffix rows are
 	// explicit not_run values; callers receive a detached snapshot.
 	phaseEvents []PhaseMeasurement
+	resources   executionWholeResourceEvidence
 
 	coldPhysical     ExecutionEpochOneResult
 	logical          ExecutionEpochOneResult
@@ -31,8 +34,12 @@ type executionEpochSequenceResult struct {
 // adds no retry, logging, signing, receipt construction or launcher behavior.
 func runExecutionEpochSequence(ctx context.Context, flow *ExecutionEpochOne, volume *executionPressureVolume) (result *executionEpochSequenceResult, retErr error) {
 	result = &executionEpochSequenceResult{}
-	if ctx == nil || ctx.Err() != nil || flow == nil || volume == nil {
+	if ctx == nil || flow == nil || volume == nil || ctx.Err() != nil && !flow.executionColdAuthorActive {
 		return result, ErrExecutionEpochOne
+	}
+	if flow.executionWholeResources != nil {
+		flow.executionWholeResources.volume = volume
+		ctx = flow.executionWholeResources.ctx
 	}
 	defer func() {
 		values, err := flow.executionPhaseEventEvidence()
@@ -49,6 +56,9 @@ func runExecutionEpochSequence(ctx context.Context, flow *ExecutionEpochOne, vol
 		run, err = flow.StartPhysicalB(ctx)
 		if run != nil {
 			result.current = run
+			if run.epoch.Epoch >= 1 && run.epoch.Epoch <= 5 {
+				result.runs[run.epoch.Epoch-1] = run
+			}
 		}
 		if err != nil || run == nil || run.Health(ctx) != nil || run.ColdToWarm(ctx) != nil {
 			return ErrExecutionEpochOne
@@ -70,6 +80,9 @@ func runExecutionEpochSequence(ctx context.Context, flow *ExecutionEpochOne, vol
 		run, err = prior.StartLogicalB(ctx)
 		if run != nil {
 			result.current = run
+			if run.epoch.Epoch >= 1 && run.epoch.Epoch <= 5 {
+				result.runs[run.epoch.Epoch-1] = run
+			}
 		}
 		if err != nil || run == nil {
 			return ErrExecutionEpochOne
@@ -89,6 +102,9 @@ func runExecutionEpochSequence(ctx context.Context, flow *ExecutionEpochOne, vol
 		run, err = prior.StartReturnACheckpoint(ctx)
 		if run != nil {
 			result.current = run
+			if run.epoch.Epoch >= 1 && run.epoch.Epoch <= 5 {
+				result.runs[run.epoch.Epoch-1] = run
+			}
 		}
 		if err != nil || run == nil {
 			return ErrExecutionEpochOne
@@ -111,6 +127,9 @@ func runExecutionEpochSequence(ctx context.Context, flow *ExecutionEpochOne, vol
 		run, err = prior.CheckpointRestartBackup(ctx)
 		if run != nil {
 			result.current = run
+			if run.epoch.Epoch >= 1 && run.epoch.Epoch <= 5 {
+				result.runs[run.epoch.Epoch-1] = run
+			}
 		}
 		if err != nil || run == nil {
 			return ErrExecutionEpochOne
@@ -144,6 +163,9 @@ func runExecutionEpochSequence(ctx context.Context, flow *ExecutionEpochOne, vol
 		run, err = prior.StartRestored(ctx)
 		if run != nil {
 			result.current = run
+			if run.epoch.Epoch >= 1 && run.epoch.Epoch <= 5 {
+				result.runs[run.epoch.Epoch-1] = run
+			}
 		}
 		if err != nil || run == nil || run.Health(ctx) != nil {
 			return ErrExecutionEpochOne
@@ -162,7 +184,12 @@ func runExecutionEpochSequence(ctx context.Context, flow *ExecutionEpochOne, vol
 	if err := runExecutionPhase(flow, "product_queries", func() error { return run.QueryRestored(ctx) }); err != nil {
 		return result, err
 	}
-	if err := runExecutionPhase(flow, "teardown", func() error {
+	if err := runExecutionPhase(flow, "teardown", func() (cleanupErr error) {
+		defer func() {
+			if cleanupErr != nil {
+				cleanupErr = errors.Join(cleanupErr, result.observeStoppedTeardown(ctx, flow, volume))
+			}
+		}()
 		var err error
 		result.teardown, err = volume.finishRestored(ctx, run)
 		if err != nil || !result.teardown.Joined || !result.teardown.CleanupClosed || !result.teardown.CustodyAbsent {
@@ -217,9 +244,25 @@ func (flow *ExecutionEpochOne) beginExecutionPhase(phase string) error {
 		return ErrExecutionEpochOne
 	}
 	flow.mu.Lock()
-	recorder := flow.executionPhaseEvents
+	recorder, resources := flow.executionPhaseEvents, flow.executionWholeResources
+	continuedCold := phase == "cold" && flow.executionColdAuthorActive
+	if continuedCold {
+		flow.executionColdAuthorActive = false
+	}
 	flow.mu.Unlock()
-	return recorder.begin(phase)
+	if continuedCold {
+		_ = flow.sampleExecutionDisk(false)
+		return nil
+	}
+	if err := recorder.begin(phase); err != nil {
+		return err
+	}
+	if err := resources.begin(phase); err != nil {
+		return err
+	}
+	// Measurement failures cancel operational work, but never suppress cleanup.
+	_ = flow.sampleExecutionDisk(false)
+	return nil
 }
 
 func (flow *ExecutionEpochOne) finishExecutionPhase(phase, outcome string) error {
@@ -227,9 +270,18 @@ func (flow *ExecutionEpochOne) finishExecutionPhase(phase, outcome string) error
 		return ErrExecutionEpochOne
 	}
 	flow.mu.Lock()
-	recorder := flow.executionPhaseEvents
+	recorder, resources := flow.executionPhaseEvents, flow.executionWholeResources
 	flow.mu.Unlock()
-	return recorder.finish(phase, outcome)
+	diskErr := errors.Join(flow.sampleExecutionDisk(false), resources.finish())
+	if diskErr != nil && phase != "teardown" {
+		outcome = "stopped"
+	}
+	if outcome == "stopped" {
+		if _, err := flow.recordNamedExecutionEvent(phase, "failure:"+phase); err != nil {
+			return err
+		}
+	}
+	return errors.Join(recorder.finish(phase, outcome), diskErr)
 }
 
 func (flow *ExecutionEpochOne) executionPhaseEventEvidence() ([]PhaseMeasurement, error) {

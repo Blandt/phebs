@@ -13,7 +13,13 @@ import (
 
 // Actual synchronous boundary observations, separate from the joined lifecycle
 // stream. Failed suffixes retain completed maxima, never partial walk totals.
+type executionPressureWorkspacePoint struct {
+	Observed bool
+	Value    custodybytes.Sample
+}
+
 type ExecutionPressureSamples struct {
+	Points                               [11]executionPressureWorkspacePoint
 	Phases                               [3]ExecutionWorkspaceBytePhase
 	Complete, Unavailable, LimitExceeded bool
 }
@@ -87,6 +93,7 @@ func (reader *executionEpochInspection) pressureSample(ctx context.Context, poin
 	if err != nil {
 		return value, err
 	}
+	reader.pressure.samples.Points[reader.pressure.sampleOrdinal] = executionPressureWorkspacePoint{Observed: true, Value: value}
 	row.Completed++
 	row.Maximum.LogicalBytes = max(row.Maximum.LogicalBytes, value.LogicalBytes)
 	row.Maximum.AllocatedBytes = max(row.Maximum.AllocatedBytes, value.AllocatedBytes)

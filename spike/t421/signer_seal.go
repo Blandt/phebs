@@ -105,20 +105,7 @@ func issueExecutionFreezeAdmission(
 	if err != nil {
 		return ExecutionFreezeAdmissionBinding{}, err
 	}
-	eventSHA256, err := receiptSHA256(struct {
-		Schema                string `json:"schema"`
-		FreezeSHA256          string `json:"freeze_sha256"`
-		SignatureNamespace    string `json:"signature_namespace"`
-		SignerFingerprint     string `json:"signer_fingerprint"`
-		SignerNamespaceSHA256 string `json:"signer_namespace_sha256,omitempty"`
-		Order                 string `json:"order"`
-		EventOrdinal          uint64 `json:"event_ordinal"`
-	}{
-		Schema: plan.ReceiptContract.ExecutionAdmissionSchema, FreezeSHA256: freezeSHA256,
-		SignatureNamespace: plan.SealPolicy.FreezeSignatureNamespace,
-		SignerFingerprint:  key.fingerprint, SignerNamespaceSHA256: key.namespace.digest,
-		Order: plan.ReceiptContract.ExecutionAdmissionOrder, EventOrdinal: 1,
-	})
+	eventSHA256, err := executionAdmissionEventDigest(plan, freezeSHA256, key.fingerprint, key.namespace.digest)
 	if err != nil || plan.SealPolicy.FreezeSignatureNamespace != executionFreezeSignatureNamespace {
 		return ExecutionFreezeAdmissionBinding{}, errors.New("T42.2 freeze admission policy is invalid")
 	}

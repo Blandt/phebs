@@ -36,6 +36,7 @@ type ExecutionServerProcessObservation struct {
 	NativeIdentityEventOrdinal uint64
 	NativeIdentitySHA256       string
 	HealthReadyEventOrdinal    uint64
+	HealthStoppedEventOrdinal  uint64
 	HealthElapsedMS            uint64
 }
 
@@ -50,17 +51,18 @@ type ExecutionServerProcessPhase struct {
 // per-PID history survives a sample. A ticker drops missed ticks, never queues
 // overlapping probes or catch-up work. The probe context is cooperative.
 type epochProcessObservation struct {
-	mu           sync.Mutex
-	gauge        *ProcessObservationGauge
-	rssLimit     uint64 // Source-frozen once at startup; not a caller-controlled policy.
-	phase        uint32
-	result       ExecutionServerProcessObservation
-	prefix       *ProcessObservation // The earlier root's actual phase-eight prefix.
-	stop, done   chan struct{}
-	stopOnce     sync.Once
-	closed       bool
-	expectedExit bool
-	fail         func()
+	mu            sync.Mutex
+	gauge         *ProcessObservationGauge
+	rssLimit      uint64 // Source-frozen once at startup; not a caller-controlled policy.
+	phase         uint32
+	result        ExecutionServerProcessObservation
+	prefix        *ProcessObservation // The earlier root's actual phase-eight prefix.
+	stop, done    chan struct{}
+	stopOnce      sync.Once
+	closed        bool
+	phaseFinished bool // Whole-inner scope only: completed phase samples cannot change.
+	expectedExit  bool
+	fail          func()
 }
 
 // Names derive from the checked tool paths and closed native Git/shell names.
@@ -115,7 +117,16 @@ func startEpochProcessObservation(ctx context.Context, pid int, phase uint32, ro
 }
 
 func newEpochProcessObservation(ctx context.Context, pid int, phase uint32, rootName string, names map[string]string, fail func(), probe func(context.Context, int) ([]t4013.NativeProcessRecord, error)) (*epochProcessObservation, error) {
-	if ctx == nil || pid <= 0 || phase < 2 || phase > 14 || !validObservedProcessName(rootName) || names[rootName] == "" || fail == nil || probe == nil {
+	if phase < 2 || phase > 14 {
+		return nil, ErrExecutionEpochOne
+	}
+	return newExecutionProcessPhaseObservation(ctx, pid, phase, rootName, names, fail, probe)
+}
+
+// The inner launcher uses the same bounded sampler across preflight through
+// cleanup. Server callers retain their narrower phase admission above.
+func newExecutionProcessPhaseObservation(ctx context.Context, pid int, phase uint32, rootName string, names map[string]string, fail func(), probe func(context.Context, int) ([]t4013.NativeProcessRecord, error)) (*epochProcessObservation, error) {
+	if ctx == nil || pid <= 0 || phase < 1 || phase > 15 || !validObservedProcessName(rootName) || names[rootName] == "" || fail == nil || probe == nil {
 		return nil, ErrExecutionEpochOne
 	}
 	gauge, err := newProcessObservationGauge(pid, names)
@@ -183,11 +194,27 @@ func (meter *epochProcessObservation) ready(ordinal, elapsed uint64) error {
 	}
 	meter.mu.Lock()
 	defer meter.mu.Unlock()
-	if meter.result.NativeIdentityEventOrdinal == 0 || ordinal <= meter.result.NativeIdentityEventOrdinal || meter.result.HealthReadyEventOrdinal != 0 {
+	if meter.result.NativeIdentityEventOrdinal == 0 || ordinal <= meter.result.NativeIdentityEventOrdinal || meter.result.HealthReadyEventOrdinal != 0 || meter.result.HealthStoppedEventOrdinal != 0 {
 		return ErrExecutionEpochOne
 	}
 	meter.result.HealthReadyEventOrdinal = ordinal
 	meter.result.HealthElapsedMS = elapsed
+	return nil
+}
+
+// stoppedStartup records a terminal Health failure while its phase is still
+// active. It does not invent readiness or a sample when native identity failed.
+func (meter *epochProcessObservation) stoppedStartup(ordinal, elapsed uint64) error {
+	if meter == nil || ordinal == 0 || elapsed == 0 {
+		return ErrExecutionEpochOne
+	}
+	meter.mu.Lock()
+	defer meter.mu.Unlock()
+	if meter.result.NativeIdentityEventOrdinal == 0 || ordinal <= meter.result.NativeIdentityEventOrdinal ||
+		meter.result.HealthReadyEventOrdinal != 0 || meter.result.HealthStoppedEventOrdinal != 0 {
+		return ErrExecutionEpochOne
+	}
+	meter.result.HealthStoppedEventOrdinal, meter.result.HealthElapsedMS = ordinal, elapsed
 	return nil
 }
 
@@ -207,6 +234,10 @@ func (meter *epochProcessObservation) run() {
 			meter.mu.Unlock()
 			return
 		default:
+		}
+		if meter.phaseFinished {
+			meter.mu.Unlock()
+			continue
 		}
 		err := meter.sampleLocked(context.Background())
 		notify := err != nil && !meter.result.RSSLimitExceeded
@@ -340,7 +371,9 @@ func (meter *epochProcessObservation) close() (ExecutionServerProcessObservation
 	meter.mu.Lock()
 	defer meter.mu.Unlock()
 	if !meter.closed {
-		_ = meter.sampleLocked(context.Background())
+		if !meter.phaseFinished {
+			_ = meter.sampleLocked(context.Background())
+		}
 		meter.closed = true
 	}
 	meter.result.Joined = true

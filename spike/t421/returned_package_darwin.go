@@ -213,6 +213,12 @@ func buildExecutionReturnedPackage(
 }
 
 func executionSourceVerificationBytes(plan Plan, binding ExecutionFreezeBinding, revisions []RevisionResult) ([]byte, error) {
+	return executionSourceVerificationBytesForFreeze(plan, binding.planSHA256, binding.freezeSHA256, revisions)
+}
+
+// This serializer consumes digests, not an operational admission capability.
+// Both the admitted signer and the outer authenticated-byte verifier use it.
+func executionSourceVerificationBytesForFreeze(plan Plan, expectedPlanSHA256, freezeSHA256 string, revisions []RevisionResult) ([]byte, error) {
 	if plan.Schema != PlanV3Schema || len(revisions) != len(plan.Revisions.Physical) {
 		return nil, ErrExecutionEpochOne
 	}
@@ -235,7 +241,7 @@ func executionSourceVerificationBytes(plan Plan, binding ExecutionFreezeBinding,
 		}
 	}
 	planSHA256, err := receiptSHA256(plan)
-	if err != nil || binding.planSHA256 != planSHA256 || !validDigest(binding.freezeSHA256) {
+	if err != nil || expectedPlanSHA256 != planSHA256 || !validDigest(freezeSHA256) {
 		return nil, ErrExecutionEpochOne
 	}
 	revisionSHA256, err := receiptSHA256(revisions)
@@ -248,7 +254,7 @@ func executionSourceVerificationBytes(plan Plan, binding ExecutionFreezeBinding,
 	}
 	raw, err := MarshalCanonical(executionSourceVerificationV1{
 		Schema: plan.SealPolicy.SourceVerificationSchema, PlanSHA256: planSHA256,
-		ExecutionFreezeSHA256: binding.freezeSHA256, RevisionResultsSHA256: revisionSHA256,
+		ExecutionFreezeSHA256: freezeSHA256, RevisionResultsSHA256: revisionSHA256,
 		ExactInventorySHA256: inventorySHA256, Revisions: rows, SourceFree: true,
 	})
 	if err != nil || len(raw) == 0 || len(raw) > maxExecutionSourceVerificationBytes {
