@@ -38,10 +38,11 @@ func TestExecutionSetupTokenDiagnosticCollision(t *testing.T) {
 					t.Fatal("diagnostic payload changed counts")
 				}
 			}
-			if got, err := observeExecutionAttempts([]byte(line), plan, 2, [32]byte{1}, true); err == nil || got != (ExecutionAttemptObservation{}) {
+			// Joined diagnostic-only EOF records scanner completion, never authority.
+			if got, err := observeExecutionAttempts([]byte(line), plan, 2, [32]byte{1}, true); err == nil || got != (ExecutionAttemptObservation{ScanComplete: true}) {
 				t.Fatal("setup payload supplied attempt/source authority")
 			}
-			if got, err := observeExecutionIndexOffers([]byte(line), plan, 2, [32]byte{1}, true, true); err == nil || got != (ExecutionIndexObservation{}) {
+			if got, err := observeExecutionIndexOffers([]byte(line), plan, 2, [32]byte{1}, true, true); err == nil || got != (ExecutionIndexObservation{ScanComplete: true}) {
 				t.Fatal("setup payload supplied index authority")
 			}
 			prefix, footer := terminalPrefixTestBytes()

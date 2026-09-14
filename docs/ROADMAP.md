@@ -89,6 +89,16 @@ retention is unchanged. Full corrected store normal/race and the remaining
 acceptance matrix are still required. Fifteen other affected internal normal
 packages have passed.
 
+Exact `29eb0607` subsequently passed complete corrected store normal/race,
+all fifteen other affected internal race packages, and complete command
+normal/race. The full launcher normal command completed with one stale
+diagnostic-only EOF assertion; its correction preserves errors and zero
+authority while recognizing the existing clean-scan marker. Ten focused
+normal/race repetitions pass. The failed command remains failed; independently
+verified preservation of its other terminal results, exhaustive disjoint
+launcher race groups, supplemental package checks and all seven native
+readiness cases remain before acceptance. No admission limit changes.
+
 **T42.2 reviewed checkpoint integration, 2026-09-13:** Ben explicitly
 requested merging the reviewed component stack before the remaining acceptance
 gates finish. Corrected source `3e570c31` has no remaining independent-review

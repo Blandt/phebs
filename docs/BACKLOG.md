@@ -13421,6 +13421,36 @@ cleanups: repository-wide vet, lint with zero issues and all-package
 compilation. Independent review of the six-file correction has no remaining
 finding. Documentation, glossary and whitespace checks pass.
 
+**T42.2n acceptance and diagnostic-fixture continuation, 2026-09-14:** exact
+`29eb0607` passed corrected complete store normal/race in 1,024.403/1,243.216
+seconds, all fifteen other affected internal race suites, and complete command
+normal/race in 689.236/1,114.583 seconds. The prior fifteen internal normal
+results remain bound to unchanged test dependency inputs. Independent coverage
+review identified supplemental worker, projection, process-custody and author
+command gates; those remain pending alongside native readiness.
+
+The complete launcher normal command finished in 3,275.979 seconds with 742
+top-level passes, seventeen explicit skips and one failed top-level diagnostic
+collision test. Its fourteen token cases expected an entirely zero observation,
+but the completion implementation truthfully retains clean scanner EOF beside
+missing authority. The test now requires exactly that `ScanComplete` marker,
+the same nonnil error, and every other observation field zero. Production
+parsers and admission predicates are unchanged. Ten focused normal/race
+repetitions covering diagnostic, footer and clean-scan boundaries pass in
+1.036/5.148 seconds. The failed whole command is retained; preservation of its
+other terminal results requires exact test/helper input proof and independent
+review, not relabeling that command as passed.
+
+The unstarted monolithic launcher race command was deferred before execution:
+retained evidence already shows its existing sixty-minute allowance cannot be
+assumed to fit all native/version fixtures. An independently reviewed inventory
+covers all 760 runnable top-level tests in fourteen disjoint anchored groups,
+keeping version-local constructor caches together. Each retains race detection,
+fail-fast, count one and the same sixty-minute allowance. Exact source/hash
+binding and terminal-name/skip union are required after the test correction;
+all groups remain unrun. This is complete-inventory orchestration, not a claimed
+single-command pass, native readiness, V3 seal or execution authorization.
+
 **T42.3 · Scale posture decision and neutral product closure** — independently
 review the T42.2 receipt, replay representative All code → service →
 relationship → Workbench → proof → MCP flows, and record one decision:

@@ -3519,3 +3519,22 @@ in [docs/ROADMAP.md](./docs/ROADMAP.md).
   prior retention assertions. This adds about 996 milliseconds per fixture run
   in place of four one-millisecond waits, with no production work, schema,
   retention rule, clock abstraction or admission-limit change.
+
+- **2026-09-14 — T42.2n diagnostic-only EOF regression expectation.**
+  The completion implementation separately records clean joined scanner EOF
+  and authenticated complete evidence. Its pre-existing setup-token collision
+  test still expected an entirely zero observation from a diagnostic-only
+  stream. Require exactly `ScanComplete: true` beside the existing nonnil
+  error, with every authority flag, complete flag and count still zero, for
+  both attempt and index scanners. No parser, authority predicate or production
+  work changes. Ten focused normal and race repetitions pass; the failed full
+  package command remains a failed command.
+
+  Complete race coverage uses an exhaustive, disjoint top-level test inventory
+  with version-local native constructor caches, following the earlier receipt
+  grouping decision. Every group retains fail-fast, count one, race detection
+  and the sixty-minute package allowance; physical/logical fixture and native
+  admission deadlines remain unchanged. Successful terminal-name union and
+  explicit skips must match that inventory. This adds only test orchestration,
+  not a new production cache or numerical envelope, and does not assert that
+  an unrun native group will fit its allowance.
