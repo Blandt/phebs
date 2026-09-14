@@ -13451,6 +13451,17 @@ binding and terminal-name/skip union are required after the test correction;
 all groups remain unrun. This is complete-inventory orchestration, not a claimed
 single-command pass, native readiness, V3 seal or execution authorization.
 
+The first V3 race group subsequently failed after 3,526.912 seconds: three
+tests passed, signed outer delivery was killed under its two-minute helper
+context, and the fifth test remained unrun. Missing pre-cancel context evidence
+prevents definitive deadline attribution. The test-only correction allows ten
+minutes per outer invocation and records elapsed/context state, preserving
+genuine signed verification and requiring ordinary success or exact exit 79.
+Only this five-test group receives a 100-minute package allowance; the other
+thirteen groups retain sixty minutes. The failed run stays failed; corrected
+normal/race and independent review remain required. No production, admission,
+fixture-constructor or ceremony deadline changes.
+
 **T42.3 · Scale posture decision and neutral product closure** — independently
 review the T42.2 receipt, replay representative All code → service →
 relationship → Workbench → proof → MCP flows, and record one decision:

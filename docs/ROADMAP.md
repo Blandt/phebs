@@ -99,6 +99,14 @@ verified preservation of its other terminal results, exhaustive disjoint
 launcher race groups, supplemental package checks and all seven native
 readiness cases remain before acceptance. No admission limit changes.
 
+The first full V3 race group passed its first three tests, then failed in
+signed outer delivery under a two-minute helper context; the signal's exact
+cause was not retained. The correction preserves full verification, records
+deadline diagnostics and allows ten minutes per helper invocation, with a
+100-minute allowance for this five-test race group alone. All other group and
+native deadlines remain unchanged. Corrected passage is still required before
+V3 admission/sealing.
+
 **T42.2 reviewed checkpoint integration, 2026-09-13:** Ben explicitly
 requested merging the reviewed component stack before the remaining acceptance
 gates finish. Corrected source `3e570c31` has no remaining independent-review

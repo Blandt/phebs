@@ -607,11 +607,20 @@ func executionOuterSignedFixture(t *testing.T, selection executionSelectionV1, r
 	executable := protectedExecutionTestImage(t)
 	for _, mode := range []string{"t422-package-test", "t422-package-wrong-exit-test"} {
 		selection.CeremonyID = mode
-		ctx, cancel := context.WithTimeout(t.Context(), 2*time.Minute)
+		// Independent full-plan verification also runs under race instrumentation.
+		started := time.Now()
+		ctx, cancel := context.WithTimeout(t.Context(), 10*time.Minute)
+		defer cancel()
+		deadline, _ := ctx.Deadline()
 		command := exec.CommandContext(ctx, executable, executionOuterMode, "--selection-base64url", encodeExecutionSelection(t, selection))
 		command.Env = []string{}
 		output, err := runExecutionLauncherWithOutput(t, command)
+		finished, contextErr := time.Now(), ctx.Err()
 		cancel()
+		t.Logf("signed outer mode=%s elapsed=%s allowance=%s context=%v exit=%v", mode, finished.Sub(started), deadline.Sub(started), contextErr, err)
+		if contextErr != nil || !finished.Before(deadline) {
+			t.Fatal("native outer signed delivery exceeded its test deadline", contextErr)
+		}
 		frames, packages := make(chan executionAuthorizationHandoffFrame, 1), make(chan executionReturnedOutput, 1)
 		captureExecutionReturnedOutput(bytes.NewReader(output), frames, packages)
 		if captured := <-frames; captured.err != nil {
@@ -622,8 +631,11 @@ func executionOuterSignedFixture(t *testing.T, selection executionSelectionV1, r
 			if err != nil || returned.err != nil || !bytes.Equal(returned.raw, raw) {
 				t.Fatal("native outer signed delivery failed", err, returned.err)
 			}
-		} else if exitCode(t, err) != 79 || returned.err == nil {
-			t.Fatal("outer accepted passed package with failed native exit", err)
+		} else {
+			exit, ok := err.(*exec.ExitError)
+			if !ok || exit.ProcessState == nil || !exit.Exited() || exit.ExitCode() != 79 || returned.err == nil {
+				t.Fatal("outer accepted passed package with failed native exit", err)
+			}
 		}
 	}
 }

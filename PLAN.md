@@ -3538,3 +3538,26 @@ in [docs/ROADMAP.md](./docs/ROADMAP.md).
   explicit skips must match that inventory. This adds only test orchestration,
   not a new production cache or numerical envelope, and does not assert that
   an unrun native group will fit its allowance.
+
+- **2026-09-14 — T42.2n signed-fixture race allowance.**
+  The five-test V3 race group passed its first three tests, including the real
+  full V3 constructor, then failed during signed outer delivery: the child was
+  killed under the helper's two-minute context. The log did not retain the
+  context state and cannot conclusively attribute that signal to the deadline.
+  Independent verification regenerates the full frozen plan; observed race
+  construction/decoding costs make two minutes insufficient headroom.
+  Give only this test helper ten minutes per outer invocation, retaining both
+  actual signed delivery and wrong-native-exit rejection. Record elapsed time
+  and context state before cancellation; timeout, signal or a nonordinary exit
+  cannot satisfy either assertion. No fixture cache, signed bytes or verifier
+  is replaced. The failed 3,526.912-second group remains failed, with its last
+  test unrun; a post-failure host census found no matching child.
+
+  Supersede the preceding sixty-minute orchestration allowance only for this
+  five-test V3 race group with `-timeout=100m`; the other thirteen groups retain
+  sixty minutes. Existing physical/logical fixture, native admission and all
+  production deadlines remain unchanged. This permits longer test-host
+  occupancy and adds constant diagnostic state only; query, sync, startup,
+  retry, publication, locks, caches, memory/disk ceilings and child counts do
+  not change. Successful execution and exact inventory reconciliation remain
+  required; an allowance is not evidence that the group fits it.
