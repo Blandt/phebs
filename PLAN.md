@@ -3435,3 +3435,41 @@ in [docs/ROADMAP.md](./docs/ROADMAP.md).
   path changes, no full corpus/shard hashing, new invalidation state, persistent
   allocation, disk artifact or child process is added. Restart has no populated
   cache to skip ordinary recovery. Actual whole-phase work fit remains unproved.
+
+- **2026-09-14 — T42.2m pre-admission abort and signed readiness.**
+  An ordinary refused preparation now closes its actual input owners, rechecks
+  the exact source lease, removes only unused zero-length ballast, and attempts
+  the existing single non-forced detach before removing its owned image. This
+  path refuses any consumed admission ordinal, freeze binding, operational work,
+  unjoined owner, changed identity or uncertain image. Its cleanup context is
+  bounded by the original outer deadline and one minute from abort; each native
+  session wait also retains its five-second cap. It supplies no phase evidence,
+  receipt, retry or renewed admission time. Ambiguous construction and busy
+  detach retain custody. After successful removal, validate the operation lock
+  against its held descriptor and a lock-only parent inventory before unlinking;
+  if operational teardown already released it, reacquire that exact inode first.
+  Construct the plan from the selected plan-source commit, independently of the
+  integrated-main and execution-source roles already enforced by admission and
+  returned verification.
+
+  The pending test follow-up adds disabled-by-default readiness selectors that
+  build and run the real
+  protected executor, independently anchor its ephemeral public key, authorize
+  the actual live rehearsal session and verify its returned package. Negative
+  selectors use actual authorization refusal, cancellation and namespace
+  replacement. A separately selected busy-detach fixture uses the native image
+  command and a real mounted-directory borrower. These are prospective checks,
+  not recorded passes or authorization for the later formal ceremony. An inner
+  session sweep does not cover separately sessioned preparation children after
+  hard inner death; orphan evidence must preserve that scope and retained
+  custody, rather than infer their absence from the inner session alone.
+
+  Costs: setup adds one checked operation-lock Stat. Abort alone closes existing
+  holders, acquires/closes one native source lease, optionally removes one unused
+  ballast inode and attempts at most one existing detach. Successful parent
+  cleanup reads one directory name plus one overflow sentinel and may reacquire
+  the released operation lock. These operations hold the existing preparation
+  and volume mutexes; no persistent lock, cache, retry, query, sync, publication,
+  full-corpus scan, new child recipe or admission bound is added. Rehearsals
+  retain their ephemeral signer namespace and source-free evidence; bootstrap
+  copies are removed only after joined, verified operational cleanup.

@@ -40,6 +40,7 @@ type executionPressureVolume struct {
 	environmentInfos                                                                  [2]os.FileInfo // home, tmp direct children of the held pressure root.
 	tool                                                                              *ExecutionSystemToolCustody
 	lock                                                                              io.Closer
+	lockInfo                                                                          os.FileInfo
 	device, attachDevice                                                              string
 	pressureCommands                                                                  [2]executionPressureCommandPreimageV1
 	pressureCommandCount                                                              uint8
@@ -91,6 +92,14 @@ func prepareExecutionPressureVolume(ctx context.Context, parent string) (_ *exec
 	}
 	v.lock, err = t4013.LockRunRoot(parent)
 	if err != nil {
+		return v, errPressureVolume
+	}
+	lockIdentity, ok := v.lock.(interface{ Stat() (os.FileInfo, error) })
+	if !ok {
+		return v, errPressureVolume
+	}
+	v.lockInfo, err = lockIdentity.Stat()
+	if err != nil || !inputCustodyOwned(v.lockInfo) || !v.lockInfo.Mode().IsRegular() || v.lockInfo.Mode().Perm() != 0o600 {
 		return v, errPressureVolume
 	}
 	v.tool, err = HoldExecutionSystemTool(ctx, "hdiutil")
@@ -237,12 +246,7 @@ func (v *executionPressureVolume) command(ctx context.Context, name string) ([]b
 	v.sessions = append(v.sessions, command.Process.Pid)
 	waitErr := wait() // One native Wait; operational cleanup includes its actual DA settlement.
 	if waitErr != nil || output.err != nil || ctx.Err() != nil {
-		deadline := time.Now().Add(5 * time.Second)
-		if v.teardownRun != nil {
-			if caller, ok := ctx.Deadline(); ok && caller.Before(deadline) {
-				deadline = caller
-			}
-		}
+		deadline := pressureSessionDeadline(ctx)
 		_, empty, _ := finishExecutionProcessSession(command.Process.Pid, nil, true, waitErr, deadline)
 		v.unsettled = !empty
 		return nil, errPressureVolume
@@ -364,6 +368,9 @@ func (v *executionPressureVolume) removeEmpty(ctx context.Context) error {
 // remove is called under mu. Only successful bound rehearsal closure may
 // select populated removal; both routes retain the same detach/image barrier.
 func (v *executionPressureVolume) remove(ctx context.Context, emptyOnly bool) error {
+	if ctx == nil || ctx.Err() != nil {
+		return errPressureVolume
+	}
 	if v.removed {
 		return nil
 	}
@@ -391,7 +398,7 @@ func (v *executionPressureVolume) remove(ctx context.Context, emptyOnly bool) er
 		v.teardownBefore.EventOrdinal = ordinal
 	} else {
 		for _, session := range v.recordedSessionsLocked() {
-			if err := t4013.WaitPrivateProcessSession(session, time.Now().Add(5*time.Second)); err != nil {
+			if err := t4013.WaitPrivateProcessSession(session, pressureSessionDeadline(ctx)); err != nil {
 				return errPressureVolume
 			}
 		}
@@ -425,18 +432,18 @@ func (v *executionPressureVolume) remove(ctx context.Context, emptyOnly bool) er
 		}
 	} else {
 		for _, session := range v.recordedSessionsLocked() {
-			if err := t4013.WaitPrivateProcessSession(session, time.Now().Add(5*time.Second)); err != nil {
+			if err := t4013.WaitPrivateProcessSession(session, pressureSessionDeadline(ctx)); err != nil {
 				return errPressureVolume
 			}
 		}
 	}
 	// Detach must reveal the original backing filesystem, never another mount.
 	var stat unix.Statfs_t
-	if pressureRootsUnchanged(v.parent, v.root) != nil || unix.Statfs(v.root.path, &stat) != nil || stat.Fsid.Val != v.root.volume {
+	if ctx.Err() != nil || pressureRootsUnchanged(v.parent, v.root) != nil || unix.Statfs(v.root.path, &stat) != nil || stat.Fsid.Val != v.root.volume {
 		return errPressureVolume
 	}
 	if mount, err := os.Lstat(v.mount.path); err == nil {
-		if !os.SameFile(v.underlay, mount) || !mount.IsDir() || mount.Mode()&os.ModeSymlink != 0 || unix.Statfs(v.mount.path, &stat) != nil || stat.Fsid.Val != v.root.volume ||
+		if ctx.Err() != nil || !os.SameFile(v.underlay, mount) || !mount.IsDir() || mount.Mode()&os.ModeSymlink != 0 || unix.Statfs(v.mount.path, &stat) != nil || stat.Fsid.Val != v.root.volume ||
 			os.Remove(v.mount.path) != nil {
 			return errPressureVolume
 		}
@@ -444,12 +451,12 @@ func (v *executionPressureVolume) remove(ctx context.Context, emptyOnly bool) er
 		return errPressureVolume
 	}
 	current, err := os.Lstat(filepath.Join(v.root.path, "pressure.sparseimage"))
-	if err != nil || !os.SameFile(v.imageInfo, current) || !pressureImageOwned(current) || v.image.Close() != nil {
+	if ctx.Err() != nil || err != nil || !os.SameFile(v.imageInfo, current) || !pressureImageOwned(current) || v.image.Close() != nil {
 		return errPressureVolume
 	}
 	v.image = nil
 	for _, name := range []string{"pressure.sparseimage", "home", "tmp"} {
-		if v.teardownRun != nil && ctx.Err() != nil {
+		if ctx.Err() != nil {
 			return errPressureVolume
 		}
 		if err := os.Remove(filepath.Join(v.root.path, name)); err != nil {
@@ -462,7 +469,7 @@ func (v *executionPressureVolume) remove(ctx context.Context, emptyOnly bool) er
 			}
 		}
 	}
-	if v.teardownRun != nil && ctx.Err() != nil || v.root.file.Sync() != nil || os.Remove(v.root.path) != nil || v.parent.file.Sync() != nil {
+	if ctx.Err() != nil || v.root.file.Sync() != nil || os.Remove(v.root.path) != nil || v.parent.file.Sync() != nil {
 		return errPressureVolume
 	}
 	if _, err := os.Lstat(v.root.path); !errors.Is(err, os.ErrNotExist) {
@@ -761,4 +768,14 @@ func pressureXMLValue(decoder *xml.Decoder, name string) (string, error) {
 			return "", errPressureVolume
 		}
 	}
+}
+
+// Every session wait retains its existing five-second cap and also respects
+// the caller's remaining cleanup lifetime; no expired deadline is renewed.
+func pressureSessionDeadline(ctx context.Context) time.Time {
+	deadline := time.Now().Add(5 * time.Second)
+	if caller, ok := ctx.Deadline(); ok && caller.Before(deadline) {
+		deadline = caller
+	}
+	return deadline
 }

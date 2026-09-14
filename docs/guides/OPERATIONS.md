@@ -7540,3 +7540,29 @@ handling through command and accounting closure and checks current downstream
 publications before queuing redundant jobs. It does not supply a rehearsal pass.
 Before a new attempt, review retained custody and remeasure the unchanged
 120-GiB host-free-space prerequisite; never rerun against the failed workspace.
+
+The three classified failed-start/rehearsal images were subsequently normally
+detached and removed under their held operation locks at Ben's request. Their
+private diagnostic prefix and cleanup record remain retained. This disposition
+does not turn the failed native run into clean teardown or a passed phase.
+
+Before admission, an ordinary preparation refusal now attempts bounded cleanup
+of its actual owned workspace. It first closes holders and verifies the source
+lease, then uses one non-forced detach; changed paths, active borrowers,
+consumed admission state or uncertain custody retain the image. Cleanup cannot
+renew the outer deadline; its cleanup context is capped at one minute and the
+original outer deadline. Existing close and filesystem calls remain cooperative.
+After admitted work, the
+observed phase-15 teardown remains authoritative. A released operation lock is
+removed only after exact inode validation and an otherwise empty parent check.
+
+The pending signed readiness harness uses an explicitly selected rehearsal and fresh ephemeral
+signer namespace. It builds the real protected executor, consumes its actual
+live authorization and independently verifies the returned package. The plan,
+integrated-main and execution-source commits must be supplied in their correct
+roles. Healthy, authorization-refusal, wait-cancellation, signer-path replacement
+and native busy-detach checks remain distinct evidence. No selector automatically
+retries a failed run. An inner-session sweep alone does not prove separately
+sessioned children are gone after hard inner death; retain that custody for
+exact diagnosis and disposition. These checks do not authorize formal ceremony
+execution or establish V3 acceptance until their terminal gates pass.

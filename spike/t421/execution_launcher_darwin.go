@@ -302,6 +302,12 @@ func runExecutionInner(ctx context.Context, entered time.Time, executable, selec
 		return ErrExecutionLauncher
 	}
 	prepared, err := prepareExecutionInnerPreparation(innerCtx, selected, parent, outerDeadline)
+	abortPreparation := true
+	defer func() {
+		if abortPreparation && prepared != nil {
+			retErr = errors.Join(retErr, prepared.abortBeforeAdmission(innerCtx))
+		}
+	}()
 	if err != nil || prepared == nil {
 		return ErrExecutionLauncher
 	}
@@ -315,6 +321,7 @@ func runExecutionInner(ctx context.Context, entered time.Time, executable, selec
 	if flow == nil || flow.executionFreezeBinding == nil || flow.executionWholeResources == nil {
 		return ErrExecutionLauncher
 	}
+	abortPreparation = false // Admitted work uses its existing observed phase-15 teardown.
 	sequence := &executionEpochSequenceResult{}
 	if executionErr == nil {
 		sequence, executionErr = runExecutionEpochSequence(innerCtx, flow, prepared.volume)

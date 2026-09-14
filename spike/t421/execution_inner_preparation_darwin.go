@@ -50,7 +50,8 @@ type executionInnerPreparation struct {
 	finalAdmissionDeadline time.Time
 	handoffUsed            bool
 
-	closed bool
+	closed         bool
+	abortAttempted bool
 }
 
 // prepareExecutionInnerPreparation performs only the bounded non-operational
@@ -125,7 +126,7 @@ func prepareExecutionInnerPreparation(
 		return refuse()
 	}
 
-	plan, err := BuildPlanV3WithLogicalStoreWork(selection.SourceCommit)
+	plan, err := BuildPlanV3WithLogicalStoreWork(selection.PlanSourceCommit)
 	if err != nil {
 		return refuse()
 	}
@@ -372,22 +373,16 @@ func (prepared *executionInnerPreparation) Close() error {
 			return errPressureVolume
 		}
 	}
-	var result error
-	result = errors.Join(result, prepared.authorization.close(), prepared.seal.Close(), prepared.key.Close(), prepared.claim.Close(), prepared.flow.Close(), prepared.epochs.Close(), prepared.author.Close())
-	if prepared.planInput != nil {
-		result = errors.Join(result, prepared.planInput.Close())
+	if err := prepared.closeInputOwnersLocked(); err != nil {
+		return err
 	}
-	if prepared.surreal != nil {
-		result = errors.Join(result, prepared.surreal.Close())
-	}
-	for index := len(prepared.tools) - 1; index >= 0; index-- {
-		if prepared.tools[index] != nil {
-			result = errors.Join(result, prepared.tools[index].Close())
+	if prepared.volume != nil {
+		if err := prepared.volume.removeOwnedOperationLock(prepared.operational); err != nil {
+			return err
 		}
 	}
-	result = errors.Join(result, prepared.candidates.Close(), prepared.builds.Close(), prepared.git.Close(), prepared.signer.Close(), prepared.volume.Close())
-	if result != nil {
-		return result
+	if err := prepared.volume.Close(); err != nil {
+		return err
 	}
 	if err := closeExecutionOperationalRoot(prepared.operational); err != nil {
 		return err
@@ -407,4 +402,24 @@ func closeExecutionOperationalRoot(root productionRoot) error {
 		return ErrExecutionLauncher
 	}
 	return nil
+}
+
+// closeInputOwnersLocked releases actual holders; any refused join or close
+// remains an error and forbids discarding the mounted workspace.
+func (prepared *executionInnerPreparation) closeInputOwnersLocked() error {
+	var result error
+	result = errors.Join(result, prepared.authorization.close(), prepared.seal.Close(), prepared.key.Close(), prepared.claim.Close(), prepared.flow.Close(), prepared.epochs.Close(), prepared.author.Close())
+	if prepared.planInput != nil {
+		result = errors.Join(result, prepared.planInput.Close())
+	}
+	if prepared.surreal != nil {
+		result = errors.Join(result, prepared.surreal.Close())
+	}
+	for index := len(prepared.tools) - 1; index >= 0; index-- {
+		if prepared.tools[index] != nil {
+			result = errors.Join(result, prepared.tools[index].Close())
+		}
+	}
+	result = errors.Join(result, prepared.candidates.Close(), prepared.builds.Close(), prepared.git.Close(), prepared.signer.Close())
+	return result
 }

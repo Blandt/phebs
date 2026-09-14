@@ -13351,6 +13351,32 @@ sole identified orphaned fixture database was stopped, preserving its temporary
 root. Corrected-source focused normal/race, complete worker race and static
 gates above remain distinct from this incomplete broader gate.
 
+**T42.2n acceptance continuation, 2026-09-14:** fresh exact-clean `47c5d95c`
+passed the complete command package in 697.102 seconds under a sixty-minute
+outer allowance. The earlier cleanup fixture passed in 134.98 seconds; its
+own ten-minute limit was unchanged. Independent exact-commit review covered
+all thirteen files with every severity count zero. Remaining affected complete
+normal/race and native signed-launcher gates stay open.
+
+The follow-up closes ordinary pre-admission abort through existing owner,
+source-lease and non-forced detach barriers, removes only the exact released
+operation lock from its otherwise empty parent, and constructs the plan from
+its independent plan-source commit. A seven-file independent source review
+found no remaining finding; focused normal/race and scoped vet pass. Actual
+populated-volume abort and signed healthy/failure checks remain mandatory.
+The pending disabled-by-default selectors exercise the real executable, ephemeral
+signer, live authorization and independent returned-package verification;
+their existence is not a native pass. Hard-inner-death review distinguishes
+the inner session from separately sessioned preparation children, which require
+honest orphan/retained-custody evidence.
+
+Ben's disk-cleanup request was completed by holding all three classified
+operation locks, checking owned processes, normally detaching the three
+images, and unlinking only the same detached sparse-image inodes. This freed
+63.68 GiB; diagnostics and the source-free disposition record remain private.
+The earlier forced-stop failure remains a failed teardown. Every future native
+admission must freshly measure the unchanged 120-GiB host prerequisite.
+
 **T42.3 · Scale posture decision and neutral product closure** — independently
 review the T42.2 receipt, replay representative All code → service →
 relationship → Workbench → proof → MCP flows, and record one decision:

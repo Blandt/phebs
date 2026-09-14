@@ -64,6 +64,18 @@ sequence.
 
 ## Now
 
+**T42.2n acceptance continuation, 2026-09-14:** exact `47c5d95c` passed the
+complete command suite in 697.102 seconds, including the previously incomplete
+native cleanup fixture in 134.98 seconds. Independent review of its 13 changed
+files found no remaining finding. The current follow-up adds bounded refused
+preparation cleanup, exact operation-lock removal and plan-source provenance;
+actual signed-launcher readiness selectors are a pending test follow-up. Native full-sequence and failure
+rehearsals, remaining affected normal/race gates and final exact-source review
+remain required before T42.2o sealing. The failed earlier run is not superseded
+by fixture success. Reviewed cleanup removed its three classified sparse images
+after normal detach; private diagnostics remain. Formal execution remains a
+separate later action.
+
 **T42.2 reviewed checkpoint integration, 2026-09-13:** Ben explicitly
 requested merging the reviewed component stack before the remaining acceptance
 gates finish. Corrected source `3e570c31` has no remaining independent-review

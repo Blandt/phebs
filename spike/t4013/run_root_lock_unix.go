@@ -227,3 +227,15 @@ func setRunRootLockCloseOnExec(file *os.File, enabled bool) error {
 	}
 	return nil
 }
+
+// Stat returns the held lock inode only after validating its current pathname.
+// It adds no work to ordinary lock acquisition or release.
+func (lock *runRootLock) Stat() (os.FileInfo, error) {
+	if lock == nil || lock.file == nil {
+		return nil, errors.New("T40.13 run-root lock is closed")
+	}
+	if err := validateRunRootLock(filepath.Join(lock.root, runRootLockName), lock.file); err != nil {
+		return nil, err
+	}
+	return lock.file.Stat()
+}
