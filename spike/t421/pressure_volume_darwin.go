@@ -365,8 +365,8 @@ func (v *executionPressureVolume) removeEmpty(ctx context.Context) error {
 	return v.remove(ctx, true)
 }
 
-// remove is called under mu. Only successful bound rehearsal closure may
-// select populated removal; both routes retain the same detach/image barrier.
+// remove is called under mu. Bound teardown and verified pre-admission abort
+// may select populated removal; both retain the same detach/image barrier.
 func (v *executionPressureVolume) remove(ctx context.Context, emptyOnly bool) error {
 	if ctx == nil || ctx.Err() != nil {
 		return errPressureVolume

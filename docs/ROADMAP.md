@@ -76,6 +76,12 @@ by fixture success. Reviewed cleanup removed its three classified sparse images
 after normal detach; private diagnostics remain. Formal execution remains a
 separate later action.
 
+The signed-readiness test follow-up is implemented with genuine held-lease,
+orphan, busy-detach and signer-path failure coverage. Disabled/pure normal and
+race checks pass. Actual native results and final exact-source review remain
+required; a selected failure can pass its refusal test while retaining clearly
+identified custody, and cannot establish a healthy launcher or ceremony pass.
+
 **T42.2 reviewed checkpoint integration, 2026-09-13:** Ben explicitly
 requested merging the reviewed component stack before the remaining acceptance
 gates finish. Corrected source `3e570c31` has no remaining independent-review

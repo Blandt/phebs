@@ -7566,3 +7566,20 @@ retries a failed run. An inner-session sweep alone does not prove separately
 sessioned children are gone after hard inner death; retain that custody for
 exact diagnosis and disposition. These checks do not authorize formal ceremony
 execution or establish V3 acceptance until their terminal gates pass.
+
+The signed-readiness harness is now implemented. Its explicit
+`PHEBS_T422_SIGNED_LAUNCHER_REHEARSAL` selector accepts `healthy`,
+`reject-authorization`, `cancel-wait`, `replace-signer-namespace` or
+`orphan-preparation`. The separate tiny custody gates use
+`PHEBS_T422_HELD_SOURCE_LEASE_REHEARSAL=1` and
+`PHEBS_T422_BUSY_DETACH_REHEARSAL=1`. Run each once, serially, with its exact
+source and private log retained. A timeout or signal termination cannot be
+reported as an intended ordinary refusal.
+
+The orphan selector injects hard death only after observing a real protected
+Git child and its distinct native session. Its private record distinguishes
+launcher refusal and retained image custody from separate harness termination
+of that observed orphan. Missing the child is an unestablished rehearsal.
+Held-lease and busy-detach fixtures intentionally retain their mounted image
+after proving refusal; review and classify that exact custody before a later
+disposition. Do not report those negative tests as clean full-launcher teardown.

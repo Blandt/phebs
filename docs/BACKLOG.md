@@ -13377,6 +13377,25 @@ images, and unlinking only the same detached sparse-image inodes. This freed
 The earlier forced-stop failure remains a failed teardown. Every future native
 admission must freshly measure the unchanged 120-GiB host prerequisite.
 
+**T42.2m signed-readiness test follow-up:** three test-only files now run the
+actual protected launcher with a live ephemeral signer and independently replay
+returned signatures/receipt bytes. Selected authorization refusal, cancellation
+and namespace replacement require timely ordinary status one, no operational
+package and their exact custody predicates. The real orphan selector stops an
+observed direct-inner protected Git child in a distinct session, kills the
+actual inner, verifies outer refusal and retained custody, then separately
+disposes only the independently recorded orphan. It does not claim automatic
+all-session launcher cleanup. Tiny real mounted held-lease and busy-detach
+fixtures preserve their exact retained image/FSID; no synthetic authority,
+phase evidence or detach retry substitutes for the intended failure.
+
+Disabled/pure normal and race checks pass (0.768s/1.858s). Actual native gates
+remain unrun. The owning PLAN records bounded test observation and custody
+costs. A stale volume-removal ownership comment is corrected to include the
+already implemented verified pre-admission abort; no behavior changes. The
+ongoing sixteen internal normal/race suites exclude both changed spike packages
+from their complete test dependency graphs, preserving their source attribution.
+
 **T42.3 · Scale posture decision and neutral product closure** — independently
 review the T42.2 receipt, replay representative All code → service →
 relationship → Workbench → proof → MCP flows, and record one decision:

@@ -3473,3 +3473,38 @@ in [docs/ROADMAP.md](./docs/ROADMAP.md).
   full-corpus scan, new child recipe or admission bound is added. Rehearsals
   retain their ephemeral signer namespace and source-free evidence; bootstrap
   copies are removed only after joined, verified operational cleanup.
+
+- **2026-09-14 — T42.2m actual signed failure rehearsal coverage.**
+  The follow-up implements the pending selectors above against the actual
+  protected executor and live authorization. Refusal evidence requires a timely
+  ordinary exit status one and no operational package; a signal or timeout is
+  unavailable evidence. Both captured outer and inner sessions are always
+  checked, including harness assertion failures; emergency forced cleanup keeps
+  the test failed. Signer-path replacement retains both external directory
+  identities and the original public key and spent-claim bytes.
+
+  The orphan selector observes an actual direct-inner protected Git child in a
+  distinct native session, verifies its executable and lifetime, stops that
+  child and kills the actual inner. It requires ordinary outer refusal, no
+  package, exact retained image/root identities and the surviving orphan. Only
+  then does separate harness disposition terminate the independently recorded
+  child session. This is retained-failure evidence, not automatic launcher
+  cleanup of nested sessions. Missing the genuine child refuses the rehearsal.
+  A separate real mounted source-lease holder proves abort refuses before any
+  detach and preserves the image, filesystem identity and small fixture payload.
+  Neither that fixture nor native busy-detach supplies signing or phase evidence.
+
+  Test-only costs: orphan observation has at most 3,000 polling attempts at
+  ten-millisecond cadence within thirty seconds and the existing admission
+  deadline, plus bounded lifetime/session rechecks and two Git image hashes.
+  It inventories five fixed custody paths, waits at most twenty seconds for
+  outer exit, and separately bounds known-orphan disposition at five seconds.
+  Normal harness exit adds bounded outer/inner empty-session rechecks. Signer
+  replacement repeats public/claim reads capped at one KiB and temporarily
+  holds one additional namespace descriptor. The held-lease fixture uses the
+  two existing image-preparation children and one actual source lease, with zero
+  detach attempts; busy-detach adds its one real borrower and one detach. These
+  failure fixtures retain their nominal 96-GiB sparse image and diagnostic
+  ownership for later disposition. No production path, admission cap or retained
+  V1/V2 byte changes. The volume removal comment now includes the already
+  implemented verified pre-admission abort owner.
