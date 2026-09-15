@@ -13508,8 +13508,10 @@ admission, execution bounds or cleanup rules to obtain a result.
 The correction retains bounded private failure diagnostics only after joined
 resource observation, including partial phase slots and joined server output.
 It also closes the reviewed cleanup-record lifetime/platform/file-custody
-issues. Fourteen focused launcher tests and three focused native-membership
-tests pass in both normal and race modes. Complete static, documentation,
+issues. The focused launcher selection records twelve passes and two explicit
+optional-native skips in each normal/race mode; held-source-lease and busy-detach
+remain unrun. All three focused native-membership tests pass in both modes.
+Complete static, documentation,
 glossary, whitespace and Linux compilation checks pass. These checks establish
 neither the missing operational cause nor a healthy signed rehearsal; exact
 independent review and a fresh diagnostic attempt precede further readiness.

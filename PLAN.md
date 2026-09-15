@@ -3701,8 +3701,10 @@ in [docs/ROADMAP.md](./docs/ROADMAP.md).
   strict canonical validation. None of these corrections identifies the cause
   of the earlier healthy run's failure.
 
-  The corrected focused fourteen-test launcher selection passes normal/race
-  in 0.818/1.952 seconds; the three-test membership selection passes in
+  The corrected fourteen-test launcher selection records twelve passes and
+  two explicit optional-native skips in each mode (held-source-lease and
+  busy-detach remain unrun), in 0.818/1.952 normal/race seconds. The three-test
+  membership selection passes in
   0.599/1.703 seconds. Complete static, documentation, glossary, whitespace and
   Linux compilation checks pass. Earlier linter setup/refusal results remain
   distinct from those corrected passes. These gates do not establish the
