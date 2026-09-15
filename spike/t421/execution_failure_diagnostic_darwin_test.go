@@ -223,7 +223,7 @@ func TestExecutionFailureDiagnosticFailedActiveRecorder(t *testing.T) {
 func TestExecutionFailureDiagnosticRetainsPhaseOperationAndClosure(t *testing.T) {
 	root := executionAuthorizationTestRoot(t)
 	flow := &ExecutionEpochOne{}
-	flow.recordExecutionPhaseFailure("process_restart", errors.New("checkpoint recovery refused"), errors.New("disk sample refused"))
+	flow.recordExecutionPhaseFailure("process_restart", checkpointRestartError("store successor", errors.New("protocol refused")), errors.New("disk sample refused"))
 	flow.recordExecutionPhaseFailure("process_restart", errors.New("later failure"), errors.New("later close"))
 	flow.recordExecutionPhaseFailure("pressure_80", nil, errors.New("phase begin refused"))
 	if err := retainExecutionFailureDiagnostic(root, "receipt_composition", nil, flow, ErrExecutionEpochOne, nil, "", nil); err != nil {
@@ -231,7 +231,7 @@ func TestExecutionFailureDiagnosticRetainsPhaseOperationAndClosure(t *testing.T)
 	}
 	raw, err := os.ReadFile(filepath.Join(root.path, executionFailureSummaryName))
 	if err != nil || !bytes.Contains(raw, []byte("phase_failure_phase=\"process_restart\"")) ||
-		!bytes.Contains(raw, []byte("phase_failure_operation=\"checkpoint recovery refused\"")) ||
+		!bytes.Contains(raw, []byte("phase_failure_operation=\"execution epoch-one launch unavailable or incomplete: checkpoint restart store successor: protocol refused\"")) ||
 		!bytes.Contains(raw, []byte("phase_failure_closure=\"disk sample refused\"")) ||
 		!bytes.Contains(raw, []byte("phase_failure_phase=\"pressure_80\"")) ||
 		!bytes.Contains(raw, []byte("phase_failure_operation=\"<nil>\"")) ||

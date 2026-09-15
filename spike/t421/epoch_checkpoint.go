@@ -3,6 +3,7 @@ package t421
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"reflect"
 	"slices"
@@ -110,6 +111,13 @@ func (run *ExecutionEpochOneRun) CheckpointRestartPressure(ctx context.Context) 
 // in the fourth server's lifetime, clipped by the caller and global wall bound.
 func (run *ExecutionEpochOneRun) CheckpointRestartBackup(ctx context.Context) (*ExecutionEpochOneRun, error) {
 	return run.checkpointRestart(ctx, true, true)
+}
+
+func checkpointRestartError(stage string, err error) error {
+	if err == nil {
+		return fmt.Errorf("%w: checkpoint restart %s", ErrExecutionEpochOne, stage)
+	}
+	return fmt.Errorf("%w: checkpoint restart %s: %v", ErrExecutionEpochOne, stage, err)
 }
 
 func (run *ExecutionEpochOneRun) checkpointRestart(ctx context.Context, pressure, backup bool) (_ *ExecutionEpochOneRun, retErr error) {
@@ -250,10 +258,23 @@ func (run *ExecutionEpochOneRun) checkpointRestart(ctx context.Context, pressure
 	processPrior := stopped.ServerProcesses.Phases[processIndex].Observation
 	flow.mu.Lock()
 	defer flow.mu.Unlock()
-	if operation.Err() != nil || flow.closed || flow.retained != run || !run.joinedEmpty() ||
-		flow.parent.Checkpoint(operation) != nil || flow.store.ReopenAfterTerminalEOF(4, 5, 8) != nil ||
-		flow.parent.ReopenAfterHardDeath(operation, 4, 5, 8) != nil || run.sampleRecoveryParentLocked(operation) != nil {
-		return nil, ErrExecutionEpochOne
+	if err := operation.Err(); err != nil {
+		return nil, checkpointRestartError("deadline", err)
+	}
+	if flow.closed || flow.retained != run || !run.joinedEmpty() {
+		return nil, checkpointRestartError("retained state", nil)
+	}
+	if err := flow.parent.Checkpoint(operation); err != nil {
+		return nil, checkpointRestartError("dispatch checkpoint", err)
+	}
+	if err := flow.store.ReopenAfterTerminalEOF(4, 5, 8); err != nil {
+		return nil, checkpointRestartError("store successor", err)
+	}
+	if err := flow.parent.ReopenAfterHardDeath(operation, 4, 5, 8); err != nil {
+		return nil, checkpointRestartError("dispatch successor", err)
+	}
+	if err := run.sampleRecoveryParentLocked(operation); err != nil {
+		return nil, checkpointRestartError("parent sample", err)
 	}
 	prior := reader.staleAuthority
 	next := &ExecutionEpochOneRun{flow: flow, stop: make(chan struct{}), done: make(chan struct{}),
@@ -270,6 +291,9 @@ func (run *ExecutionEpochOneRun) checkpointRestart(ctx context.Context, pressure
 	result, err := flow.launchEpoch(lifetime, operation, cancel, next, bounds, 4)
 	if result == nil {
 		next.stopPhaseDeadline()
+	}
+	if err != nil {
+		return result, checkpointRestartError("epoch-four launch", err)
 	}
 	return result, err
 }

@@ -3716,3 +3716,16 @@ in [docs/ROADMAP.md](./docs/ROADMAP.md).
   distinct from those corrected passes. These gates do not establish the
   operational cause or native readiness; an independently reviewed exact
   commit must precede the next diagnostic rehearsal.
+
+- 2026-09-15: **T42.2n retained restart-boundary attribution.**  The exact
+  `f5249116` signed-launcher rehearsal stopped after the phase-eight checkpoint
+  process joined and before epoch four recorded its owned server start. Its
+  private diagnostic proved the phase operation failed while phase closing was
+  clean, but the remaining post-death checks still collapsed to the generic
+  epoch error. Preserve that public error classification while adding static
+  private context for the deadline, retained state, dispatch checkpoint, store
+  successor, dispatch successor, parent byte sample, and epoch-four launch
+  boundaries. No retry, phase event, receipt field, native probe, child, I/O,
+  allocation, lock, deadline, or successful-path state is added; only a failed
+  boundary formats its already-held error for the existing clipped private
+  diagnostic.
