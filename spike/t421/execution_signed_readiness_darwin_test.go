@@ -163,6 +163,10 @@ func TestExecutionSignedLauncherOptionalReadiness(t *testing.T) {
 				// Emergency harness cleanup is never accepted as a clean native
 				// launcher result. Retain failure even if the forced sweep works.
 				t.Error("captured inner session did not close; emergency cleanup required", err)
+				// Pin the surviving members with kernel identities before the
+				// sweep, so a retained forced cleanup names the lingering
+				// executable instead of a bare count.
+				captureExecutionSessionMembership(t, root, innerSession)
 				killErr := t4013.KillPrivateProcessSession(innerSession)
 				closeErr := t4013.WaitPrivateProcessSession(innerSession, time.Now().Add(6*time.Second))
 				if killErr != nil || closeErr != nil {
@@ -357,8 +361,32 @@ func executionSignedReadinessPublic(ctx context.Context, namespace *executionSig
 	if err != nil {
 		return nil, err
 	}
-	public, _, _, err := deriveExecutionSignerPublic(raw)
+	canonical, err := executionSignerCanonicalFromGenerated(raw)
+	if err != nil {
+		return nil, err
+	}
+	public, _, _, err := deriveExecutionSignerPublic(canonical)
 	return public, err
+}
+
+// executionSignerCanonicalFromGenerated recovers the canonical one-space public
+// line (ssh-ed25519 <base64>\n) from the generated ssh-keygen form, which carries
+// an empty trailing comment (ssh-ed25519 <base64> \n). The stably named held file
+// in the namespace is the generated one, but the returned signer.pub is canonical,
+// so the readiness anchor must be canonicalized before the canonical validator.
+// The round trip through executionSignerGeneratedPublic keeps the recovery exact.
+func executionSignerCanonicalFromGenerated(generated []byte) ([]byte, error) {
+	n := len(generated)
+	if n < 2 || generated[n-1] != '\n' || generated[n-2] != ' ' {
+		return nil, ErrExecutionLauncher
+	}
+	canonical := make([]byte, 0, n-1)
+	canonical = append(canonical, generated[:n-2]...)
+	canonical = append(canonical, '\n')
+	if !bytes.Equal(generated, executionSignerGeneratedPublic(canonical)) {
+		return nil, ErrExecutionLauncher
+	}
+	return canonical, nil
 }
 
 func executionSignedReadinessSignerBytes(ctx context.Context, namespace *executionSignerNamespaceCustody, name string) ([]byte, error) {
@@ -481,6 +509,59 @@ func TestExecutionSignedReadinessWrongAuthorization(t *testing.T) {
 func executionSignedReadinessOrdinaryJoinedExit(joined, empty bool, err error) bool {
 	exit, ok := err.(*exec.ExitError)
 	return joined && empty && ok && exit != nil && exit.ProcessState != nil && exit.Exited() && exit.ExitCode() > 0
+}
+
+// executionSessionMembershipCapture is the retained private record of the
+// surviving inner-session members at a forced harness cleanup. It stays in the
+// test's private root: kernel command names are never source-free evidence.
+type executionSessionMembershipCapture struct {
+	Schema           string                   `json:"schema"`
+	Session          int                      `json:"session"`
+	CapturedUnixNano int64                    `json:"captured_unix_nano"`
+	CaptureError     string                   `json:"capture_error,omitempty"`
+	Members          []executionSessionMember `json:"members"`
+}
+
+type executionSessionMember struct {
+	PID           int    `json:"pid"`
+	ParentPID     int    `json:"parent_pid"`
+	RSSBytes      int64  `json:"rss_bytes"`
+	StartIdentity string `json:"start_identity"`
+	ObservedName  string `json:"observed_name"`
+}
+
+// captureExecutionSessionMembership records the surviving inner-session members
+// with their kernel identities before the forced sweep, so a retained forced
+// cleanup names the lingering executable instead of a bare count. A capture
+// failure is itself retained test-failure evidence; the sweep still proceeds.
+func captureExecutionSessionMembership(t *testing.T, root string, session int) {
+	t.Helper()
+	capture := executionSessionMembershipCapture{
+		Schema:           "t422-inner-session-membership-v1",
+		Session:          session,
+		CapturedUnixNano: time.Now().UnixNano(),
+	}
+	members, err := t4013.PrivateProcessSessionMembership(session)
+	if err != nil {
+		t.Error("inner session membership capture unavailable before forced cleanup", err)
+		capture.CaptureError = err.Error()
+	}
+	for _, member := range members {
+		capture.Members = append(capture.Members, executionSessionMember{
+			PID: member.PID, ParentPID: member.ParentPID, RSSBytes: member.RSSBytes,
+			StartIdentity: member.StartIdentity, ObservedName: member.ObservedName,
+		})
+		t.Logf("lingering inner session member: pid=%d parent=%d name=%q start=%s rss=%d",
+			member.PID, member.ParentPID, member.ObservedName, member.StartIdentity, member.RSSBytes)
+	}
+	raw, marshalErr := json.Marshal(capture)
+	var writeErr error
+	if marshalErr == nil {
+		writeErr = os.WriteFile(filepath.Join(root, "inner-session-forced-cleanup.json"), raw, 0o600)
+	}
+	if marshalErr != nil || writeErr != nil {
+		t.Error("inner session membership record was not retained", marshalErr, writeErr)
+	}
 }
 
 func TestExecutionSignedReadinessCleanupClassification(t *testing.T) {

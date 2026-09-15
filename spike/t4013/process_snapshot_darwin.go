@@ -54,6 +54,14 @@ func nativeProcessSnapshotProbe() func(context.Context, int) ([]int, map[int]pro
 	return darwinProcessSnapshot
 }
 
+// nativeMemberObservation observes one known session member by PID. It reuses
+// the same coherent per-process kernel record as the tree collector; no
+// parent/child ordering is required because session membership, not tree
+// position, scopes the census.
+func nativeMemberObservation(pid int) (processSnapshot, error) {
+	return darwinProcessObservation(pid)
+}
+
 func darwinProcessSnapshot(
 	ctx context.Context, root int,
 ) ([]int, map[int]processSnapshot, error) {

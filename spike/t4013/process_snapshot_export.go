@@ -67,6 +67,40 @@ func nativeProcessRecords(rootPID int, pids []int, processes map[int]processSnap
 	return result, nil
 }
 
+// PrivateProcessSessionMembership returns the exact live non-zombie membership
+// of a private process session as individually coherent native records, one per
+// member observed at census time. A member that exits between the session
+// census and its own observation is omitted; the observation of a still-live
+// member fails closed. Membership, not tree position, scopes the census, so
+// orphaned members are still named. These private-controller records contain
+// kernel command names and identities and must not be copied into source-free
+// evidence. ObservedName is a kernel command name, not an executable path,
+// image identity or digest. Platforms without the native collector fail closed.
+func PrivateProcessSessionMembership(sessionID int) ([]NativeProcessRecord, error) {
+	pids, err := privateServerSessionPIDs(sessionID)
+	if err != nil {
+		return nil, err
+	}
+	records := make([]NativeProcessRecord, 0, len(pids))
+	for _, pid := range pids {
+		observed, err := nativeMemberObservation(pid)
+		if errors.Is(err, errProcessIdentityMissing) {
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
+		if !observed.coherent || observed.parent < 0 || observed.parent == pid || observed.rssBytes < 0 ||
+			len(observed.identityToken) == 0 || len(observed.identityToken) > 64 ||
+			len(observed.name) == 0 || len(observed.name) > 16 {
+			return nil, errors.New("native session-member observation is incomplete")
+		}
+		records = append(records, NativeProcessRecord{PID: pid, ParentPID: observed.parent,
+			RSSBytes: observed.rssBytes, StartIdentity: observed.identityToken, ObservedName: observed.name})
+	}
+	return records, nil
+}
+
 // ProcessTreeObservation is one bounded native snapshot of a process and all
 // descendants. It is shared by source-free gates that need live aggregate RSS
 // or an exact post-teardown descendant count without launching a helper.

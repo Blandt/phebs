@@ -28,3 +28,32 @@ func TestDarwinSessionInventoryUsesNativeRecords(t *testing.T) {
 		t.Fatalf("native session PIDs = %v, %v", session, err)
 	}
 }
+
+func TestPrivateProcessSessionMembershipNamesMembers(t *testing.T) {
+	for _, invalid := range []int{0, -1} {
+		if _, err := PrivateProcessSessionMembership(invalid); err == nil {
+			t.Fatalf("invalid session %d was accepted", invalid)
+		}
+	}
+	sessionID, err := unix.Getsid(os.Getpid())
+	if err != nil {
+		t.Fatal(err)
+	}
+	members, err := PrivateProcessSessionMembership(sessionID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	self := -1
+	for index, member := range members {
+		if member.PID <= 0 || member.ParentPID < 0 || member.ParentPID == member.PID ||
+			member.RSSBytes < 0 || member.ObservedName == "" || member.StartIdentity == "" {
+			t.Fatalf("member %d is not an individually coherent named record: %+v", index, member)
+		}
+		if member.PID == os.Getpid() {
+			self = index
+		}
+	}
+	if self < 0 {
+		t.Fatalf("own session membership does not name the test process: %+v", members)
+	}
+}
