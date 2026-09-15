@@ -353,7 +353,7 @@ func runExecutionInner(ctx context.Context, entered time.Time, executable, selec
 			if resultErr == nil {
 				resultErr = retErr
 			}
-			retErr = errors.Join(retErr, retainExecutionFailureDiagnostic(prepared.operational, diagnosticStage, recorder, executionErr, resultErr, processRefusal, sequence.current))
+			retErr = errors.Join(retErr, retainExecutionFailureDiagnostic(prepared.operational, diagnosticStage, recorder, flow, executionErr, resultErr, processRefusal, sequence.current))
 		}
 	}()
 	receipt, err := composeExecutionSequenceReceipt(flow.plan, binding, sequence, flow, resources)

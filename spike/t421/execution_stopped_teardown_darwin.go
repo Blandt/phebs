@@ -31,7 +31,9 @@ func (result *executionEpochSequenceResult) stopAndObserve(ctx context.Context, 
 		return errors.Join(err, result.observeStoppedTeardown(ctx, flow, volume))
 	}
 	defer func() {
-		retErr = errors.Join(retErr, flow.finishExecutionPhase("teardown", "failed"))
+		closeErr := flow.finishExecutionPhase("teardown", "failed")
+		flow.recordExecutionPhaseFailure("teardown", retErr, closeErr)
+		retErr = errors.Join(retErr, closeErr)
 		result.phaseEvents, _ = flow.executionPhaseEventEvidence()
 	}()
 	return result.observeStoppedTeardown(ctx, flow, volume)

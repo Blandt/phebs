@@ -3680,6 +3680,12 @@ in [docs/ROADMAP.md](./docs/ROADMAP.md).
   bound on error implementations. Existing server and whole-process refusal
   locators are read under their locks without another native probe.
 
+  After a stopped phase operation returns, retain its operation and phase-close
+  errors separately in the same private failure summary. This distinguishes a
+  failed operation from the existing disk/process close fence without changing
+  either outcome. The failure-only map has at most fifteen entries and no
+  successful-run allocation, I/O, lock, child, deadline or receipt effect.
+
   Independent review of `df3d850d` also found three medium private-diagnostic
   integrity issues and one low documentation gap. Correct the session-member
   API so unsupported platforms refuse before inventory/helper execution, and

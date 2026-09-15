@@ -26,6 +26,14 @@ import (
 
 var ErrExecutionEpochOne = errors.New("execution epoch-one launch unavailable or incomplete")
 
+// executionPhaseFailure is private failed-run troubleshooting state. It is not
+// receipt evidence and is populated only after the phase operation returns.
+type executionPhaseFailure struct {
+	phase     string
+	operation error
+	closure   error
+}
+
 // ExecutionEpochOne owns the genuine shared reducers for one author/start/stop
 // slice. Later producer slots remain unused: snapshots are prefixes, never a
 // fifteen-phase completion or a host/profile/ceremony admission.
@@ -62,6 +70,7 @@ type ExecutionEpochOne struct {
 	executionPhaseEvents    *executionPhaseEventRecorder
 	executionEvidenceEvents map[string]uint64
 	executionEvidenceTimes  map[string]time.Time
+	executionPhaseFailures  map[string]executionPhaseFailure
 }
 
 // PrepareExecutionEpochOne starts no child. It rechecks the author's admitted

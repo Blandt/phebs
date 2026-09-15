@@ -113,7 +113,7 @@ func TestExecutionFailureDiagnosticJoinedPrefix(t *testing.T) {
 			recorder := &executionPhaseEventRecorder{active: -1, slots: []executionPhaseEventSlot{{value: PhaseMeasurement{Phase: "cold", StartEventOrdinal: 3, FinishEventOrdinal: 5, Metrics: ReceiptMetrics{WallMS: 2}}}}}
 			original := errors.New("original execution failure")
 			receiptErr := errors.New("receipt refused observed prefix")
-			err := retainExecutionFailureDiagnostic(root, "receipt_composition", recorder, original, receiptErr, "original whole process refusal", run)
+			err := retainExecutionFailureDiagnostic(root, "receipt_composition", recorder, nil, original, receiptErr, "original whole process refusal", run)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -151,7 +151,7 @@ func TestExecutionFailureDiagnosticJoinedPrefix(t *testing.T) {
 func TestExecutionFailureDiagnosticBoundsAndOriginalFailure(t *testing.T) {
 	root := executionAuthorizationTestRoot(t)
 	original := errors.New(strings.Repeat("original failure ", executionFailureSummaryLimit))
-	err := retainExecutionFailureDiagnostic(root, "package_construction", nil, original, nil, "", nil)
+	err := retainExecutionFailureDiagnostic(root, "package_construction", nil, nil, original, nil, "", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -160,13 +160,13 @@ func TestExecutionFailureDiagnosticBoundsAndOriginalFailure(t *testing.T) {
 		t.Fatal("summary bound/truncation lost", err)
 	}
 	// An existing diagnostic cannot be retried or overwrite the original error.
-	failedRetention := retainExecutionFailureDiagnostic(root, "package_construction", nil, original, nil, "", nil)
+	failedRetention := retainExecutionFailureDiagnostic(root, "package_construction", nil, nil, original, nil, "", nil)
 	combined := errors.Join(original, failedRetention)
 	if !errors.Is(combined, original) || !errors.Is(combined, errExecutionFailureDiagnostic) {
 		t.Fatal("retention replaced original failure")
 	}
 	fresh := executionAuthorizationTestRoot(t)
-	if retainExecutionFailureDiagnostic(fresh, "package_emit", nil, nil, nil, "", nil) == nil {
+	if retainExecutionFailureDiagnostic(fresh, "package_emit", nil, nil, nil, nil, "", nil) == nil {
 		t.Fatal("success wrote diagnostics")
 	}
 	entries, err := os.ReadDir(fresh.path)
@@ -206,7 +206,7 @@ func TestExecutionFailureDiagnosticFailedActiveRecorder(t *testing.T) {
 	if phases, err := recorder.snapshot(); err == nil || phases != nil {
 		t.Fatal("public snapshot must refuse the failed active recorder")
 	}
-	if err := retainExecutionFailureDiagnostic(root, "receipt_composition", recorder, ErrExecutionEpochOne, nil, "", nil); err != nil {
+	if err := retainExecutionFailureDiagnostic(root, "receipt_composition", recorder, nil, ErrExecutionEpochOne, nil, "", nil); err != nil {
 		t.Fatal(err)
 	}
 	raw, err := os.ReadFile(filepath.Join(root.path, executionFailureSummaryName))
@@ -217,5 +217,25 @@ func TestExecutionFailureDiagnosticFailedActiveRecorder(t *testing.T) {
 	}
 	if recorder.active != 1 || !recorder.failed || !recorder.stopped || recorder.slots[1].value.FinishEventOrdinal != 0 {
 		t.Fatal("private retention repaired recorder state")
+	}
+}
+
+func TestExecutionFailureDiagnosticRetainsPhaseOperationAndClosure(t *testing.T) {
+	root := executionAuthorizationTestRoot(t)
+	flow := &ExecutionEpochOne{}
+	flow.recordExecutionPhaseFailure("process_restart", errors.New("checkpoint recovery refused"), errors.New("disk sample refused"))
+	flow.recordExecutionPhaseFailure("process_restart", errors.New("later failure"), errors.New("later close"))
+	flow.recordExecutionPhaseFailure("pressure_80", nil, errors.New("phase begin refused"))
+	if err := retainExecutionFailureDiagnostic(root, "receipt_composition", nil, flow, ErrExecutionEpochOne, nil, "", nil); err != nil {
+		t.Fatal(err)
+	}
+	raw, err := os.ReadFile(filepath.Join(root.path, executionFailureSummaryName))
+	if err != nil || !bytes.Contains(raw, []byte("phase_failure_phase=\"process_restart\"")) ||
+		!bytes.Contains(raw, []byte("phase_failure_operation=\"checkpoint recovery refused\"")) ||
+		!bytes.Contains(raw, []byte("phase_failure_closure=\"disk sample refused\"")) ||
+		!bytes.Contains(raw, []byte("phase_failure_phase=\"pressure_80\"")) ||
+		!bytes.Contains(raw, []byte("phase_failure_operation=\"<nil>\"")) ||
+		!bytes.Contains(raw, []byte("phase_failure_closure=\"phase begin refused\"")) || bytes.Contains(raw, []byte("later failure")) {
+		t.Fatal("private phase failure distinction lost", err)
 	}
 }

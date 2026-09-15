@@ -294,6 +294,36 @@ func (flow *ExecutionEpochOne) executionPhaseEventEvidence() ([]PhaseMeasurement
 	return recorder.snapshot()
 }
 
+func (flow *ExecutionEpochOne) recordExecutionPhaseFailure(phase string, operation, closure error) {
+	if flow == nil || operation == nil && closure == nil {
+		return
+	}
+	flow.mu.Lock()
+	defer flow.mu.Unlock()
+	if flow.executionPhaseFailures == nil {
+		flow.executionPhaseFailures = make(map[string]executionPhaseFailure)
+	}
+	if _, exists := flow.executionPhaseFailures[phase]; exists {
+		return
+	}
+	flow.executionPhaseFailures[phase] = executionPhaseFailure{phase: phase, operation: operation, closure: closure}
+}
+
+func (flow *ExecutionEpochOne) executionPhaseFailureSnapshot() []executionPhaseFailure {
+	if flow == nil {
+		return nil
+	}
+	flow.mu.Lock()
+	defer flow.mu.Unlock()
+	values := make([]executionPhaseFailure, 0, len(flow.executionPhaseFailures))
+	for _, phase := range frozenPhaseOrder() {
+		if value, ok := flow.executionPhaseFailures[phase]; ok {
+			values = append(values, value)
+		}
+	}
+	return values
+}
+
 func runExecutionPhase(flow *ExecutionEpochOne, phase string, operation func() error) error {
 	if operation == nil || flow.beginExecutionPhase(phase) != nil {
 		return ErrExecutionEpochOne
@@ -309,7 +339,9 @@ func runExecutionPhase(flow *ExecutionEpochOne, phase string, operation func() e
 			outcome = "failed"
 		}
 	}
-	if finishErr := flow.finishExecutionPhase(phase, outcome); finishErr != nil {
+	finishErr := flow.finishExecutionPhase(phase, outcome)
+	flow.recordExecutionPhaseFailure(phase, err, finishErr)
+	if finishErr != nil {
 		err = errors.Join(err, finishErr)
 	}
 	if err != nil {

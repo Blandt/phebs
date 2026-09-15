@@ -27,7 +27,7 @@ var errExecutionFailureDiagnostic = errors.New("private execution failure diagno
 // This is unsigned private troubleshooting, never returned evidence. The caller
 // has already stopped owners and joined the whole-process observer. Exact root
 // cleanup makes diagnostics unavailable; no directory is recreated or retried.
-func retainExecutionFailureDiagnostic(root productionRoot, stage string, recorder *executionPhaseEventRecorder, executionErr, resultErr error, wholeProcessRefusal string, run *ExecutionEpochOneRun) error {
+func retainExecutionFailureDiagnostic(root productionRoot, stage string, recorder *executionPhaseEventRecorder, flow *ExecutionEpochOne, executionErr, resultErr error, wholeProcessRefusal string, run *ExecutionEpochOneRun) error {
 	if executionErr == nil && resultErr == nil || checkExecutionFailureRoot(root) != nil {
 		return errExecutionFailureDiagnostic
 	}
@@ -42,6 +42,7 @@ func retainExecutionFailureDiagnostic(root productionRoot, stage string, recorde
 	summary.failure("result_failure", resultErr)
 	summary.text("whole_process_refusal", wholeProcessRefusal)
 	summary.phases(recorder)
+	summary.phaseFailures(flow)
 	var output, body []byte
 	if run != nil {
 		select {
@@ -108,6 +109,14 @@ func retainExecutionFailureDiagnostic(root productionRoot, stage string, recorde
 		}
 	}
 	return nil
+}
+
+func (w *executionFailureSummary) phaseFailures(flow *ExecutionEpochOne) {
+	for _, value := range flow.executionPhaseFailureSnapshot() {
+		w.text("phase_failure_phase", value.phase)
+		w.failure("phase_failure_operation", value.operation)
+		w.failure("phase_failure_closure", value.closure)
+	}
 }
 
 // Only the small summary is buffered here. Existing joined output/body slices
