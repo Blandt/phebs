@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"go/ast"
 	"go/format"
 	"go/parser"
@@ -19,6 +20,40 @@ import (
 	"github.com/bmeddeb/phebs/internal/store"
 	"github.com/bmeddeb/phebs/internal/storeaccounting"
 )
+
+func TestEpochLaunchErrorRetainsOnlyEpochFourStage(t *testing.T) {
+	base := errors.New("refused")
+	for _, test := range []struct {
+		name   string
+		number uint64
+		err    error
+		want   string
+		same   bool
+	}{
+		{name: "other epoch", number: 3, err: base, same: true},
+		{name: "epoch four", number: 4, err: base, want: "execution epoch-one launch unavailable or incomplete: checkpoint restart epoch-four start: refused"},
+		{name: "nil", number: 4},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			got := epochLaunchError(test.number, "start", test.err)
+			if test.same {
+				if got != test.err {
+					t.Fatalf("epoch launch error = %v", got)
+				}
+				return
+			}
+			if test.err == nil {
+				if got != nil {
+					t.Fatalf("epoch launch error = %v", got)
+				}
+				return
+			}
+			if !errors.Is(got, ErrExecutionEpochOne) || got.Error() != test.want {
+				t.Fatalf("epoch launch error = %v", got)
+			}
+		})
+	}
+}
 
 func TestExecutionEpochCheckpointBounds(t *testing.T) {
 	for _, mode := range []string{"valid", "v2", "missing", "phase6", "phase7", "phase8", "health"} {

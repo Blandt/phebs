@@ -537,6 +537,8 @@ func (flow *ExecutionEpochOne) start(ctx context.Context, mode epochOneMode) (_ 
 
 // Callers hold flow.mu and select one of the five implemented epochs.
 func (flow *ExecutionEpochOne) launchEpoch(runCtx, launchCtx context.Context, cancel context.CancelFunc, run *ExecutionEpochOneRun, bounds epochOneLimits, number uint64) (_ *ExecutionEpochOneRun, retErr error) {
+	launchStage := "input"
+	defer func() { retErr = epochLaunchError(number, launchStage, retErr) }()
 	if number < 1 || number > 5 || number == 4 && (run.checkpointRecovery == nil || run.checkpointPrior == nil) {
 		return nil, ErrExecutionEpochOne
 	}
@@ -552,6 +554,7 @@ func (flow *ExecutionEpochOne) launchEpoch(runCtx, launchCtx context.Context, ca
 		phase = 12
 	}
 	started := false
+	launchStage = "authority"
 	author, epochs := flow.epochs.author, flow.epochs
 	author.mu.Lock()
 	epochs.mu.Lock()
@@ -565,6 +568,7 @@ func (flow *ExecutionEpochOne) launchEpoch(runCtx, launchCtx context.Context, ca
 		author.mu.Unlock()
 		return nil, ErrExecutionEpochOne
 	}
+	launchStage = "tools"
 	path, tools, environment, err := flow.checkEpochTools(launchCtx, number)
 	epoch := epochs.epochs[number-1]
 	if number == 3 {
@@ -597,6 +601,7 @@ func (flow *ExecutionEpochOne) launchEpoch(runCtx, launchCtx context.Context, ca
 			author.mu.Unlock()
 		}
 	}()
+	launchStage = "producer"
 	view, err := flow.controller.ProducerLaunch(producer)
 	if err != nil || view.Phase != phase {
 		return nil, ErrExecutionEpochOne
@@ -616,10 +621,12 @@ func (flow *ExecutionEpochOne) launchEpoch(runCtx, launchCtx context.Context, ca
 		}
 		epoch.MarkerDeadlineUnixNano = run.phaseDeadline.UnixNano()
 	}
+	launchStage = "semantic input"
 	raw, err := epochSemanticInput(author.planSHA256, epoch, run.checkpointRecovery, run.archiveInput)
 	if err != nil {
 		return nil, ErrExecutionEpochOne
 	}
+	launchStage = "pipes"
 	var files [6]*os.File
 	defer func() {
 		for _, file := range files {
@@ -634,12 +641,14 @@ func (flow *ExecutionEpochOne) launchEpoch(runCtx, launchCtx context.Context, ca
 			return nil, ErrExecutionEpochOne
 		}
 	}
+	launchStage = "custody socket"
 	input, err := adoptAuthorCustodySocket(files[4])
 	files[4] = nil
 	if err != nil {
 		return nil, ErrExecutionEpochOne
 	}
 	defer func() { _ = input.Close() }() // Explicit success-path close is checked below.
+	launchStage = "store"
 	storeFile, storeConfig, err := flow.store.Open(producer)
 	if err != nil {
 		return nil, ErrExecutionEpochOne
@@ -647,6 +656,7 @@ func (flow *ExecutionEpochOne) launchEpoch(runCtx, launchCtx context.Context, ca
 	defer func() { _ = storeFile.Close() }() // Explicit post-Start close is checked below.
 	output := &checkoutCommandOutput{remaining: bounds.outputBytes, cancel: cancel}
 	run.output = output
+	launchStage = "command"
 	command, err := executionPhebsCommand(path, author.parent, "serve", epoch, environment)
 	if err != nil {
 		return nil, ErrExecutionEpochOne
@@ -658,6 +668,7 @@ func (flow *ExecutionEpochOne) launchEpoch(runCtx, launchCtx context.Context, ca
 		command.Stdout, command.Stderr = run.backupOutput, run.backupOutput
 	}
 	command.ExtraFiles = []*os.File{files[1], files[3], storeFile}
+	launchStage = "workspace"
 	var workspaceBinding *dispatchadmission.ProductionWorkspaceBinding
 	// Only the closed full early profiles borrow FD6; shorter legacy rehearsal
 	// profiles keep omission. Descriptor custody is not byte-point coverage.
@@ -682,12 +693,14 @@ func (flow *ExecutionEpochOne) launchEpoch(runCtx, launchCtx context.Context, ca
 	command.WaitDelay = 5 * time.Second
 	prepareProductionSession(command)
 	run.command = command
+	launchStage = "process identity"
 	processNames, err := epochProcessNames(path, tools)
 	if err != nil {
 		return nil, ErrExecutionEpochOne
 	}
 	// Capture before admitted Start so its latency cannot extend readiness.
 	// Arm only after an actual launch, before any bootstrap or stdin delivery.
+	launchStage = "start"
 	launchStarted := time.Now()
 	handle, err := flow.parent.StartInPhase(launchCtx, phase, dispatchadmission.Site{ID: executionSiteServe, Role: executionRolePhebs, Persistent: true}, command)
 	if err != nil {
@@ -695,6 +708,7 @@ func (flow *ExecutionEpochOne) launchEpoch(runCtx, launchCtx context.Context, ca
 		return nil, ErrExecutionEpochOne
 	}
 	started, run.result.RootStarted = true, true
+	launchStage = "post-start"
 	flow.serverSessions[number-1] = command.Process.Pid // flow.mu is held; retain even if subsequent bootstrap fails.
 	launchPhase := flow.plan.PhaseOrder[phase-1]
 	var startEventOrdinal uint64
@@ -815,6 +829,13 @@ func (flow *ExecutionEpochOne) launchEpoch(runCtx, launchCtx context.Context, ca
 	}
 	go run.finish(runCtx, cancel, waited, served, retErr)
 	return run, retErr
+}
+
+func epochLaunchError(number uint64, stage string, err error) error {
+	if number != 4 || err == nil {
+		return err
+	}
+	return checkpointRestartError("epoch-four "+stage, err)
 }
 
 // The caller holds run.mu. This one-shot timer also covers an absent Health

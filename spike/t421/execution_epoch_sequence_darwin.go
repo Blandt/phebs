@@ -131,14 +131,26 @@ func runExecutionEpochSequence(ctx context.Context, flow *ExecutionEpochOne, vol
 				result.runs[run.epoch.Epoch-1] = run
 			}
 		}
-		if err != nil || run == nil {
-			return ErrExecutionEpochOne
+		if err != nil {
+			return err
+		}
+		if run == nil {
+			return checkpointRestartError("epoch-four result", nil)
 		}
 		result.returnCheckpoint, err = prior.Wait(context.Background())
-		if err != nil || !joinedExecutionEpochResult(result.returnCheckpoint) || run.Health(ctx) != nil {
-			return ErrExecutionEpochOne
+		if err != nil {
+			return checkpointRestartError("prior join", err)
 		}
-		return run.RecoverCheckpoint(ctx)
+		if !joinedExecutionEpochResult(result.returnCheckpoint) {
+			return checkpointRestartError("prior join result", nil)
+		}
+		if err := run.Health(ctx); err != nil {
+			return checkpointRestartError("epoch-four health", err)
+		}
+		if err := run.RecoverCheckpoint(ctx); err != nil {
+			return checkpointRestartError("checkpoint recovery", err)
+		}
+		return nil
 	}); err != nil {
 		return result, err
 	}

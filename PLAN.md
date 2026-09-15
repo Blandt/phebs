@@ -3729,3 +3729,17 @@ in [docs/ROADMAP.md](./docs/ROADMAP.md).
   allocation, lock, deadline, or successful-path state is added; only a failed
   boundary formats its already-held error for the existing clipped private
   diagnostic.
+
+- 2026-09-15: **T42.2n preserves restart failure context through the phase
+  runner.**  The exact `cb8570b7` signed-launcher rehearsal again stopped in
+  `process_restart` after the checkpoint process joined, with clean phase
+  closing and no epoch-four server-start event. The new post-death labels were
+  lost because the sequence runner replaced the checkpoint return with the
+  generic epoch sentinel. Preserve that error and add static private labels for
+  the prior join, epoch-four health, checkpoint recovery, and bounded
+  pre-/post-Start launch stage. Public `errors.Is` classification and receipt
+  contracts/evidence fields remain unchanged. Server launch performs only
+  fixed local string assignments in addition to its existing work; no retry,
+  I/O, phase event,
+  child, lock, deadline, state transition, corpus read, hash, cache operation,
+  or disk/memory bound changes.
