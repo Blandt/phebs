@@ -3602,3 +3602,39 @@ in [docs/ROADMAP.md](./docs/ROADMAP.md).
   corpus, database or server is created, and ordinary query, sync, startup,
   retry, publication, locks and caches are unchanged. The private plan-file
   seal is distinct from the later authenticated live freeze signature.
+
+- **2026-09-14 — T42.2n profile execution-source binding.**
+  The ordinary machine-gate ledger at `4fab84ce` reconciles 762 top-level
+  launcher tests in each mode: 745 passes and seventeen explicit skips,
+  including the completed race continuation, corrected signed group and V3
+  author tests. Relevant package/static gates and independent source review
+  are complete for those bytes. Original failed commands remain failed.
+  The first actual signed `reject-authorization` case then failed before a
+  handoff in 2,811.461 seconds. Its intended injection never ran. The generic
+  terminal does not identify the preparation call; its operational root was
+  automatically removed, the signer directory stayed empty, and a post-join
+  census found no matching process. Private bootstrap and log evidence remain.
+
+  Independently, complete profile issuance incorrectly validates tool build
+  revisions and the Zoekt recipe against the plan-authoring commit. Those
+  checks cannot accept valid distinct plan and execution sources selected by
+  this run. Use the execution commit retained by genuine build custody while
+  retaining the existing separate plan-source, clean-tree and ancestry checks.
+  Pass that exact execution commit through both issuer validations; malformed
+  commits, wrong tool revisions and wrong recipes still refuse. This corrects
+  a proven blocker without claiming the failed log identifies that call.
+
+  The readiness defer also distinguishes an exact ordinary native exit after
+  join and an empty session from unavailable or forced cleanup. The original
+  pre-handoff failure remains a failure; signals, wrapped custody errors and
+  nonempty sessions remain errors. Per profile issuance/revalidation, the fix
+  adds two short existing-build-mutex acquisitions for metadata validation and
+  a commit snapshot, released before nested tool checks. It adds no filesystem
+  read, corpus scan/hash, child, cache, or memory/disk ceiling. Existing enclosing
+  locks remain unchanged. Ordinary query, sync, startup/restart, retry/no-op and
+  publication work are unchanged. The focused issuer, source-separation and
+  cleanup-classification tests pass normal/race in 0.939/4.029 seconds; complete
+  static, documentation, glossary and whitespace checks pass. Exact source
+  review, affected-input reconciliation and all seven actual native outcomes
+  remain required before sealing. Production, admission and rehearsal
+  deadlines remain exact.

@@ -149,8 +149,13 @@ func TestExecutionSignedLauncherOptionalReadiness(t *testing.T) {
 		// Inner owns a distinct session. Always account for both known scopes,
 		// including a t.Fatal after the outer's native Wait already completed.
 		var cleanupErr error
-		joined, _, cleanupErr = finishExecutionProcessSession(command.Process.Pid, waited, joined, nil, time.Now().Add(5*time.Second))
-		if cleanupErr != nil || !joined {
+		var empty bool
+		joined, empty, cleanupErr = finishExecutionProcessSession(command.Process.Pid, waited, joined, nil, time.Now().Add(5*time.Second))
+		if executionSignedReadinessOrdinaryJoinedExit(joined, empty, cleanupErr) {
+			// This is only a cleanup classification. The original premature
+			// handoff/readiness failure remains recorded by the calling test.
+			t.Log("rehearsal outer joined with ordinary failure and empty observed session; retain all named custody", cleanupErr)
+		} else if cleanupErr != nil || !joined || !empty {
 			t.Error("rehearsal outer/session cleanup unavailable or forced; retain all named custody", cleanupErr)
 		}
 		if innerSession > 0 {
@@ -468,5 +473,48 @@ func TestExecutionSignedReadinessWrongAuthorization(t *testing.T) {
 	changed, err := decodeExecutionAuthorization(changedRaw)
 	if err != nil || changed.FreezeSHA256 == value.FreezeSHA256 || changed.SessionBindingSHA256 != value.SessionBindingSHA256 || args[3] != frame.ClientArgv[3] || frame.ClientArgv[5] != base64.RawURLEncoding.EncodeToString(raw) {
 		t.Fatal("negative authorization must change only the copied freeze binding")
+	}
+}
+
+// finishExecutionProcessSession returns the original Wait error on a clean
+// join. Its forced path wraps that error with a custody failure sentinel.
+func executionSignedReadinessOrdinaryJoinedExit(joined, empty bool, err error) bool {
+	exit, ok := err.(*exec.ExitError)
+	return joined && empty && ok && exit != nil && exit.ProcessState != nil && exit.Exited() && exit.ExitCode() > 0
+}
+
+func TestExecutionSignedReadinessCleanupClassification(t *testing.T) {
+	// Two tiny real process states avoid fabricating os.ProcessState internals.
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+	defer cancel()
+	ordinary := exec.CommandContext(ctx, "/bin/sh", "-c", "exit 1").Run()
+	signaled := exec.CommandContext(ctx, "/bin/sh", "-c", "kill -TERM $$").Run()
+	ordinaryExit, ordinaryOK := ordinary.(*exec.ExitError)
+	signalExit, signalOK := signaled.(*exec.ExitError)
+	if ctx.Err() != nil || !ordinaryOK || ordinaryExit.ProcessState == nil || !ordinaryExit.Exited() || ordinaryExit.ExitCode() != 1 ||
+		!signalOK || signalExit.ProcessState == nil || signalExit.Exited() {
+		t.Fatal("native exit fixtures unavailable", ordinary, signaled, ctx.Err())
+	}
+	for _, test := range []struct {
+		name          string
+		joined, empty bool
+		err           error
+		want          bool
+	}{
+		{"ordinary joined failure", true, true, ordinary, true},
+		{"unjoined", false, true, ordinary, false},
+		{"session not empty", true, false, ordinary, false},
+		{"forced custody failure", true, true, errors.Join(ErrExecutionProductionCustody, ordinary), false},
+		{"wrapped ordinary exit", true, true, errors.Join(ordinary), false},
+		{"signal", true, true, signaled, false},
+		{"unavailable process state", true, true, &exec.ExitError{}, false},
+		{"unavailable session", true, false, context.DeadlineExceeded, false},
+		{"successful cleanup", true, true, nil, false},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			if executionSignedReadinessOrdinaryJoinedExit(test.joined, test.empty, test.err) != test.want {
+				t.Fatal("ordinary exit and unavailable/forced cleanup classification differ")
+			}
+		})
 	}
 }

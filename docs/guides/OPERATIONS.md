@@ -7589,6 +7589,14 @@ The signed-readiness harness is now implemented. Its explicit
 source and private log retained. A timeout or signal termination cannot be
 reported as an intended ordinary refusal.
 
+Plan-authoring and execution-source commits may differ along the required
+ancestry. Profile admission checks tool revisions and the Zoekt build recipe
+against the protected execution source, retaining the separate plan-source
+binding. A failure before the signed handoff has not exercised the selected
+authorization-refusal injection. An ordinary nonzero exit with a joined, empty
+session does not itself prove forced cleanup; preserve the original readiness
+failure and separately inspect retained custody.
+
 The orphan selector injects hard death only after observing a real protected
 Git child and its distinct native session. Its private record distinguishes
 launcher refusal and retained image custody from separate harness termination

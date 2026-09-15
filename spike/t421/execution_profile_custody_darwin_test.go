@@ -377,6 +377,7 @@ func TestExecutionProfileExecutorMatchesHeldLauncherImage(t *testing.T) {
 }
 
 type observedProfileIssuerFixture struct {
+	sourceCommit  string
 	plan          Plan
 	tools         []ExecutionToolIdentity
 	host          ExecutionHost
@@ -449,7 +450,7 @@ func newObservedProfileIssuerFixture(t *testing.T) observedProfileIssuerFixture 
 	}
 	phebsIndex := slices.IndexFunc(tools, func(value ExecutionToolIdentity) bool { return value.Role == "phebs" })
 	return observedProfileIssuerFixture{
-		plan: plan, tools: tools, host: host, namespace: namespace,
+		plan: plan, sourceCommit: commits.T422SourceCommit, tools: tools, host: host, namespace: namespace,
 		configDigests: slices.Clone(admitted.epochConfigBytesSHA256), configDigest: admitted.configBytesSHA256,
 		environment: environment, commands: frozenExecutionCommands(), phebsPath: path, directory: directory,
 		preimages: executionObservedProfilePreimages{
@@ -466,7 +467,7 @@ func newObservedProfileIssuerFixture(t *testing.T) observedProfileIssuerFixture 
 }
 
 func (value observedProfileIssuerFixture) issue() (ExecutionProfile, ExecutionProfileAdmissionBinding, error) {
-	return issueObservedExecutionProfile(value.plan, value.tools, value.host, value.configDigests, value.configDigest,
+	return issueObservedExecutionProfile(value.plan, value.sourceCommit, value.tools, value.host, value.configDigests, value.configDigest,
 		value.environment, value.commands, value.runtime, value.phebsPath, value.directory, value.preimages, value.namespace)
 }
 
@@ -508,6 +509,67 @@ func TestExecutionObservedProfileIssuerCompleteAndMutations(t *testing.T) {
 			test.mutate(&fixture)
 			if got, binding, err := fixture.issue(); err == nil || !reflect.DeepEqual(got, ExecutionProfile{}) || !reflect.DeepEqual(binding, ExecutionProfileAdmissionBinding{}) {
 				t.Fatal("mutated observation issued a profile", err)
+			}
+		})
+	}
+}
+
+// The selected execution revision may descend from a different plan source.
+// These are modeled observations; no full plan or native tool is constructed.
+func TestExecutionObservedProfileIssuerSourceCommits(t *testing.T) {
+	for _, test := range []struct {
+		name   string
+		equal  bool
+		mutate func(*observedProfileIssuerFixture)
+	}{
+		{name: "retained equal sources", equal: true},
+		{name: "distinct execution source"},
+		{name: "wrong execution source", mutate: func(value *observedProfileIssuerFixture) { value.sourceCommit = strings.Repeat("c", 40) }},
+		{name: "missing execution source", mutate: func(value *observedProfileIssuerFixture) { value.sourceCommit = "" }},
+		{name: "malformed execution source", mutate: func(value *observedProfileIssuerFixture) { value.sourceCommit = strings.Repeat("z", 40) }},
+		{name: "repository tool at plan source", mutate: func(value *observedProfileIssuerFixture) {
+			for index := range value.tools {
+				if value.tools[index].Role == "t422-author" {
+					value.tools[index].BuildVCSRevision = value.plan.SourceCommit
+				}
+			}
+		}},
+		{name: "zoekt recipe at plan source", mutate: func(value *observedProfileIssuerFixture) {
+			for index := range value.tools {
+				if value.tools[index].Role == "zoekt-git-index" {
+					value.tools[index].BuildRecipeSHA256 = zoektOfferRecipe(value.plan.ToolPolicy, value.plan.SourceCommit)
+				}
+			}
+		}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			fixture := newObservedProfileIssuerFixture(t)
+			if !test.equal {
+				fixture.sourceCommit = strings.Repeat("b", 40)
+				if fixture.sourceCommit == fixture.plan.SourceCommit {
+					t.Fatal("distinct source fixture is equal")
+				}
+				commits := executionFreezeTestCommits()
+				commits.T422SourceCommit = fixture.sourceCommit
+				fixture.tools = executionFreezeTestTools(fixture.plan, commits)
+				for _, tool := range fixture.tools {
+					if tool.Role == "phebs" {
+						fixture.runtime.Identity = tool
+					}
+				}
+			}
+			if test.mutate != nil {
+				test.mutate(&fixture)
+			}
+			profile, admission, err := fixture.issue()
+			if test.mutate != nil {
+				if err == nil || !reflect.DeepEqual(profile, ExecutionProfile{}) || !reflect.DeepEqual(admission, ExecutionProfileAdmissionBinding{}) {
+					t.Fatal("incorrect execution provenance issued a profile", err)
+				}
+				return
+			}
+			if err != nil || profile.Schema != ExecutionProfileV3Schema || !admission.verifiedBeforeOperationalWork {
+				t.Fatal("valid separate source authorities refused", err)
 			}
 		})
 	}

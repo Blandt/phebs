@@ -378,12 +378,22 @@ func profilePreimagesLocked(ctx context.Context, proof *executionWorkspaceCustod
 }
 
 func issueExecutionProfileLocked(ctx context.Context, v *executionPressureVolume, flow *ExecutionEpochOne, observed executionObservedProfilePreimages) (ExecutionProfile, ExecutionProfileAdmissionBinding, error) {
+	builds := flow.epochs.author.request.Builds
+	if !authorCustodyBuildBinding(builds, flow.plan.SourceCommit) {
+		return ExecutionProfile{}, ExecutionProfileAdmissionBinding{}, errPressureVolume
+	}
+	// The plan names its authoring source; tool provenance names the separately
+	// selected execution source retained by genuine build custody. Release the
+	// build lock before tool Check methods acquire it themselves.
+	builds.mu.Lock()
+	sourceCommit := builds.commits.T422SourceCommit
+	builds.mu.Unlock()
 	namespace, err := flow.profileSignerNamespace.check(ctx)
 	if err != nil {
 		return ExecutionProfile{}, ExecutionProfileAdmissionBinding{}, errPressureVolume
 	}
 	tools, phebsPath, err := observedExecutionProfileToolsLocked(ctx, v, flow)
-	if err != nil || validateExecutionTools(tools, flow.plan.ToolPolicy, flow.plan.SourceCommit) != nil || flow.profileHost == nil || validateExecutionHost(flow.profileHost.Host, flow.plan) != nil {
+	if err != nil || validateExecutionTools(tools, flow.plan.ToolPolicy, sourceCommit) != nil || flow.profileHost == nil || validateExecutionHost(flow.profileHost.Host, flow.plan) != nil {
 		return ExecutionProfile{}, ExecutionProfileAdmissionBinding{}, errPressureVolume
 	}
 	configDigests, configDigest, err := observedExecutionProfileConfigsLocked(ctx, flow)
@@ -398,7 +408,7 @@ func issueExecutionProfileLocked(ctx context.Context, v *executionPressureVolume
 	if err != nil {
 		return ExecutionProfile{}, ExecutionProfileAdmissionBinding{}, errPressureVolume
 	}
-	return issueObservedExecutionProfile(flow.plan, tools, flow.profileHost.Host, configDigests, configDigest, environment, commands,
+	return issueObservedExecutionProfile(flow.plan, sourceCommit, tools, flow.profileHost.Host, configDigests, configDigest, environment, commands,
 		flow.profileRuntime, phebsPath, flow.epochs.epochs[0].Temporary, observed, namespace)
 }
 
@@ -407,6 +417,7 @@ func issueExecutionProfileLocked(ctx context.Context, v *executionPressureVolume
 // assembly here makes every observed-field mutation independently testable.
 func issueObservedExecutionProfile(
 	plan Plan,
+	sourceCommit string,
 	tools []ExecutionToolIdentity,
 	host ExecutionHost,
 	configDigests []string,
@@ -419,7 +430,7 @@ func issueObservedExecutionProfile(
 	observed executionObservedProfilePreimages,
 	namespace executionSignerNamespaceBinding,
 ) (ExecutionProfile, ExecutionProfileAdmissionBinding, error) {
-	if validateExecutionTools(tools, plan.ToolPolicy, plan.SourceCommit) != nil || validateExecutionHost(host, plan) != nil ||
+	if !validCommit(sourceCommit) || validateExecutionTools(tools, plan.ToolPolicy, sourceCommit) != nil || validateExecutionHost(host, plan) != nil ||
 		observed.commandsSHA256 != observed.harnessCommandSetSHA256 || !namespace.valid() {
 		return ExecutionProfile{}, ExecutionProfileAdmissionBinding{}, errPressureVolume
 	}

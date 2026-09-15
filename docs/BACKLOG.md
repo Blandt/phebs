@@ -13475,6 +13475,26 @@ work only. Successful terminals, explicit skip reconciliation, corrected V3
 group passage and all seven actual signed native readiness cases remain
 required. No production or admission bound changes.
 
+**T42.2n signed native preparation correction, 2026-09-14:** the ordinary
+machine gates at `4fab84ce` are independently reconciled: 745 top-level passes
+and seventeen explicit skips in both normal and race modes, with all relevant
+package/static gates and source reviews complete. The first actual signed
+refusal case failed before handoff in 2,811.461 seconds; no authorization
+injection ran. Its generic terminal leaves the preparation stage unattributed.
+The operational root was removed, signer custody stayed empty, and no matching
+process survived; private bootstrap/log evidence remains.
+
+Static inspection separately proves that profile tool validation wrongly binds
+to the plan-authoring commit. The correction uses the held execution commit,
+retaining independent plan-source/ancestry checks and exact tool/recipe refusal.
+The readiness cleanup message now distinguishes ordinary joined exit failure
+from forced/unavailable cleanup without changing the original failed result.
+Two short metadata-lock acquisitions per profile issuance/revalidation add no
+scan, hash, child or operational work. Focused normal/race and complete static,
+documentation, glossary and whitespace checks pass. Exact source review,
+affected-input reconciliation and all seven actual native outcomes remain
+required; no admission bound or deadline changes.
+
 **T42.2o author-command prerequisite:** the plan-author command adds explicit
 `-schema v3`, backed by the same corrected V3 constructor used by the launcher
 and the existing exact-clean, canonical, private create-only writer. Default

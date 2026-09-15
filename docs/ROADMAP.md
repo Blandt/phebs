@@ -120,6 +120,16 @@ private create-only writer, retaining the V2 default. The later canonical plan
 seal and authenticated live execution freeze remain separate gated operations;
 neither has been performed.
 
+The ordinary machine gates subsequently completed at `4fab84ce`: 745 passes
+and seventeen explicit skips in each normal/race launcher inventory, plus the
+relevant package/static gates and independent review. The first actual signed
+refusal case then failed before handoff in 2,811.461 seconds, without reaching
+its injection. Preparation-stage attribution is unavailable; operational custody
+was removed and no matching process remained. The correction addresses a
+separately proven profile-source mismatch: tool provenance must use the held
+execution commit while the plan retains its own authoring commit. Affected
+checks and all seven actual native outcomes remain open before V3 sealing.
+
 **T42.2 reviewed checkpoint integration, 2026-09-13:** Ben explicitly
 requested merging the reviewed component stack before the remaining acceptance
 gates finish. Corrected source `3e570c31` has no remaining independent-review
