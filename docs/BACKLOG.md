@@ -13495,6 +13495,25 @@ documentation, glossary and whitespace checks pass. Exact source review,
 affected-input reconciliation and all seven actual native outcomes remain
 required; no admission bound or deadline changes.
 
+**T42.2n failed healthy readiness, 2026-09-15:** exact `df3d850d` passed the
+live handoff and authorization client, then failed after 5,599.25 seconds
+(5,600.031 seconds for the package command). Both known launcher sessions
+closed without emergency cleanup. The mounted operational workspace remains;
+no stopped package, source-verification signature or returned-package signature
+was retained. The phase/cause is unestablished, and the 150-minute package
+alarm did not fire. Keep this result failed. Retain joined failure diagnostics
+privately before a fresh reviewed attempt; do not relax receipt validation,
+admission, execution bounds or cleanup rules to obtain a result.
+
+The correction retains bounded private failure diagnostics only after joined
+resource observation, including partial phase slots and joined server output.
+It also closes the reviewed cleanup-record lifetime/platform/file-custody
+issues. Fourteen focused launcher tests and three focused native-membership
+tests pass in both normal and race modes. Complete static, documentation,
+glossary, whitespace and Linux compilation checks pass. These checks establish
+neither the missing operational cause nor a healthy signed rehearsal; exact
+independent review and a fresh diagnostic attempt precede further readiness.
+
 **T42.2o author-command prerequisite:** the plan-author command adds explicit
 `-schema v3`, backed by the same corrected V3 constructor used by the launcher
 and the existing exact-clean, canonical, private create-only writer. Default

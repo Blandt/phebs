@@ -20,10 +20,6 @@ func killPrivateServerSession(int) error {
 	return errors.New("T40.13 private process sessions require Linux or macOS")
 }
 
-func privateServerSessionPIDs(int) ([]int, error) {
-	return nil, errors.New("T40.13 private process sessions require Linux or macOS")
-}
-
 func privateServerSessionAlive(int) (bool, error) {
 	return false, errors.New("T40.13 private process sessions require Linux or macOS")
 }

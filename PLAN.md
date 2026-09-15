@@ -3638,3 +3638,73 @@ in [docs/ROADMAP.md](./docs/ROADMAP.md).
   review, affected-input reconciliation and all seven actual native outcomes
   remain required before sealing. Production, admission and rehearsal
   deadlines remain exact.
+
+- **2026-09-15 — T42.2n retain an actual signed-launcher failure.**
+  Exact `df3d850d` corrected the generated-versus-canonical public-key check
+  and reached live authorization in the healthy rehearsal. That attempt
+  failed after 5,599.25 seconds (5,600.031 seconds for the package command),
+  before returning an authenticated package. Both known launcher sessions
+  closed without emergency cleanup, but the populated mounted workspace
+  remains. No source-verification or returned-package signature was retained.
+  The exact stopped phase and cause were lost; neither elapsed time nor
+  filesystem timestamps establishes a deadline, sampler or pipeline failure.
+  The original run stays failed and no automatic retry or detach follows it.
+
+  Preserve failure-only troubleshooting after the existing whole-resource
+  observer joins. Reuse the held private operational directory and existing
+  phase/stop/inspection observations, plus only the current server's output
+  after native and shared backup output joins. Write exclusive, no-follow
+  leaves relative to the held directory, checking its identity and the created
+  files. Retain at most 64 KiB of summary, 64 MiB of server log and 64 KiB of
+  failed response; mark clipped data. These bytes are private and unsigned,
+  never receipt evidence or a substitute for package verification. Successful
+  execution writes none. A removed, replaced or closed root makes retention
+  unavailable; do not recreate it, overwrite earlier evidence or retry.
+
+  This adds at most 64 MiB plus 128 KiB of failed-run host disk, one small
+  summary buffer, three serial file writes/syncs and parent-directory syncs,
+  and bounded root/file metadata checks. Existing immutable output slices are
+  borrowed without another log-sized copy. Brief existing run/inspection
+  locks protect snapshots and are released before filesystem writes; any
+  existing custody lock stays held. These post-observer writes are not credited
+  as measured phase work; filesystem calls remain cooperative. No query,
+  sync tick, startup/restart, ordinary retry/no-op, publication, cache,
+  corpus/shard scan, child, admission bound or phase deadline changes.
+
+  Private phase capture reads at most fifteen scalar slots under the recorder
+  mutex even when strict public phase validation refuses a failed or active
+  recorder; active/failed/stopped markers remain explicit and public validation
+  is unchanged. Error fields are clipped to 2 KiB before individual formatting,
+  with truncation marked. An owner's `Error()` method may still materialize
+  its message before clipping; the 64-KiB summary cap is not a universal heap
+  bound on error implementations. Existing server and whole-process refusal
+  locators are read under their locks without another native probe.
+
+  Independent review of `df3d850d` also found three medium private-diagnostic
+  integrity issues and one low documentation gap. Correct the session-member
+  API so unsupported platforms refuse before inventory/helper execution, and
+  bracket session/status checks with the same native lifetime identity on
+  Darwin. Vanished or changing members are omitted; denied observations refuse.
+  This remains a sequence of observations, not an atomic session census or
+  descendant history. Kernel command names are not executable-image identities.
+  Reuse the exclusive held-root writer for the readiness cleanup record and
+  retain its existing test root descriptor from creation through cleanup.
+
+  Only emergency readiness diagnostics pay the existing bounded host PID
+  inventory (8,192 rows) and at most 1,024 candidate members, followed by two
+  coherent native records, two session checks and one status check per member.
+  No helper child is added. The test holds one additional directory descriptor;
+  its failure-only membership file is capped at 512 KiB, with one serial
+  write/file sync/parent sync and bounded identity checks. These records never
+  authorize killing a PID or certify full descendant cleanup. The corrected
+  generated-public-key regression uses synthetic public bytes and retains
+  strict canonical validation. None of these corrections identifies the cause
+  of the earlier healthy run's failure.
+
+  The corrected focused fourteen-test launcher selection passes normal/race
+  in 0.818/1.952 seconds; the three-test membership selection passes in
+  0.599/1.703 seconds. Complete static, documentation, glossary, whitespace and
+  Linux compilation checks pass. Earlier linter setup/refusal results remain
+  distinct from those corrected passes. These gates do not establish the
+  operational cause or native readiness; an independently reviewed exact
+  commit must precede the next diagnostic rehearsal.

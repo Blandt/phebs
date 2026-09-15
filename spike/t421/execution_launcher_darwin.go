@@ -339,6 +339,23 @@ func runExecutionInner(ctx context.Context, entered time.Time, executable, selec
 	sequence.resources = resources
 	executionErr = errors.Join(executionErr, eventErr, resourceErr)
 	binding := *flow.executionFreezeBinding
+	diagnosticStage := "receipt_composition"
+	defer func() {
+		if retErr != nil && resources.Joined {
+			flow.mu.Lock()
+			recorder := flow.executionPhaseEvents
+			flow.mu.Unlock()
+			var processRefusal string
+			if meter := flow.executionWholeResources.process; meter != nil && meter.gauge != nil {
+				processRefusal = meter.gauge.privateRefusal()
+			}
+			resultErr := err
+			if resultErr == nil {
+				resultErr = retErr
+			}
+			retErr = errors.Join(retErr, retainExecutionFailureDiagnostic(prepared.operational, diagnosticStage, recorder, executionErr, resultErr, processRefusal, sequence.current))
+		}
+	}()
 	receipt, err := composeExecutionSequenceReceipt(flow.plan, binding, sequence, flow, resources)
 	if err != nil {
 		return errors.Join(ErrExecutionLauncher, err)
@@ -347,19 +364,25 @@ func runExecutionInner(ctx context.Context, entered time.Time, executable, selec
 	if passed && executionErr != nil {
 		return ErrExecutionLauncher
 	}
+	diagnosticStage = "package_construction"
 	raw, packageBinding, err := buildExecutionReturnedPackage(innerCtx, flow.plan, receipt, binding, prepared.seal)
 	if err != nil {
 		return ErrExecutionLauncher
 	}
 	// Keep the signer, namespace and live admission graph until signing is
 	// complete. Only successful volume teardown permits their existing release.
-	if passed && prepared.Close() != nil {
-		return ErrExecutionLauncher
+	diagnosticStage = "owner_close"
+	if passed {
+		if err = prepared.Close(); err != nil {
+			return ErrExecutionLauncher
+		}
 	}
-	if emitExecutionReturnedPackage(innerCtx, output, raw, packageBinding) != nil {
+	diagnosticStage = "package_emit"
+	if err = emitExecutionReturnedPackage(innerCtx, output, raw, packageBinding); err != nil {
 		return ErrExecutionLauncher
 	}
 	if !passed {
+		diagnosticStage = "execution_stopped"
 		return ErrExecutionLauncher
 	}
 	return nil

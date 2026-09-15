@@ -7597,6 +7597,24 @@ authorization-refusal injection. An ordinary nonzero exit with a joined, empty
 session does not itself prove forced cleanup; preserve the original readiness
 failure and separately inspect retained custody.
 
+A successful authorization client does not establish successful execution.
+If the launcher exits without an authenticated returned package, preserve the
+private log and named operational/signer roots. A populated workspace and its
+timestamps do not identify the stopped phase. The September 15 `df3d850d`
+healthy rehearsal stopped after 5,599.25 seconds with both known launcher
+sessions empty but no stopped package; it remains failed and unattributed.
+Do not automatically rerun or detach its retained mounted workspace.
+
+After an admitted failed run and joined resource observer, the launcher now
+tries to retain `execution-failure.txt`, `execution-failure-server.log` and
+`execution-failure-response.body` in its existing private operational root.
+Only joined server/backup output is read; absent output or response creates no
+file. The summary/log/response caps are 64 KiB/64 MiB/64 KiB, with truncation
+identified in the summary. These are unsigned private troubleshooting files,
+not public evidence. Existing files are never overwritten. Missing, closed or
+replaced custody makes diagnostics unavailable; successful runs create none.
+An error after successful root removal cannot recreate that root to save logs.
+
 The orphan selector injects hard death only after observing a real protected
 Git child and its distinct native session. Its private record distinguishes
 launcher refusal and retained image custody from separate harness termination

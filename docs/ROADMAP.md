@@ -130,6 +130,13 @@ separately proven profile-source mismatch: tool provenance must use the held
 execution commit while the plan retains its own authoring commit. Affected
 checks and all seven actual native outcomes remain open before V3 sealing.
 
+The `df3d850d` healthy signed rehearsal subsequently passed its live handoff
+and authorization client but failed after 5,599.25 seconds. Both known launcher
+sessions closed without emergency cleanup; the populated mounted workspace
+remains. No stopped package or exact phase/cause survived. The missing failure
+diagnostic is being corrected before another attempt; elapsed time alone is
+not a deadline or resource attribution. V3 acceptance and sealing remain open.
+
 **T42.2 reviewed checkpoint integration, 2026-09-13:** Ben explicitly
 requested merging the reviewed component stack before the remaining acceptance
 gates finish. Corrected source `3e570c31` has no remaining independent-review
