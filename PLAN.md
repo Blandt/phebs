@@ -3763,3 +3763,17 @@ in [docs/ROADMAP.md](./docs/ROADMAP.md).
   child, lock, corpus read, hash, cache operation, or persistent allocation;
   only an already-failed path formats bounded scalar state into the existing
   clipped private diagnostic.
+
+- 2026-09-15: **T42.2n retains the first post-stop finish cause.**  Exact
+  OCR-reviewed source `844fd7f7` again stopped in `process_restart`. The new
+  boundary proved the epoch-three `Wait` failed even though root join, session
+  emptiness, aggregate store state, and every bounded dispatch/store producer
+  closure predicate passed. Preserve the first existing post-stop failure
+  across process-observer close/snapshot, native and protocol joins,
+  hard-death close, phase-control close, health-stop event, snapshots,
+  contexts, closed prefix, and terminal-attempt parsing; later cleanup failures
+  no longer replace it. Public classification and all calls, ordering,
+  deadlines, state, and evidence remain unchanged. Successful execution adds
+  only local nil comparisons and no I/O, event, child, lock, corpus read, hash,
+  cache operation, or persistent allocation; only an already-failed path
+  formats its fixed stage and existing cause.

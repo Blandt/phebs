@@ -57,6 +57,21 @@ func TestEpochLaunchErrorRetainsOnlyEpochFourStage(t *testing.T) {
 	}
 }
 
+func TestEpochFinishFailureRetainsFirstCheckpointCause(t *testing.T) {
+	run := &ExecutionEpochOneRun{epoch: ExecutionEpochConfig{Epoch: 3}}
+	cause := errors.New("refused")
+	got := epochFinishFailure(run, true, nil, "phase control close", cause)
+	if !errors.Is(got, ErrExecutionEpochOne) || got.Error() != "execution epoch-one launch unavailable or incomplete: checkpoint restart prior finish phase control close: refused" {
+		t.Fatalf("checkpoint finish error = %v", got)
+	}
+	if next := epochFinishFailure(run, true, got, "later", errors.New("later")); next != got {
+		t.Fatalf("later failure replaced first cause: %v", next)
+	}
+	if next := epochFinishFailure(run, false, nil, "ordinary", cause); next != ErrExecutionEpochOne {
+		t.Fatalf("ordinary finish changed public error: %v", next)
+	}
+}
+
 func TestExecutionEpochCheckpointBounds(t *testing.T) {
 	for _, mode := range []string{"valid", "v2", "missing", "phase6", "phase7", "phase8", "health"} {
 		t.Run(mode, func(t *testing.T) {

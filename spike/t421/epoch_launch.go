@@ -841,6 +841,16 @@ func epochLaunchError(number uint64, stage string, err error) error {
 	return checkpointRestartError("epoch-four "+stage, err)
 }
 
+func epochFinishFailure(run *ExecutionEpochOneRun, terminal bool, current error, stage string, cause error) error {
+	if current != nil {
+		return current
+	}
+	if terminal && run != nil && run.epoch.Epoch == 3 {
+		return checkpointRestartError("prior finish "+stage, cause)
+	}
+	return ErrExecutionEpochOne
+}
+
 // The caller holds run.mu. This one-shot timer also covers an absent Health
 // call; successful readiness or finish retires and joins it, like phaseTimer.
 func (run *ExecutionEpochOneRun) setHealthDeadlineLocked(ctx context.Context, started time.Time) {
@@ -1118,7 +1128,7 @@ func (run *ExecutionEpochOneRun) finish(ctx context.Context, cancel context.Canc
 	run.mu.Lock()
 	warm := run.warm
 	if run.err != nil {
-		failure = ErrExecutionEpochOne
+		failure = epochFinishFailure(run, terminal, failure, "existing state", run.err)
 	}
 	run.mu.Unlock()
 	stopParent := context.Background()
@@ -1140,7 +1150,7 @@ func (run *ExecutionEpochOneRun) finish(ctx context.Context, cancel context.Canc
 	// closes before intentional death, not after Wait has removed the root.
 	_, processErr := run.processObservation.close()
 	if processErr != nil {
-		failure = ErrExecutionEpochOne
+		failure = epochFinishFailure(run, terminal, failure, "process observation close", processErr)
 	}
 	if !joined {
 		run.processObservation.armStop()
@@ -1164,7 +1174,7 @@ func (run *ExecutionEpochOneRun) finish(ctx context.Context, cancel context.Canc
 	} else if terminal {
 		// Partial terminal setup cannot return to ordinary PC or SIGTERM.
 		// Force cleanup only; no terminal admission/closure is fabricated.
-		failure = ErrExecutionEpochOne
+		failure = epochFinishFailure(run, terminal, failure, "partial terminal setup", nil)
 		killErr := t4013.KillPrivateProcessSession(run.command.Process.Pid)
 		joined, sessionEmpty, nativeStopErr = finishExecutionProcessSession(run.command.Process.Pid, waited, joined, waitErr, stopDeadline)
 		nativeStopErr = errors.Join(ErrExecutionEpochOne, killErr, nativeStopErr)
@@ -1172,7 +1182,7 @@ func (run *ExecutionEpochOneRun) finish(ctx context.Context, cancel context.Canc
 		joined, sessionEmpty, nativeStopErr = finishExecutionProcessSession(run.command.Process.Pid, waited, joined, waitErr, stopDeadline)
 	}
 	if nativeStopErr != nil {
-		failure = ErrExecutionEpochOne
+		failure = epochFinishFailure(run, terminal, failure, "native stop", nativeStopErr)
 	}
 	if served != nil {
 		joinCtx, joinCancel := context.WithTimeout(stopParent, 5*time.Second)
@@ -1180,34 +1190,49 @@ func (run *ExecutionEpochOneRun) finish(ctx context.Context, cancel context.Canc
 		case err := <-served:
 			diagnostic.DispatchReceiver = err
 			if err != nil {
-				failure = ErrExecutionEpochOne
+				failure = epochFinishFailure(run, terminal, failure, "dispatch receiver", err)
 			}
 		case <-joinCtx.Done():
 			diagnostic.DispatchJoin = joinCtx.Err()
-			failure = ErrExecutionEpochOne
+			failure = epochFinishFailure(run, terminal, failure, "dispatch join", joinCtx.Err())
 			run.flow.release()
 			diagnostic.DispatchReceiver = <-served
 		}
 		joinCancel()
 	}
-	if terminal && (!terminalRequested || nativeStopErr != nil || death.ProcessState == nil || run.flow.controller.CloseHardDeath(run.producer(), death.ProcessState) != nil) {
-		failure = ErrExecutionEpochOne
+	if terminal {
+		switch {
+		case !terminalRequested:
+			failure = epochFinishFailure(run, terminal, failure, "terminal request", nil)
+		case nativeStopErr != nil:
+			failure = epochFinishFailure(run, terminal, failure, "native stop", nativeStopErr)
+		case death.ProcessState == nil:
+			failure = epochFinishFailure(run, terminal, failure, "process state", nil)
+		default:
+			if err := run.flow.controller.CloseHardDeath(run.producer(), death.ProcessState); err != nil {
+				failure = epochFinishFailure(run, terminal, failure, "hard-death close", err)
+			}
+		}
 	}
 	joinCtx, joinCancel := context.WithTimeout(stopParent, 5*time.Second)
 	diagnostic.StoreJoin = run.flow.store.Wait(joinCtx, run.producer())
 	if diagnostic.StoreJoin != nil {
-		failure = ErrExecutionEpochOne
+		failure = epochFinishFailure(run, terminal, failure, "store join", diagnostic.StoreJoin)
 	}
 	joinCancel()
-	if run.control != nil && run.control.Close() != nil {
-		failure = ErrExecutionEpochOne
+	if run.control != nil {
+		if err := run.control.Close(); err != nil {
+			failure = epochFinishFailure(run, terminal, failure, "phase control close", err)
+		}
 	}
-	if !run.retainParent && run.flow.parent.Close(context.Background()) != nil {
-		failure = ErrExecutionEpochOne
+	if !run.retainParent {
+		if err := run.flow.parent.Close(context.Background()); err != nil {
+			failure = epochFinishFailure(run, terminal, failure, "parent close", err)
+		}
 	}
 	serverProcesses, processErr := run.processObservation.snapshot()
 	if processErr != nil {
-		failure = ErrExecutionEpochOne
+		failure = epochFinishFailure(run, terminal, failure, "process observation snapshot", processErr)
 	}
 	if serverProcesses.ServerEpoch == 0 {
 		// Actual Start survives even when the first native census failed.
@@ -1218,7 +1243,7 @@ func (run *ExecutionEpochOneRun) finish(ctx context.Context, cancel context.Canc
 	if serverProcesses.StartEventOrdinal != 0 && serverProcesses.HealthReadyEventOrdinal == 0 && serverProcesses.HealthStoppedEventOrdinal == 0 && run.flow.hasExecutionPhaseEvents() {
 		ordinal, eventErr := run.flow.recordNamedExecutionEvent(serverProcesses.LaunchPhase, "health-stopped:"+strconv.FormatUint(serverProcesses.ServerEpoch, 10))
 		if eventErr != nil {
-			failure = ErrExecutionEpochOne
+			failure = epochFinishFailure(run, terminal, failure, "health-stopped event", eventErr)
 		} else {
 			serverProcesses.HealthStoppedEventOrdinal = ordinal
 			elapsed := time.Since(run.healthStarted)
@@ -1232,7 +1257,7 @@ func (run *ExecutionEpochOneRun) finish(ctx context.Context, cancel context.Canc
 	// A joined server alone cannot release that custody or expose shared output.
 	if run.backupStarted && (!run.backupJoined || !run.backupSessionEmpty) {
 		result.SessionEmpty = false
-		failure = ErrExecutionEpochOne
+		failure = epochFinishFailure(run, terminal, failure, "backup join", nil)
 	}
 	// Selectors have joined; inspection snapshot safety does not claim that
 	// native process/output teardown succeeded (RootJoined remains separate).
@@ -1271,18 +1296,18 @@ func (run *ExecutionEpochOneRun) finish(ctx context.Context, cancel context.Canc
 		result.MidphaseSamples.LimitExceeded = result.MidphaseSamples.LimitExceeded || limitExceeded
 	}
 	if !result.SessionEmpty {
-		failure = ErrExecutionEpochOne
+		failure = epochFinishFailure(run, terminal, failure, "session empty", nil)
 	}
 	var err error
 	result.Accounting, err = run.flow.controller.Snapshot()
 	diagnostic.DispatchFinal = err
 	if err != nil {
-		failure = ErrExecutionEpochOne
+		failure = epochFinishFailure(run, terminal, failure, "dispatch snapshot", err)
 	}
 	result.Store, err = run.flow.store.Snapshot()
 	diagnostic.StoreFinal = err
 	if err != nil {
-		failure = ErrExecutionEpochOne
+		failure = epochFinishFailure(run, terminal, failure, "store snapshot", err)
 	}
 	author, epochs := run.flow.epochs.author, run.flow.epochs
 	author.mu.Lock()
@@ -1312,14 +1337,24 @@ func (run *ExecutionEpochOneRun) finish(ctx context.Context, cancel context.Canc
 	if run.epoch.Epoch == 5 {
 		prefixOK = epochArchiveClosedPrefixWithParent(ctx, result, 6, run.teardownContext != nil)
 	}
-	if ctx.Err() != nil || terminal && (run.terminalContext == nil || run.terminalContext.Err() != nil) {
-		failure = ErrExecutionEpochOne
+	if ctx.Err() != nil {
+		failure = epochFinishFailure(run, terminal, failure, "run context", context.Cause(ctx))
 	}
-	if run.err != nil || !prefixOK {
-		failure = ErrExecutionEpochOne
+	if terminal && (run.terminalContext == nil || run.terminalContext.Err() != nil) {
+		var cause error
+		if run.terminalContext != nil {
+			cause = context.Cause(run.terminalContext)
+		}
+		failure = epochFinishFailure(run, terminal, failure, "terminal context", cause)
 	}
-	if run.finishAttemptObservation(ctx, &result, death, failure) != nil {
-		failure = ErrExecutionEpochOne
+	if run.err != nil {
+		failure = epochFinishFailure(run, terminal, failure, "final state", run.err)
+	}
+	if !prefixOK {
+		failure = epochFinishFailure(run, terminal, failure, "closed prefix", nil)
+	}
+	if err := run.finishAttemptObservation(ctx, &result, death, failure); err != nil {
+		failure = epochFinishFailure(run, terminal, failure, "attempt observation", err)
 	}
 	if failure != nil && run.pressureUsed {
 		result.PressureSamples.Complete = false
