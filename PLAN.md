@@ -3782,3 +3782,8 @@ in [docs/ROADMAP.md](./docs/ROADMAP.md).
   reachable only after epoch-four backup retirement, so it cannot mask the
   epoch-three terminal cause and the helper returns the same sentinel there;
   route it through the helper anyway to keep first-failure handling uniform.
+  Final OCR review then found one medium diagnostic-consistency issue: exact
+  sentinel causes repeated the public epoch error text. The outer checkpoint
+  wrapper already preserves `errors.Is` classification, so normalize only the
+  exact sentinel to nil as the sibling launch helper does; retain joined or
+  otherwise distinct causes that may carry additional failure detail.

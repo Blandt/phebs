@@ -846,6 +846,9 @@ func epochFinishFailure(run *ExecutionEpochOneRun, terminal bool, current error,
 		return current
 	}
 	if terminal && run != nil && run.epoch.Epoch == 3 {
+		if cause == ErrExecutionEpochOne {
+			cause = nil
+		}
 		return checkpointRestartError("prior finish "+stage, cause)
 	}
 	return ErrExecutionEpochOne

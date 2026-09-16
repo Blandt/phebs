@@ -70,6 +70,10 @@ func TestEpochFinishFailureRetainsFirstCheckpointCause(t *testing.T) {
 	if next := epochFinishFailure(run, false, nil, "ordinary", cause); next != ErrExecutionEpochOne {
 		t.Fatalf("ordinary finish changed public error: %v", next)
 	}
+	got = epochFinishFailure(run, true, nil, "existing state", ErrExecutionEpochOne)
+	if got.Error() != "execution epoch-one launch unavailable or incomplete: checkpoint restart prior finish existing state" {
+		t.Fatalf("checkpoint sentinel was repeated: %v", got)
+	}
 }
 
 func TestExecutionEpochCheckpointBounds(t *testing.T) {
