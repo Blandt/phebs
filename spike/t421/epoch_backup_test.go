@@ -3,7 +3,10 @@ package t421
 import (
 	"bytes"
 	"context"
+	"errors"
+	"os"
 	"os/exec"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -11,6 +14,53 @@ import (
 	"github.com/bmeddeb/phebs/internal/dispatchadmission"
 	"github.com/bmeddeb/phebs/internal/storeaccounting"
 )
+
+func TestEpochArchiveFailureRetainsFirstCause(t *testing.T) {
+	cause := errors.New("native refusal")
+	for _, test := range []struct {
+		name  string
+		cause error
+		want  string
+	}{
+		{"predicate", nil, "archive backup workspace checkpoints"},
+		{"sentinel", ErrExecutionEpochOne, "archive backup workspace checkpoints"},
+		{"underlying", cause, "archive backup workspace checkpoints: native refusal"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			got := epochArchiveFailure(nil, "backup workspace checkpoints", test.cause)
+			if !errors.Is(got, ErrExecutionEpochOne) || got.Error() != ErrExecutionEpochOne.Error()+": "+test.want {
+				t.Fatal("lost classification or boundary", got)
+			}
+			if test.cause != nil && !errors.Is(got, test.cause) {
+				t.Fatal("lost original cause", got)
+			}
+			if later := epochArchiveFailure(got, "backup work observation", errors.New("cleanup refusal")); later != got {
+				t.Fatal("cleanup replaced the first failure", later)
+			}
+		})
+	}
+	// A relay failure may arrive after it canceled native Wait. Both causes
+	// remain inspectable and the initially observed boundary stays first.
+	wait := epochArchiveFailure(nil, "backup native wait context", context.Canceled)
+	relay := errors.Join(wait, epochArchiveFailure(nil, "backup measurement join", cause))
+	if !errors.Is(relay, context.Canceled) || !errors.Is(relay, cause) || !strings.HasPrefix(relay.Error(), wait.Error()) {
+		t.Fatal("relay cause lost behind cancellation", relay)
+	}
+}
+
+func TestEpochArchiveJoinedSampleFailureContext(t *testing.T) {
+	// Keep the production callsite on the archive error path: the checkpoint
+	// finish helper deliberately enriches only the earlier terminal epoch.
+	raw, err := os.ReadFile("epoch_launch.go")
+	if err != nil || !strings.Contains(string(raw), `failure = epochArchiveFailure(failure, "backup joined workspace sample", err)`) {
+		t.Fatal("joined archive sample lost its private failure boundary", err)
+	}
+	got := epochArchiveFailure(nil, "backup joined workspace sample", context.DeadlineExceeded)
+	if !errors.Is(got, ErrExecutionEpochOne) || !errors.Is(got, context.DeadlineExceeded) ||
+		!strings.Contains(got.Error(), "backup joined workspace sample") {
+		t.Fatal("joined sample lost its stage or original cause", got)
+	}
+}
 
 func TestEpochBackupSharedOutput(t *testing.T) {
 	const writers, repetitions = 2, 100

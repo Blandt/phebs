@@ -13524,6 +13524,26 @@ Focused author validation and independent review precede use. Canonical V3
 authoring/sealing still waits for complete T42.2n acceptance; this option does
 not issue the separate live signed execution freeze.
 
+**T42.2n archive-completion diagnostic correction, 2026-09-16:** exact
+`2340ca7c` published its archive but failed before restore, with the backup
+child output lost. Preserve the first operation error across command/phase
+cleanup and retain each actually joined archive stream through the existing
+private writer and aggregate 64-MiB log cap. The mounted failed workspace is
+unchanged; its precise rejected predicate remains unestablished. Focused
+normal/race checks pass. The corrected native fixture requires exactly fifteen
+backup checkpoints; its positive composition and injected final-checkpoint
+lost reply pass together in 43.529 seconds. That negative fixture preserves a
+published manifest without claiming backup success, starts no restore and
+joins both sessions. It does not reproduce the historical cause or establish
+full signed readiness. The complete tiny native positive/failure matrix also
+passes under race (77.517 seconds). Final focused normal/race, vet, pinned
+lint, docs/glossary and whitespace gates pass. Remote-provider OCR timed out;
+independent delegated review closed one parent joined-sample label gap and
+reports no remaining finding across six production files plus three tests.
+Manual documentation review corrected a payload-versus-disk-allocation
+wording gap. These are working-tree gates only; no immutable acceptance, seal,
+full retry or cleanup follows from this record.
+
 **T42.3 · Scale posture decision and neutral product closure** — independently
 review the T42.2 receipt, replay representative All code → service →
 relationship → Workbench → proof → MCP flows, and record one decision:

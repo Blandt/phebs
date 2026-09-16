@@ -7608,12 +7608,25 @@ Do not automatically rerun or detach its retained mounted workspace.
 After an admitted failed run and joined resource observer, the launcher now
 tries to retain `execution-failure.txt`, `execution-failure-server.log` and
 `execution-failure-response.body` in its existing private operational root.
-Only joined server/backup output is read; absent output or response creates no
-file. The summary/log/response caps are 64 KiB/64 MiB/64 KiB, with truncation
-identified in the summary. These are unsigned private troubleshooting files,
+It also retains `execution-failure-backup.log` and
+`execution-failure-restore.log` from the actual archive owner, including after
+restored startup changes the current server. Each stream requires its own
+native join; absent or unjoined output creates no log. Current server, backup
+and restore logs share a 64-MiB cap in that order, with per-stream retained
+sizes and truncation identified. Summary and response each retain their
+separate 64-KiB cap. Private archive completion/checkpoint scalars and the
+first encountered operation error help locate a refusal; a later relay error
+can explain an earlier cancellation without proving global causal order.
+These are unsigned private troubleshooting files,
 not public evidence. Existing files are never overwritten. Missing, closed or
 replaced custody makes diagnostics unavailable; successful runs create none.
 An error after successful root removal cannot recreate that root to save logs.
+
+The September 16 `2340ca7c` rehearsal published its archive and then failed
+in backup completion before restore. A published manifest does not prove
+the final measurement or command/accounting closure succeeded. Its backup
+child output was lost, so the precise predicate remains unknown; the mounted
+workspace remains retained and must not be reused by another attempt.
 
 The orphan selector injects hard death only after observing a real protected
 Git child and its distinct native session. Its private record distinguishes

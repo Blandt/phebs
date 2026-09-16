@@ -170,10 +170,10 @@ func (run *ExecutionEpochOneRun) RestoreBackup(ctx context.Context) (result Exec
 			run.result.SessionEmpty = false
 		}
 		if dispatchErr != nil || storeErr != nil || !run.restoreComplete || !epochRestoreClosedPrefix(operation, run.result) {
-			retErr = ErrExecutionEpochOne
+			retErr = epochArchiveFailure(retErr, "restore closed prefix", errors.Join(dispatchErr, storeErr))
 		}
 		if retErr != nil {
-			run.err = ErrExecutionEpochOne
+			run.err = retErr
 		}
 		run.mu.Unlock()
 		// Snapshot/prefix failures are late failures too; leave no open work.

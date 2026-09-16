@@ -3843,3 +3843,57 @@ in [docs/ROADMAP.md](./docs/ROADMAP.md).
   detach and protected scratch cleanup restored host headroom after checksum
   verification.  Focused normal/race checks, exact independent review and one
   fresh exact-commit signed rehearsal remain required.
+
+- 2026-09-16: **T42.2n preserves archive-completion refusal diagnostics.**
+  Exact `2340ca7c` reached archive publication but failed before restore;
+  the private record shows a 1,031.382-second archive phase, not expiry of
+  its four-hour deadline. Publication precedes the final checkpoint and
+  command/accounting closure, so the retained manifest establishes neither
+  successful backup nor archive verification. The separate backup output was
+  not retained and the exact rejected predicate remains unestablished.
+  Preserve private operation context and underlying errors through backup,
+  native command closure, restore cleanup and the phase runner. Later cleanup
+  cannot replace the first encountered failure; a measurement-relay cause
+  arriving after it canceled native Wait is retained beside that first error.
+  This is component-local diagnostic ordering, not global causal attribution.
+
+  Retain the actual epoch-four owner's backup/restore buffers independently
+  after each command's native join, even after epoch-five startup replaces
+  the current server. Use the existing sequence reference, bounded summary
+  and exclusive no-follow writer. Current server, backup and restore logs
+  share one 64-MiB retention cap in that order; the existing 64-KiB summary
+  and 64-KiB response caps remain separate. Scalar join, completion, digest
+  presence and checkpoint counts remain private/unsigned, never evidence.
+  No successful run writes diagnostics and no unjoined buffer is inspected.
+
+  Ordinary query/request, sync, startup/restart, retry/no-op and publication
+  work is unchanged. Selected successful archive calls retain their ordering
+  and only local error checks; failures format existing causes (whose Error
+  methods are not heap-bounded by later clipping). Failure retention adds one
+  brief archive-owner mutex snapshot and at most two serial file writes,
+  file syncs and parent syncs: at most five leaves, with the same aggregate
+  64 MiB plus 128 KiB retained-payload bound and no log-sized copy. Filesystem
+  allocation rounding and metadata are not included in that payload bound.
+  No new child, native
+  probe, corpus/shard/source scan, hash, cache, timer, admission allowance,
+  deadline or public contract is added. Extend the existing native fixture
+  to require exactly fifteen successful backup checkpoints and inject one
+  final-checkpoint lost reply after publication. That supplied failure tests
+  the late-refusal class, not the historical cause or full frozen corpus.
+  Existing mounted custody stays untouched; no full retry, detach, seal or
+  readiness pass follows from these corrections.
+
+  Delegated independent review found and closed one remaining parent
+  post-backup measurement-label gap; that joined sample now uses the same
+  archive error path, without changing unrelated epoch-four finish behavior.
+  The final focused normal/race selections pass in 3.127/15.784 seconds;
+  twenty join-isolation/first-error race repetitions also pass. Tiny native
+  positive/final-checkpoint failure checks pass in 43.529 seconds, and the
+  positive plus all four native failure modes pass under race in 77.517
+  seconds. Vet, pinned lint, docs/glossary and whitespace checks pass.
+  Remote-provider OCR timed out without completing any selected file and is
+  not a review pass. Its delegated replacement covers all six production
+  files and three test diffs with no remaining finding; manual documentation
+  review also corrected the payload-versus-allocation wording above. These
+  are working-tree diagnostic gates, not immutable-candidate acceptance or a
+  historical-cause finding. No commit, signed retry or cleanup is performed.

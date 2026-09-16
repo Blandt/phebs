@@ -345,7 +345,7 @@ func TestT422WorkspaceEpochFiveNativeComposition(t *testing.T) {
 }
 
 func TestT422ArchiveWorkspaceNativeFailures(t *testing.T) {
-	for _, mode := range []string{"lost_release", "parent_cancel", "report_loss"} {
+	for _, mode := range []string{"lost_release", "parent_cancel", "report_loss", "late_lost_release"} {
 		t.Run(mode, func(t *testing.T) {
 			testT422ArchiveRetiredNativeEndpointFailure(t, true, false, true, mode)
 		})
@@ -387,8 +387,12 @@ func testT422ArchiveRetiredNativeEndpointFailure(t *testing.T, restore, workspac
 		readMode, failure = failure, ""
 	}
 	if failure != "" && (!restore || workspace || !archiveWorkspace || len(cleanup) != 0 ||
-		failure != "lost_release" && failure != "parent_cancel" && failure != "report_loss") {
+		failure != "lost_release" && failure != "parent_cancel" && failure != "report_loss" && failure != "late_lost_release") {
 		t.Fatal("invalid native archive failure fixture")
+	}
+	failedCheckpoint := uint32(2)
+	if failure == "late_lost_release" {
+		failedCheckpoint = 15 // Final checkpoint follows atomic archive publication.
 	}
 	cleanupWorkspace := len(cleanup) > 0 && cleanup[0]
 	allOwners := len(cleanup) == 2 && cleanup[1]
@@ -738,7 +742,7 @@ func testT422ArchiveRetiredNativeEndpointFailure(t *testing.T, restore, workspac
 						return held.Err()
 					}
 					err := measure(held)
-					if ordinal == 2 && failure == "lost_release" {
+					if ordinal == failedCheckpoint && (failure == "lost_release" || failure == "late_lost_release") {
 						// Child RELEASE was read, but the parent cannot deliver
 						// its ACK. The real PC guard still resumes the engine.
 						_ = unix.Close()
@@ -1340,10 +1344,10 @@ func testT422ArchiveRetiredNativeEndpointFailure(t *testing.T, restore, workspac
 		if failure != "report_loss" && relayErr == nil {
 			t.Fatal("failed relay reported clean completion")
 		}
-		if archiveHolds.Load() < 2 {
-			t.Fatal("failure did not follow a second actual native hold", archiveHolds.Load())
+		if archiveHolds.Load() < failedCheckpoint {
+			t.Fatal("failure did not follow the selected actual native hold", archiveHolds.Load(), failedCheckpoint)
 		}
-		assertT422FailedArchiveWorkspacePrefix(t, backupDiagnostic.String(), failure == "report_loss")
+		assertT422FailedArchiveWorkspacePrefix(t, backupDiagnostic.String(), int(failedCheckpoint), failure == "report_loss")
 		<-backupServed // A failed producer must still join its actual receiver.
 		_ = transport.Wait(ctx, 10)
 		// Listening alone is insufficient: a stopped engine can retain its
@@ -1389,13 +1393,18 @@ func testT422ArchiveRetiredNativeEndpointFailure(t *testing.T, restore, workspac
 				t.Fatal("restore ran after failed backup", prefix)
 			}
 		}
-		if _, err := os.Lstat(filepath.Join(archivePath, recovery.ManifestName)); !errors.Is(err, os.ErrNotExist) {
-			t.Fatal("failed early backup left a completed manifest", err)
+		manifestInfo, manifestErr := os.Lstat(filepath.Join(archivePath, recovery.ManifestName))
+		if failure == "late_lost_release" {
+			if manifestErr != nil || !manifestInfo.Mode().IsRegular() || manifestInfo.Size() == 0 || backupDigest != "" {
+				t.Fatal("late backup failure must preserve its published manifest without reporting success", manifestErr, backupDigest)
+			}
+		} else if !errors.Is(manifestErr, os.ErrNotExist) {
+			t.Fatal("failed early backup left a completed manifest", manifestErr)
 		}
 		if archiveParentSamples != 1 || archiveObserver.Snapshot().Unavailable || !archiveObserver.Snapshot().Phases[11].Completed {
 			t.Fatal("failed backup lost its actual parent phase-start sample")
 		}
-		t.Logf("actual failed archive: mode=%s holds=%d backup_error=%v relay_error=%v server_error=%v; one positive WB sample retained, restore unstarted, both sessions joined", failure, archiveHolds.Load(), backupErr, relayErr, serverErr)
+		t.Logf("actual failed archive: mode=%s holds=%d backup_error=%v relay_error=%v server_error=%v; %d positive WB samples retained, restore unstarted, both sessions joined", failure, archiveHolds.Load(), backupErr, relayErr, serverErr, failedCheckpoint-1)
 		return
 	}
 	if backupErr != nil {
@@ -1407,7 +1416,7 @@ func testT422ArchiveRetiredNativeEndpointFailure(t *testing.T, restore, workspac
 		if err != nil {
 			t.Fatal("archive measurement join", err)
 		}
-		assertT422ArchiveNativeWorkspaceReports(t, backupDiagnostic.String(), 10, record.InputSHA256, 15, uint64(recovery.BackupCheckpointMaximum()))
+		assertT422ArchiveNativeWorkspaceReports(t, backupDiagnostic.String(), 10, record.InputSHA256, 15, 15)
 	}
 	assertT422OfflineBindings(t, backupDiagnostic.String(), 10, "07")
 	if strings.Contains(backupDiagnostic.String(), "RL1:") {
@@ -1745,7 +1754,7 @@ func testT422ArchiveRetiredNativeEndpointFailure(t *testing.T, restore, workspac
 
 // The report-loss case retains only the bytes read before closing the actual
 // sink. It does not assert that no unobserved child sample completed later.
-func assertT422FailedArchiveWorkspacePrefix(t *testing.T, raw string, reportLost bool) {
+func assertT422FailedArchiveWorkspacePrefix(t *testing.T, raw string, failedCheckpoint int, reportLost bool) {
 	t.Helper()
 	bindings, begins, successes, failures := 0, 0, 0, 0
 	for _, line := range strings.Split(raw, "\n") {
@@ -1769,12 +1778,12 @@ func assertT422FailedArchiveWorkspacePrefix(t *testing.T, raw string, reportLost
 		switch fields[2][1] {
 		case 'B':
 			begins++
-			if sequence != uint64(begins) || begins > 2 || begins == 2 && successes != 1 {
+			if sequence != uint64(begins) || begins > failedCheckpoint || successes != begins-1 {
 				t.Fatal("failed archive sequence changed", line)
 			}
 		case 'S':
 			successes++
-			if len(fields) != 6 || sequence != 1 || successes != 1 || begins != 1 {
+			if len(fields) != 6 || sequence != uint64(successes) || successes >= failedCheckpoint || begins != successes {
 				t.Fatal("failed sample became complete", line)
 			}
 			logical, logicalErr := strconv.ParseUint(fields[4], 16, 64)
@@ -1784,14 +1793,14 @@ func assertT422FailedArchiveWorkspacePrefix(t *testing.T, raw string, reportLost
 			}
 		case 'F':
 			failures++
-			if sequence != 2 || failures != 1 || begins != 2 || successes != 1 {
+			if sequence != uint64(failedCheckpoint) || failures != 1 || begins != failedCheckpoint || successes != failedCheckpoint-1 {
 				t.Fatal("failed archive completion changed", line)
 			}
 		default:
 			t.Fatal("unexpected archive report", line)
 		}
 	}
-	if bindings != 1 || begins != 2 || successes != 1 || (!reportLost && failures != 1) || reportLost && failures != 0 {
+	if bindings != 1 || begins != failedCheckpoint || successes != failedCheckpoint-1 || (!reportLost && failures != 1) || reportLost && failures != 0 {
 		t.Fatal("incomplete native WB prefix", bindings, begins, successes, failures)
 	}
 }

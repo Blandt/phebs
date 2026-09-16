@@ -161,15 +161,21 @@ func runExecutionEpochSequence(ctx context.Context, flow *ExecutionEpochOne, vol
 	if err := runExecutionPhase(flow, "archive_restore", func() error {
 		var err error
 		result.backup, err = run.BackupAndStop(ctx)
-		if err != nil || !joinedExecutionEpochResult(result.backup) {
-			return ErrExecutionEpochOne
+		if err != nil {
+			return err
+		}
+		if !joinedExecutionEpochResult(result.backup) {
+			return epochArchiveFailure(nil, "backup joined result", nil)
 		}
 		if _, err := flow.recordOptionalNamedExecutionEvent("archive_restore", "archive:created"); err != nil {
-			return ErrExecutionEpochOne
+			return epochArchiveFailure(nil, "created event", err)
 		}
 		result.restore, err = run.RestoreBackup(ctx)
-		if err != nil || !joinedExecutionEpochResult(result.restore) {
-			return ErrExecutionEpochOne
+		if err != nil {
+			return err
+		}
+		if !joinedExecutionEpochResult(result.restore) {
+			return epochArchiveFailure(nil, "restore joined result", nil)
 		}
 		prior = run
 		run, err = prior.StartRestored(ctx)
@@ -179,8 +185,14 @@ func runExecutionEpochSequence(ctx context.Context, flow *ExecutionEpochOne, vol
 				result.runs[run.epoch.Epoch-1] = run
 			}
 		}
-		if err != nil || run == nil || run.Health(ctx) != nil {
-			return ErrExecutionEpochOne
+		if err != nil {
+			return epochArchiveFailure(nil, "restored launch", err)
+		}
+		if run == nil {
+			return epochArchiveFailure(nil, "restored launch result", nil)
+		}
+		if err := run.Health(ctx); err != nil {
+			return epochArchiveFailure(nil, "restored health", err)
 		}
 		if err := run.CompleteArchive(ctx); err != nil {
 			return err

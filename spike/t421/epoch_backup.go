@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"net"
 	"os"
 	"path/filepath"
@@ -71,6 +72,18 @@ func (run *ExecutionEpochOneRun) fenceFailedBackup(ctx context.Context) {
 	_ = run.flow.controller.Fence()
 }
 
+// Private boundary context only; later cleanup must not replace the first
+// operation failure. Keep the public epoch classification and original cause.
+func epochArchiveFailure(current error, stage string, cause error) error {
+	if current != nil {
+		return current
+	}
+	if cause == nil || cause == ErrExecutionEpochOne {
+		return fmt.Errorf("%w: archive %s", ErrExecutionEpochOne, stage)
+	}
+	return fmt.Errorf("%w: archive %s: %w", ErrExecutionEpochOne, stage, cause)
+}
+
 // BackupAndStop consumes the completed pressure-75 boundary once. It keeps only
 // the retired server's native endpoint through the actual backup command and
 // returns only after server/session join. No restore, archive verification,
@@ -114,7 +127,7 @@ func (run *ExecutionEpochOneRun) BackupAndStop(ctx context.Context) (result Exec
 	defer func() {
 		if retErr != nil {
 			run.mu.Lock()
-			run.err = ErrExecutionEpochOne
+			run.err = retErr
 			run.mu.Unlock()
 		}
 		close(operationDone)
@@ -123,21 +136,37 @@ func (run *ExecutionEpochOneRun) BackupAndStop(ctx context.Context) (result Exec
 		defer stop()
 		var err error
 		result, err = run.Wait(cleanup)
-		retErr = errors.Join(retErr, err)
+		if err != nil {
+			retErr = epochArchiveFailure(retErr, "backup server finish", err)
+		}
 	}()
 	flow := run.flow
 	// The final server Pause is already reserved by the 28-pair pressure
 	// budget. Its echo now follows SDK close and the final DA checkpoint.
-	if flow.parent.Pause(operation) != nil || flow.controller.Fence() != nil || flow.store.Fence() != nil || run.control.Pause(operation) != nil ||
-		flow.store.Wait(operation, 5) != nil || flow.controller.RetireBackupEndpoint() != nil {
-		return result, ErrExecutionEpochOne
+	if err := flow.parent.Pause(operation); err != nil {
+		return result, epochArchiveFailure(nil, "backup parent pause", err)
+	}
+	if err := flow.controller.Fence(); err != nil {
+		return result, epochArchiveFailure(nil, "backup dispatch fence", err)
+	}
+	if err := flow.store.Fence(); err != nil {
+		return result, epochArchiveFailure(nil, "backup store fence", err)
+	}
+	if err := run.control.Pause(operation); err != nil {
+		return result, epochArchiveFailure(nil, "backup control pause", err)
+	}
+	if err := flow.store.Wait(operation, 5); err != nil {
+		return result, epochArchiveFailure(nil, "backup server store EOF", err)
+	}
+	if err := flow.controller.RetireBackupEndpoint(); err != nil {
+		return result, epochArchiveFailure(nil, "backup endpoint retirement", err)
 	}
 	run.mu.Lock()
 	run.backupRetired = true
 	run.retainParent = true
 	if run.stopping || run.err != nil || run.phaseTimer == nil || !time.Now().Before(run.phaseDeadline) || !run.phaseTimer.Stop() {
 		run.mu.Unlock()
-		return result, ErrExecutionEpochOne
+		return result, epochArchiveFailure(nil, "backup phase timer", nil)
 	}
 	close(run.phaseDone) // The stopped callback cannot own this completion.
 	run.setPhaseDeadlineLocked(deadline)
@@ -145,17 +174,23 @@ func (run *ExecutionEpochOneRun) BackupAndStop(ctx context.Context) (result Exec
 	flow.mu.Lock()
 	flow.retained = run
 	flow.mu.Unlock()
-	if flow.parent.Checkpoint(operation) != nil || run.processPhaseAdvance(operation, 12) != nil || flow.parent.Resume(12) != nil {
-		return result, ErrExecutionEpochOne
+	if err := flow.parent.Checkpoint(operation); err != nil {
+		return result, epochArchiveFailure(nil, "backup parent checkpoint", err)
+	}
+	if err := run.processPhaseAdvance(operation, 12); err != nil {
+		return result, epochArchiveFailure(nil, "backup process phase", err)
+	}
+	if err := flow.parent.Resume(12); err != nil {
+		return result, epochArchiveFailure(nil, "backup parent resume", err)
 	}
 	if err := run.sampleArchiveWorkspace(operation, archiveWorkspaceStart); err != nil {
-		return result, err
+		return result, epochArchiveFailure(nil, "backup workspace start", err)
 	}
 	if err := run.runNativeArchive(operation, false); err != nil {
 		return result, err
 	}
 	if operation.Err() != nil {
-		return result, ErrExecutionEpochOne
+		return result, epochArchiveFailure(nil, "backup operation context", operation.Err())
 	}
 	run.mu.Lock()
 	run.backupComplete = true
@@ -296,7 +331,7 @@ func (run *ExecutionEpochOneRun) runNativeArchive(ctx context.Context, restore b
 		}
 		run.mu.Unlock()
 		if !joined || !empty || stopErr != nil || waitErr != nil {
-			retErr = ErrExecutionEpochOne
+			retErr = epochArchiveFailure(retErr, verb+" session join", errors.Join(stopErr, waitErr))
 		}
 		// A failed or unjoined command cannot keep an owned engine suspended.
 		// Join the relay before inspecting output or releasing the source borrow.
@@ -305,7 +340,9 @@ func (run *ExecutionEpochOneRun) runNativeArchive(ctx context.Context, restore b
 				cancel()
 			}
 			if err := <-measurementServed; err != nil {
-				retErr = errors.Join(retErr, err)
+				// The relay can cancel native Wait before its own cause is
+				// delivered. Keep that cause beside (not instead of) the first.
+				retErr = errors.Join(retErr, epochArchiveFailure(nil, verb+" measurement join", err))
 			}
 		}
 		if served != nil {
@@ -314,12 +351,12 @@ func (run *ExecutionEpochOneRun) runNativeArchive(ctx context.Context, restore b
 			select {
 			case err := <-served:
 				if err != nil {
-					retErr = ErrExecutionEpochOne
+					retErr = epochArchiveFailure(retErr, verb+" dispatch join", err)
 				}
 			case <-joinCtx.Done():
 				flow.release()
 				<-served
-				retErr = ErrExecutionEpochOne
+				retErr = epochArchiveFailure(retErr, verb+" dispatch join deadline", joinCtx.Err())
 			}
 		}
 		// Native Wait joins this command's copier before the sole work scan.
@@ -331,11 +368,11 @@ func (run *ExecutionEpochOneRun) runNativeArchive(ctx context.Context, restore b
 		}
 		observed, observeErr := observeArchiveWork(stream, flow.plan, producer, run.attemptInput, joined, retErr == nil && ctx.Err() == nil)
 		if observeErr != nil {
-			retErr = ErrExecutionEpochOne
+			retErr = epochArchiveFailure(retErr, verb+" work observation", observeErr)
 		}
 		if workspaceBinding != nil && !epochArchiveWorkspaceComplete(observed.WorkspaceBytes, producer) {
 			observed.Complete = false
-			retErr = ErrExecutionEpochOne
+			retErr = epochArchiveFailure(retErr, verb+" workspace checkpoints", nil)
 		}
 		run.mu.Lock()
 		if restore {
@@ -346,9 +383,11 @@ func (run *ExecutionEpochOneRun) runNativeArchive(ctx context.Context, restore b
 		run.mu.Unlock()
 		// Only this actual offline command owns its slot. The copies carried
 		// into later server results never create another archive observation.
-		retErr = errors.Join(retErr, flow.retainJoinedWork(executionJoinedWorkRecord{
+		if err := flow.retainJoinedWork(executionJoinedWorkRecord{
 			Producer: producer, Input: run.attemptInput, Joined: joined, SessionEmpty: empty, Attempts: observed,
-		}))
+		}); err != nil {
+			retErr = epochArchiveFailure(retErr, verb+" retained work", err)
+		}
 	}()
 	if files[1].Close() != nil || files[3].Close() != nil || storeFile.Close() != nil {
 		return ErrExecutionEpochOne
@@ -376,8 +415,8 @@ func (run *ExecutionEpochOneRun) runNativeArchive(ctx context.Context, restore b
 			completion <- err
 		}()
 	}
-	if dispatchadmission.SendProductionBootstrap(ctx, files[0], files[2], record) != nil {
-		return ErrExecutionEpochOne
+	if err := dispatchadmission.SendProductionBootstrap(ctx, files[0], files[2], record); err != nil {
+		return epochArchiveFailure(nil, verb+" bootstrap", err)
 	}
 	completion := make(chan error, 1)
 	file := files[0]
@@ -400,16 +439,19 @@ func (run *ExecutionEpochOneRun) runNativeArchive(ctx context.Context, restore b
 	case waitErr = <-waited:
 		joined = true
 	case <-ctx.Done():
-		return ErrExecutionEpochOne
+		return epochArchiveFailure(nil, verb+" native wait context", ctx.Err())
 	}
-	if waitErr != nil || flow.store.Wait(ctx, producer) != nil {
-		return ErrExecutionEpochOne
+	if waitErr != nil {
+		return epochArchiveFailure(nil, verb+" native wait", waitErr)
+	}
+	if err := flow.store.Wait(ctx, producer); err != nil {
+		return epochArchiveFailure(nil, verb+" store EOF", err)
 	}
 	if measurementServed != nil {
 		measurementErr := <-measurementServed
 		measurementServed = nil
 		if measurementErr != nil {
-			return errors.Join(ErrExecutionEpochOne, measurementErr)
+			return epochArchiveFailure(nil, verb+" measurement join", measurementErr)
 		}
 	}
 	stream := run.backupOutput.backup
@@ -418,7 +460,7 @@ func (run *ExecutionEpochOneRun) runNativeArchive(ctx context.Context, restore b
 	}
 	digest, err := epochArchiveCommandDigest(stream.buffer.Bytes(), filepath.Join(run.epoch.BackupRoot, "archive"), restore)
 	if err != nil || stream.err != nil {
-		return ErrExecutionEpochOne
+		return epochArchiveFailure(nil, verb+" success output", errors.Join(err, stream.err))
 	}
 	run.mu.Lock()
 	if restore {

@@ -19,6 +19,8 @@ const (
 	executionFailureBodyLimit    = 64 << 10
 	executionFailureSummaryName  = "execution-failure.txt"
 	executionFailureOutputName   = "execution-failure-server.log"
+	executionFailureBackupName   = "execution-failure-backup.log"
+	executionFailureRestoreName  = "execution-failure-restore.log"
 	executionFailureBodyName     = "execution-failure-response.body"
 )
 
@@ -27,7 +29,7 @@ var errExecutionFailureDiagnostic = errors.New("private execution failure diagno
 // This is unsigned private troubleshooting, never returned evidence. The caller
 // has already stopped owners and joined the whole-process observer. Exact root
 // cleanup makes diagnostics unavailable; no directory is recreated or retried.
-func retainExecutionFailureDiagnostic(root productionRoot, stage string, recorder *executionPhaseEventRecorder, flow *ExecutionEpochOne, executionErr, resultErr error, wholeProcessRefusal string, run *ExecutionEpochOneRun) error {
+func retainExecutionFailureDiagnostic(root productionRoot, stage string, recorder *executionPhaseEventRecorder, flow *ExecutionEpochOne, executionErr, resultErr error, wholeProcessRefusal string, run, archiveRun *ExecutionEpochOneRun) error {
 	if executionErr == nil && resultErr == nil || checkExecutionFailureRoot(root) != nil {
 		return errExecutionFailureDiagnostic
 	}
@@ -43,14 +45,15 @@ func retainExecutionFailureDiagnostic(root productionRoot, stage string, recorde
 	summary.text("whole_process_refusal", wholeProcessRefusal)
 	summary.phases(recorder)
 	summary.phaseFailures(flow)
-	var output, body []byte
+	var output, backup, restore, body []byte
+	remaining := executionFailureOutputLimit
 	if run != nil {
 		select {
 		case <-run.done:
-			// done publishes the completed stop diagnostic. Native Wait, plus
-			// the existing backup join, separately owns shared output immutability.
+			// done publishes the stop diagnostic. Each native Wait separately
+			// owns its output buffer, even when the byte allowance is shared.
 			run.mu.Lock()
-			joined := run.result.RootJoined && (!run.backupStarted || run.backupJoined)
+			joined := run.result.RootJoined
 			stopped, native := run.stopDiagnostic, run.nativeStopErr
 			captured, inspection, process := run.output, run.inspection, run.processObservation
 			run.mu.Unlock()
@@ -76,11 +79,7 @@ func retainExecutionFailureDiagnostic(root productionRoot, stage string, recorde
 				summary.text("server_process_refusal", process.gauge.privateRefusal())
 			}
 			if joined {
-				if captured != nil {
-					output = captured.buffer.Bytes()
-					_, _ = fmt.Fprintf(&summary, "server_output_observed_bytes=%d server_output_truncated=%t\n", len(output), len(output) > executionFailureOutputLimit)
-					output = output[:min(len(output), executionFailureOutputLimit)]
-				}
+				output = summary.output("server", captured, &remaining)
 				if inspection != nil {
 					inspection.mu.Lock()
 					failure, status, ordinal := inspection.readFailure, inspection.failureStatus, inspection.failureOrdinal
@@ -97,11 +96,57 @@ func retainExecutionFailureDiagnostic(root productionRoot, stage string, recorde
 			_, _ = fmt.Fprintln(&summary, "server_stop_unjoined=true; output and inspection untouched")
 		}
 	}
+	// The sequence keeps the actual epoch-four owner after restored startup
+	// clears flow.retained. Its done predates restore, so use each native join.
+	if archiveRun == nil {
+		archiveRun = run
+	}
+	if archiveRun != nil {
+		var rows [2]struct {
+			started, joined, empty, complete, digest bool
+			workComplete, scanComplete               bool
+			bound, measured, unavailable, exceeded   bool
+			attempts, completed                      uint64
+			output                                   *checkoutCommandOutput
+		}
+		archiveRun.mu.Lock()
+		rows[0].started, rows[0].joined, rows[0].empty = archiveRun.backupStarted, archiveRun.backupJoined, archiveRun.backupSessionEmpty
+		rows[0].complete, rows[0].digest = archiveRun.backupComplete, archiveRun.backupManifestSHA256 != ""
+		rows[1].started, rows[1].joined, rows[1].empty = archiveRun.restoreStarted, archiveRun.restoreJoined, archiveRun.restoreSessionEmpty
+		rows[1].complete, rows[1].digest = archiveRun.restoreComplete, archiveRun.restoreManifestSHA256 != ""
+		for i, work := range []*ExecutionAttemptObservation{&archiveRun.backupWork, &archiveRun.result.RestoreWork} {
+			row := &rows[i]
+			row.workComplete, row.scanComplete = work.Complete, work.ScanComplete
+			bytes := &work.WorkspaceBytes
+			row.bound, row.measured, row.unavailable, row.exceeded = bytes.Bound, bytes.Complete, bytes.Unavailable, bytes.LimitExceeded
+			row.attempts, row.completed = bytes.Phases[11].Attempts, bytes.Phases[11].Completed
+			if row.started && row.joined && archiveRun.backupOutput != nil {
+				if i == 0 {
+					row.output = archiveRun.backupOutput.backup
+				} else {
+					row.output = archiveRun.backupOutput.restore
+				}
+			}
+		}
+		archiveRun.mu.Unlock()
+		for i, name := range []string{"backup", "restore"} {
+			row := rows[i]
+			_, _ = fmt.Fprintf(&summary, "%s_started=%t joined=%t session_empty=%t complete=%t manifest_digest_present=%t work_complete=%t scan_complete=%t workspace_bound=%t workspace_complete=%t workspace_unavailable=%t workspace_limit_exceeded=%t workspace_attempts=%d workspace_completed=%d\n",
+				name, row.started, row.joined, row.empty, row.complete, row.digest, row.workComplete, row.scanComplete, row.bound, row.measured, row.unavailable, row.exceeded, row.attempts, row.completed)
+			raw := summary.output(name, row.output, &remaining)
+			if i == 0 {
+				backup = raw
+			} else {
+				restore = raw
+			}
+		}
+	}
 	for _, leaf := range []struct {
 		name  string
 		raw   []byte
 		limit int
-	}{{executionFailureSummaryName, summary.bytes(), executionFailureSummaryLimit}, {executionFailureOutputName, output, executionFailureOutputLimit}, {executionFailureBodyName, body, executionFailureBodyLimit}} {
+	}{{executionFailureSummaryName, summary.bytes(), executionFailureSummaryLimit}, {executionFailureOutputName, output, executionFailureOutputLimit},
+		{executionFailureBackupName, backup, executionFailureOutputLimit}, {executionFailureRestoreName, restore, executionFailureOutputLimit}, {executionFailureBodyName, body, executionFailureBodyLimit}} {
 		if len(leaf.raw) != 0 {
 			if err := writeExecutionFailureLeaf(root, leaf.name, leaf.raw, leaf.limit); err != nil {
 				return err
@@ -109,6 +154,19 @@ func retainExecutionFailureDiagnostic(root productionRoot, stage string, recorde
 		}
 	}
 	return nil
+}
+
+// Borrow only a joined buffer; all three process logs share one retention cap.
+// Selection is deterministic: current server, then backup, then restore.
+func (w *executionFailureSummary) output(name string, captured *checkoutCommandOutput, remaining *int) []byte {
+	if captured == nil {
+		return nil
+	}
+	raw := captured.buffer.Bytes()
+	kept := min(len(raw), *remaining)
+	_, _ = fmt.Fprintf(w, "%s_output_observed_bytes=%d %s_output_retained_bytes=%d %s_output_truncated=%t\n", name, len(raw), name, kept, name, kept < len(raw))
+	*remaining -= kept
+	return raw[:kept]
 }
 
 func (w *executionFailureSummary) phaseFailures(flow *ExecutionEpochOne) {

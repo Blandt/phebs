@@ -1404,7 +1404,7 @@ func (run *ExecutionEpochOneRun) finish(ctx context.Context, cancel context.Canc
 		run.mu.Unlock()
 		sampleCtx, cancel := context.WithDeadline(ctx, deadline)
 		if err := run.sampleArchiveWorkspace(sampleCtx, archiveWorkspaceBackupJoined); err != nil {
-			failure = epochFinishFailure(run, terminal, failure, "archive workspace sample", err)
+			failure = epochArchiveFailure(failure, "backup joined workspace sample", err)
 		}
 		cancel()
 		run.mu.Lock()

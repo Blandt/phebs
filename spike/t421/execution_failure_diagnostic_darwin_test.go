@@ -113,7 +113,7 @@ func TestExecutionFailureDiagnosticJoinedPrefix(t *testing.T) {
 			recorder := &executionPhaseEventRecorder{active: -1, slots: []executionPhaseEventSlot{{value: PhaseMeasurement{Phase: "cold", StartEventOrdinal: 3, FinishEventOrdinal: 5, Metrics: ReceiptMetrics{WallMS: 2}}}}}
 			original := errors.New("original execution failure")
 			receiptErr := errors.New("receipt refused observed prefix")
-			err := retainExecutionFailureDiagnostic(root, "receipt_composition", recorder, nil, original, receiptErr, "original whole process refusal", run)
+			err := retainExecutionFailureDiagnostic(root, "receipt_composition", recorder, nil, original, receiptErr, "original whole process refusal", run, nil)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -124,7 +124,7 @@ func TestExecutionFailureDiagnosticJoinedPrefix(t *testing.T) {
 			}
 			for _, name := range []string{executionFailureOutputName, executionFailureBodyName} {
 				raw, err := os.ReadFile(filepath.Join(root.path, name))
-				if mode != "joined" {
+				if mode != "joined" && mode != "backup unjoined" {
 					if !errors.Is(err, os.ErrNotExist) {
 						t.Fatal("unjoined bytes retained", name, err)
 					}
@@ -151,7 +151,7 @@ func TestExecutionFailureDiagnosticJoinedPrefix(t *testing.T) {
 func TestExecutionFailureDiagnosticBoundsAndOriginalFailure(t *testing.T) {
 	root := executionAuthorizationTestRoot(t)
 	original := errors.New(strings.Repeat("original failure ", executionFailureSummaryLimit))
-	err := retainExecutionFailureDiagnostic(root, "package_construction", nil, nil, original, nil, "", nil)
+	err := retainExecutionFailureDiagnostic(root, "package_construction", nil, nil, original, nil, "", nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -160,18 +160,128 @@ func TestExecutionFailureDiagnosticBoundsAndOriginalFailure(t *testing.T) {
 		t.Fatal("summary bound/truncation lost", err)
 	}
 	// An existing diagnostic cannot be retried or overwrite the original error.
-	failedRetention := retainExecutionFailureDiagnostic(root, "package_construction", nil, nil, original, nil, "", nil)
+	failedRetention := retainExecutionFailureDiagnostic(root, "package_construction", nil, nil, original, nil, "", nil, nil)
 	combined := errors.Join(original, failedRetention)
 	if !errors.Is(combined, original) || !errors.Is(combined, errExecutionFailureDiagnostic) {
 		t.Fatal("retention replaced original failure")
 	}
 	fresh := executionAuthorizationTestRoot(t)
-	if retainExecutionFailureDiagnostic(fresh, "package_emit", nil, nil, nil, nil, "", nil) == nil {
+	if retainExecutionFailureDiagnostic(fresh, "package_emit", nil, nil, nil, nil, "", nil, nil) == nil {
 		t.Fatal("success wrote diagnostics")
 	}
 	entries, err := os.ReadDir(fresh.path)
 	if err != nil || len(entries) != 0 {
 		t.Fatal("success root changed", err)
+	}
+}
+
+func TestExecutionFailureDiagnosticArchiveStreams(t *testing.T) {
+	for _, mode := range []string{"same owner", "restored owner", "server unjoined", "backup unjoined", "restore unjoined", "backup not started", "restore not started", "success"} {
+		t.Run(mode, func(t *testing.T) {
+			root := executionAuthorizationTestRoot(t)
+			archive := &ExecutionEpochOneRun{done: make(chan struct{}), result: ExecutionEpochOneResult{RootJoined: true},
+				backupStarted: true, backupJoined: true, backupSessionEmpty: true, backupComplete: true, backupManifestSHA256: "present",
+				restoreStarted: true, restoreJoined: true, restoreSessionEmpty: true, restoreComplete: true, restoreManifestSHA256: "present",
+				output: &checkoutCommandOutput{}, backupOutput: &epochBackupOutput{backup: &checkoutCommandOutput{}, restore: &checkoutCommandOutput{}}}
+			close(archive.done) // The server stop predates the restore operation.
+			archive.backupWork.Complete, archive.backupWork.ScanComplete = true, true
+			archive.backupWork.WorkspaceBytes.Bound, archive.backupWork.WorkspaceBytes.Complete = true, true
+			archive.backupWork.WorkspaceBytes.Phases[11].Attempts, archive.backupWork.WorkspaceBytes.Phases[11].Completed = 15, 15
+			archive.output.buffer.WriteString("server output\n")
+			archive.backupOutput.backup.buffer.WriteString("backup output\n")
+			archive.backupOutput.restore.buffer.WriteString("restore output\n")
+			current := archive
+			switch mode {
+			case "restored owner":
+				current = &ExecutionEpochOneRun{done: make(chan struct{}), result: ExecutionEpochOneResult{RootJoined: true}, output: &checkoutCommandOutput{}}
+				close(current.done)
+				current.output.buffer.WriteString("restored server output\n")
+			case "server unjoined":
+				archive.result.RootJoined = false
+			case "backup unjoined":
+				archive.backupJoined = false
+			case "restore unjoined":
+				archive.restoreJoined = false
+			case "backup not started":
+				archive.backupStarted = false
+			case "restore not started":
+				archive.restoreStarted = false
+			}
+			rows := []struct {
+				name, want string
+				joined     bool
+				output     *checkoutCommandOutput
+			}{
+				{executionFailureOutputName, "server output\n", current.result.RootJoined, current.output},
+				{executionFailureBackupName, "backup output\n", archive.backupStarted && archive.backupJoined, archive.backupOutput.backup},
+				{executionFailureRestoreName, "restore output\n", archive.restoreStarted && archive.restoreJoined, archive.backupOutput.restore},
+			}
+			if mode == "restored owner" {
+				rows[0].want = "restored server output\n"
+			}
+			for _, row := range rows {
+				if !row.joined {
+					// Race runs prove retention does not even inspect live bytes.
+					stop, stopped := make(chan struct{}), make(chan struct{})
+					go func() {
+						defer close(stopped)
+						for {
+							select {
+							case <-stop:
+								return
+							default:
+								row.output.buffer.Reset()
+								row.output.buffer.WriteString("live unjoined output\n")
+							}
+						}
+					}()
+					t.Cleanup(func() { close(stop); <-stopped })
+				}
+			}
+			executionErr := ErrExecutionEpochOne
+			if mode == "success" {
+				executionErr = nil
+			}
+			err := retainExecutionFailureDiagnostic(root, "receipt_composition", nil, &ExecutionEpochOne{}, executionErr, nil, "", current, archive)
+			if mode == "success" {
+				entries, readErr := os.ReadDir(root.path)
+				if !errors.Is(err, errExecutionFailureDiagnostic) || readErr != nil || len(entries) != 0 {
+					t.Fatal("successful operation wrote diagnostics", err, readErr)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, row := range rows {
+				raw, err := os.ReadFile(filepath.Join(root.path, row.name))
+				if row.joined && (err != nil || string(raw) != row.want) || !row.joined && !errors.Is(err, os.ErrNotExist) {
+					t.Fatal("wrong stream owner or join gate", row.name, err)
+				}
+			}
+			summary, err := os.ReadFile(filepath.Join(root.path, executionFailureSummaryName))
+			if err != nil || !bytes.Contains(summary, []byte("manifest_digest_present=true work_complete=true scan_complete=true workspace_bound=true workspace_complete=true workspace_unavailable=false workspace_limit_exceeded=false workspace_attempts=15 workspace_completed=15")) {
+				t.Fatal("archive scalar prefix lost", err)
+			}
+		})
+	}
+}
+
+func TestExecutionFailureDiagnosticSharedOutputCap(t *testing.T) {
+	var summary executionFailureSummary
+	remaining := 12
+	for i, name := range []string{"server", "backup", "restore"} {
+		output := &checkoutCommandOutput{}
+		output.buffer.WriteString("eight!!!")
+		raw := summary.output(name, output, &remaining)
+		want := []int{8, 4, 0}[i]
+		if len(raw) != want || want > 0 && &raw[0] != &output.buffer.Bytes()[0] || output.buffer.Len() != 8 {
+			t.Fatal("output copied, mutated, or exceeded remaining shared cap")
+		}
+	}
+	if remaining != 0 || !strings.Contains(string(summary.bytes()), "backup_output_observed_bytes=8 backup_output_retained_bytes=4 backup_output_truncated=true") ||
+		!strings.Contains(string(summary.bytes()), "restore_output_observed_bytes=8 restore_output_retained_bytes=0 restore_output_truncated=true") {
+		t.Fatal("shared-cap truncation not reported")
 	}
 }
 
@@ -206,7 +316,7 @@ func TestExecutionFailureDiagnosticFailedActiveRecorder(t *testing.T) {
 	if phases, err := recorder.snapshot(); err == nil || phases != nil {
 		t.Fatal("public snapshot must refuse the failed active recorder")
 	}
-	if err := retainExecutionFailureDiagnostic(root, "receipt_composition", recorder, nil, ErrExecutionEpochOne, nil, "", nil); err != nil {
+	if err := retainExecutionFailureDiagnostic(root, "receipt_composition", recorder, nil, ErrExecutionEpochOne, nil, "", nil, nil); err != nil {
 		t.Fatal(err)
 	}
 	raw, err := os.ReadFile(filepath.Join(root.path, executionFailureSummaryName))
@@ -226,7 +336,7 @@ func TestExecutionFailureDiagnosticRetainsPhaseOperationAndClosure(t *testing.T)
 	flow.recordExecutionPhaseFailure("process_restart", checkpointRestartError("store successor", errors.New("protocol refused")), errors.New("disk sample refused"))
 	flow.recordExecutionPhaseFailure("process_restart", errors.New("later failure"), errors.New("later close"))
 	flow.recordExecutionPhaseFailure("pressure_80", nil, errors.New("phase begin refused"))
-	if err := retainExecutionFailureDiagnostic(root, "receipt_composition", nil, flow, ErrExecutionEpochOne, nil, "", nil); err != nil {
+	if err := retainExecutionFailureDiagnostic(root, "receipt_composition", nil, flow, ErrExecutionEpochOne, nil, "", nil, nil); err != nil {
 		t.Fatal(err)
 	}
 	raw, err := os.ReadFile(filepath.Join(root.path, executionFailureSummaryName))

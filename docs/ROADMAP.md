@@ -64,6 +64,18 @@ sequence.
 
 ## Now
 
+**T42.2n archive diagnostic continuation, 2026-09-16:** the exact `2340ca7c`
+signed readiness attempt reached archive publication and failed before restore.
+The backup child's output was not retained; the specific rejected predicate
+remains unknown. The correction preserves archive error context and joined
+backup/restore logs with unchanged aggregate caps and evidence contracts.
+Focused normal/race, tiny native positive/failure normal/race, static and
+documentation gates pass. Remote-provider OCR timed out; independent
+delegated source/test and manual documentation review have no remaining
+findings after correction. These are working-tree diagnostic gates, not
+immutable acceptance or a signed readiness pass. The failed mounted workspace
+remains untouched; no new full attempt, cleanup, acceptance or seal is established.
+
 **T42.2n acceptance continuation, 2026-09-14:** exact `47c5d95c` passed the
 complete command suite in 697.102 seconds, including the previously incomplete
 native cleanup fixture in 134.98 seconds. Independent review of its 13 changed
