@@ -3777,3 +3777,8 @@ in [docs/ROADMAP.md](./docs/ROADMAP.md).
   only local nil comparisons and no I/O, event, child, lock, corpus read, hash,
   cache operation, or persistent allocation; only an already-failed path
   formats its fixed stage and existing cause.
+  Focused OCR review found one low completeness issue: the later
+  archive-workspace sample still assigned the bare sentinel. That branch is
+  reachable only after epoch-four backup retirement, so it cannot mask the
+  epoch-three terminal cause and the helper returns the same sentinel there;
+  route it through the helper anyway to keep first-failure handling uniform.
