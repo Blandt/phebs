@@ -7626,7 +7626,14 @@ The September 16 `2340ca7c` rehearsal published its archive and then failed
 in backup completion before restore. A published manifest does not prove
 the final measurement or command/accounting closure succeeded. Its backup
 child output was lost, so the precise predicate remains unknown; the mounted
-workspace remains retained and must not be reused by another attempt.
+workspace was initially retained and could not be reused by another attempt.
+Ben later explicitly authorized cleanup: compact diagnostics, the attempted
+plan, manifest and public signing records remain at
+`/private/tmp/t422-retained-failure-2340ca7c.WIXZpz`. After fresh custody checks,
+ordinary native detach and exact disposable-root removal completed; the image,
+archive payloads, bootstrap copies and ephemeral private key were deleted, and
+the clean detached checkout was removed. No matching process or mount remains.
+This operator disposition is not a signed successful teardown or readiness pass.
 
 The orphan selector injects hard death only after observing a real protected
 Git child and its distinct native session. Its private record distinguishes

@@ -13544,6 +13544,15 @@ Manual documentation review corrected a payload-versus-disk-allocation
 wording gap. These are working-tree gates only; no immutable acceptance, seal,
 full retry or cleanup follows from this record.
 
+**T42.2n separately authorized disposition, 2026-09-16:** the reviewed patch is
+committed as `99ab68b8`. Compact private diagnostics and public attempted-signing
+records are preserved. Exact failed-run custody was then normally detached and
+removed, including its disposable bootstrap, ephemeral signer key and verified
+clean detached checkout. No matching process or mount remains; approximately
+205 GiB is free. This supersedes the retained-workspace status above, not the
+failed result or unknown cause. No new rehearsal, acceptance, seal or integration
+is established.
+
 **T42.3 · Scale posture decision and neutral product closure** — independently
 review the T42.2 receipt, replay representative All code → service →
 relationship → Workbench → proof → MCP flows, and record one decision:

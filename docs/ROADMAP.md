@@ -76,6 +76,14 @@ findings after correction. These are working-tree diagnostic gates, not
 immutable acceptance or a signed readiness pass. The failed mounted workspace
 remains untouched; no new full attempt, cleanup, acceptance or seal is established.
 
+**Separate disposition update, 2026-09-16:** Ben authorized committing the
+reviewed patch (`99ab68b8`) and cleaning this failed run's custody. Compact
+private evidence remains; ordinary native detach and exact disposable-root
+removal completed, including the ephemeral signer key and clean detached
+checkout. No matching process or mount remains, and roughly 205 GiB is free.
+The failed result and unknown archive-completion cause remain unchanged. No new
+rehearsal, acceptance, integration or seal follows from this cleanup.
+
 **T42.2n acceptance continuation, 2026-09-14:** exact `47c5d95c` passed the
 complete command suite in 697.102 seconds, including the previously incomplete
 native cleanup fixture in 134.98 seconds. Independent review of its 13 changed

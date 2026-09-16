@@ -3897,3 +3897,20 @@ in [docs/ROADMAP.md](./docs/ROADMAP.md).
   review also corrected the payload-versus-allocation wording above. These
   are working-tree diagnostic gates, not immutable-candidate acceptance or a
   historical-cause finding. No commit, signed retry or cleanup is performed.
+
+- **2026-09-16 — T42.2n authorized commit and failed-readiness disposition.**
+  Ben's separate commit-and-cleanup request commits the reviewed correction as
+  `99ab68b8a0d1313adb0bf596dd284c0e7d362fdb` and supersedes only the preceding
+  retained-custody/no-cleanup posture. Preserve compact private diagnostics,
+  wrapper records, attempted plan, archive manifest and public signing records
+  before disposal. Fresh operation/source-lease checks found no borrower; one
+  ordinary native detach succeeded. Remove that exact failed image and its
+  operational root, the verified-clean detached checkout, and disposable
+  bootstrap/signer copies (including the ephemeral private key). Protected
+  bootstrap cleanup clears only owner immutable flags on identity-checked
+  descriptors. No matching process or mount remains; available host space is
+  214,871,544 KiB, approximately 205 GiB. Retained diagnostics are at
+  `/private/tmp/t422-retained-failure-2340ca7c.WIXZpz`; unrelated custody and
+  worktrees remain untouched. This manual disposition is not signed teardown,
+  historical-cause attribution, immutable acceptance or readiness. No retry,
+  merge, push, new seal or ceremony is performed; production costs are unchanged.
