@@ -827,13 +827,16 @@ func (flow *ExecutionEpochOne) launchEpoch(runCtx, launchCtx context.Context, ca
 	if input.Close() != nil {
 		retErr = ErrExecutionEpochOne
 	}
-	go run.finish(runCtx, cancel, waited, served, retErr)
+	go run.finish(runCtx, cancel, waited, served, epochLaunchError(number, launchStage, retErr))
 	return run, retErr
 }
 
 func epochLaunchError(number uint64, stage string, err error) error {
 	if number != 4 || err == nil {
 		return err
+	}
+	if err == ErrExecutionEpochOne {
+		return checkpointRestartError("epoch-four "+stage, nil)
 	}
 	return checkpointRestartError("epoch-four "+stage, err)
 }

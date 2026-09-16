@@ -3743,3 +3743,8 @@ in [docs/ROADMAP.md](./docs/ROADMAP.md).
   I/O, phase event,
   child, lock, deadline, state transition, corpus read, hash, cache operation,
   or disk/memory bound changes.
+  Independent OCR review found two low diagnostic-consistency issues: a bare
+  epoch sentinel repeated its text, and the joined finish path retained the
+  unenriched form. Suppress only the exact bare-sentinel repetition and pass
+  the same stage-enriched error to finish; classification and control flow stay
+  unchanged.
