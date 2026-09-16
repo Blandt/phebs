@@ -3811,3 +3811,35 @@ in [docs/ROADMAP.md](./docs/ROADMAP.md).
   `/private/tmp/t422-retained-failure-aff70d72`; its mounted custody and
   ephemeral signer were removed after checksum verification.  Focused tests,
   independent review and one fresh exact-commit rehearsal remain required.
+
+- 2026-09-16: **T42.2n waits for exact APFS shrink accounting without
+  repeating ballast mutation.**  The exact `f2143a13` signed readiness run
+  passed through `pressure_90`; its single `pressure_75` truncate reached the
+  computed 30,267,994,112-byte inode size, then the immediate post-mutation
+  check refused before the ballast event.  The retained inode later had exact
+  logical/allocated size and the volume remained healthy, bounding the defect
+  to the post-shrink accounting boundary.  APFS can return from truncate and
+  sync before `st_blocks` and `statfs` expose the same large release.  Keep the
+  frozen target, 4,096-byte tolerance and one mutation, but allow the existing
+  strict observation to settle for at most five seconds at 50-millisecond
+  cadence after the 90-to-75 and final-to-zero shrinks.  Every observation
+  revalidates the exact inode/path/owner/mode/link/FSID, expected logical size,
+  bounded block range, pressure volume and epoch-four authority; drift,
+  cancellation or expiry still retains custody and fails closed.  The volume
+  mutex continues to serialize the boundary while the run mutex is released
+  between observations so stop and phase expiry can proceed.
+
+  An already-coherent shrink adds no timer and only the existing observation.
+  A delayed shrink adds one timeout timer, one ticker and at most 100 read-only
+  rechecks, hence at most two timers, two tickers and 200 rechecks across the
+  two fixed shrink sites.  Each recheck performs
+  bounded inode/path/root metadata and filesystem-capacity reads plus the
+  existing scalar store-phase snapshot; no truncate, allocation, request,
+  corpus/source/content read, hash, child, publication, cache, schema or
+  persistent state is added.  Growth, ordinary query/sync/startup/restart/
+  retry/no-op paths, frozen plan/receipt bytes, admission bounds and phase
+  deadlines remain unchanged.  The failed run's compact private evidence is
+  retained at `/private/tmp/t422-retained-failure-f2143a13`; its non-forced
+  detach and protected scratch cleanup restored host headroom after checksum
+  verification.  Focused normal/race checks, exact independent review and one
+  fresh exact-commit signed rehearsal remain required.
