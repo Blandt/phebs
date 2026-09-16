@@ -3804,7 +3804,7 @@ in [docs/ROADMAP.md](./docs/ROADMAP.md).
   Construction now requires that checkpoint and reuse controls share the same
   semantic launch.  A reuse refusal still latches the existing terminal stop;
   no footer or completeness is invented.  This adds one fixed 14-byte record,
-  two brief reuse-lock acquisitions and existing snapshot validation only to
+  three brief reuse-lock acquisitions and existing snapshot validation only to
   the selected phase-eight terminal path.  It adds no request, store or file
   read, publication, child, retry, cache, deadline, bound or ordinary-runtime
   work.  The stopped run's compact private diagnostic is retained at
