@@ -13553,6 +13553,13 @@ clean detached checkout. No matching process or mount remains; approximately
 failed result or unknown cause. No new rehearsal, acceptance, seal or integration
 is established.
 
+**T42.2 local checkpoint integration, 2026-09-16:** Ben separately authorizes
+the local fast-forward of the complete 27-commit stack through `ac0e4937`, not
+just its final correction/disposition pair. Integration preserves all recorded
+gate limitations: signed readiness and full T42.2n acceptance remain open,
+and T42.2o author/seal/freeze remains acceptance-gated. No push, retry, ceremony
+or broader cleanup follows from this request.
+
 **T42.3 · Scale posture decision and neutral product closure** — independently
 review the T42.2 receipt, replay representative All code → service →
 relationship → Workbench → proof → MCP flows, and record one decision:

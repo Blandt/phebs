@@ -3914,3 +3914,16 @@ in [docs/ROADMAP.md](./docs/ROADMAP.md).
   worktrees remain untouched. This manual disposition is not signed teardown,
   historical-cause attribution, immutable acceptance or readiness. No retry,
   merge, push, new seal or ceremony is performed; production costs are unchanged.
+
+- **2026-09-16 — T42.2 local checkpoint integration authorization.** Ben
+  separately requests merging the current branch. The selected range is all
+  27 commits from integrated main `ccff51c6` through `ac0e4937`, including
+  receipt/delivery implementation, the V3-author prerequisite, diagnostic
+  corrections and failed-run disposition, not only the latest two commits.
+  Integrate by local fast-forward as an implementation checkpoint, preserving
+  the recorded machine/scoped gates and their limitations. Full signed
+  readiness, exact-tree acceptance and T42.2n closure remain open; T42.2o
+  author/seal, exact-main freeze and ceremony do not follow. The failed archive
+  attempt remains failed and its initiating cause unknown. This documentation
+  record changes no implementation, cost, evidence byte, admission bound or
+  deadline. No push, retry or broader custody cleanup is authorized here.

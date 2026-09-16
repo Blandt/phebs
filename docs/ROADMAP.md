@@ -84,6 +84,12 @@ checkout. No matching process or mount remains, and roughly 205 GiB is free.
 The failed result and unknown archive-completion cause remain unchanged. No new
 rehearsal, acceptance, integration or seal follows from this cleanup.
 
+**Local checkpoint integration authorization, 2026-09-16:** Ben subsequently
+requests merging the full branch through `ac0e4937` into local `main` by
+fast-forward. This integrates implementation and diagnostic corrections, not
+successful signed readiness or T42.2n acceptance. V3 author/seal, exact-main
+freeze and ceremony remain gated; no push or new rehearsal is requested.
+
 **T42.2n acceptance continuation, 2026-09-14:** exact `47c5d95c` passed the
 complete command suite in 697.102 seconds, including the previously incomplete
 native cleanup fixture in 134.98 seconds. Independent review of its 13 changed
