@@ -3793,3 +3793,21 @@ in [docs/ROADMAP.md](./docs/ROADMAP.md).
   the exact sentinel from the already-recorded wake/context cause. Later
   cleanup still preserves that first cause, and nonterminal behavior remains
   the unchanged sentinel.
+
+- 2026-09-16: **T42.2n closes phase-eight reuse before terminal death.**  The
+  exact independently reviewed `aff70d72` signed readiness rehearsal passed
+  preflight through stale lease and reached the phase-eight checkpoint footer,
+  then stopped because producer four retained reuse terminals for phases six
+  and seven but none for its owned terminal phase eight.  After the existing
+  terminal quiescence joins owners and request tails, route phase eight through
+  the existing reuse begin/final writer before emitting the terminal footer.
+  Construction now requires that checkpoint and reuse controls share the same
+  semantic launch.  A reuse refusal still latches the existing terminal stop;
+  no footer or completeness is invented.  This adds one fixed 14-byte record,
+  two brief reuse-lock acquisitions and existing snapshot validation only to
+  the selected phase-eight terminal path.  It adds no request, store or file
+  read, publication, child, retry, cache, deadline, bound or ordinary-runtime
+  work.  The stopped run's compact private diagnostic is retained at
+  `/private/tmp/t422-retained-failure-aff70d72`; its mounted custody and
+  ephemeral signer were removed after checksum verification.  Focused tests,
+  independent review and one fresh exact-commit rehearsal remain required.

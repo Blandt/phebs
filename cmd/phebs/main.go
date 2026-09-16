@@ -1825,7 +1825,7 @@ func serve(ctx context.Context, args []string) (retErr error) {
 				return terminalErr
 			}
 			if terminalPhase != 0 {
-				checkpointControl, err = newT422CheckpointControl(ctx, staleControl)
+				checkpointControl, err = newT422CheckpointControl(ctx, staleControl, reuseControl)
 				if err != nil {
 					return err
 				}

@@ -173,9 +173,14 @@ func testT422CheckpointInheritedHeldClaim(t *testing.T, mode string) {
 	initial := dispatchadmission.ProductionSemanticSnapshot{Mode: record.SemanticMode, InputSHA256: record.InputSHA256, ProducerID: 4, Phase: 6}
 	current := initial
 	current.Phase = 8
+	reuseRecord, err := t422ReuseRecord(current, initial, [t422ReuseLaneCount]byte{})
+	if err != nil {
+		t.Fatal(err)
+	}
 	footer, err := t422TerminalFooter(initial, current)
-	if err != nil || !bytes.Equal(diagnostic.Bytes(), footer) {
-		t.Fatal("terminal callback did not emit exactly one bound footer", diagnostic.String(), err)
+	want := append(reuseRecord[:], footer...)
+	if err != nil || !bytes.Equal(diagnostic.Bytes(), want) {
+		t.Fatal("terminal callback did not emit reuse before its bound footer", diagnostic.String(), err)
 	}
 	// Cancellation is intentionally not an ordinary Close/EOF or phase pass.
 }
@@ -240,7 +245,8 @@ func TestT422CheckpointBootstrapHelper(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer stale.cancel()
-	control, err := newT422CheckpointControl(ctx, stale)
+	reuse := &t422ReuseControl{initial: snapshot, launch: launch, writer: os.Stderr, fail: launch.fail}
+	control, err := newT422CheckpointControl(ctx, stale, reuse)
 	if err != nil {
 		t.Fatal(err)
 	}

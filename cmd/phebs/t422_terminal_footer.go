@@ -69,6 +69,13 @@ func (control *t422CheckpointControl) quiesceAndReport(ctx context.Context) erro
 	if err != nil || !control.current(operation, 8, false, false) {
 		return control.stop(errT422AttemptReport)
 	}
+	started, err := control.reuse.beginFinal(current, false)
+	if err != nil || !started {
+		return control.stop(errT422AttemptReport)
+	}
+	if err := control.reuse.finishFinal(current); err != nil {
+		return control.stop(err)
+	}
 	if err := writeT422TerminalFooter(operation, writer, control.launch.initial, current); err != nil {
 		return control.stop(err)
 	}

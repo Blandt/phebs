@@ -25,14 +25,15 @@ const (
 // This is an epoch-three hit control, not an epoch-four recovery witness.
 type t422CheckpointControl struct {
 	*t422StaleControl
+	reuse            *t422ReuseControl
 	heartbeat        *generationscheduler.TerminalHeartbeat
 	observed         extractionpublication.CheckpointRestartTransition
 	parked, terminal bool
 }
 
-func newT422CheckpointControl(ctx context.Context, stale *t422StaleControl) (*t422CheckpointControl, error) {
+func newT422CheckpointControl(ctx context.Context, stale *t422StaleControl, reuse *t422ReuseControl) (*t422CheckpointControl, error) {
 	phase, err := dispatchadmission.ProductionTerminalPhase()
-	if err != nil || phase != 8 || stale == nil || !stale.current(ctx, 6, false, false) ||
+	if err != nil || phase != 8 || stale == nil || reuse == nil || reuse.launch != stale.launch || !stale.current(ctx, 6, false, false) ||
 		stale.launch.request.ServerEpoch != 3 || stale.launch.initial.ProducerID != 4 || stale.launch.initial.Phase != 6 ||
 		stale.reconciler == nil || !stale.reconciler.RecoveryPreparationEnabled || !stale.reconciler.StoreAccounting {
 		return nil, errT422StaleControl
@@ -41,7 +42,7 @@ func newT422CheckpointControl(ctx context.Context, stale *t422StaleControl) (*t4
 	base := &t422StaleControl{ctx: lifetime, cancel: cancel, launch: stale.launch, reconciler: stale.reconciler,
 		sink: t4013ExactReportSink("exact checkpoint preparation: "), workspacePreparation: stale.workspacePreparation}
 	base.hit.ready, base.hit.release = make(chan struct{}), make(chan struct{})
-	return &t422CheckpointControl{t422StaleControl: base}, nil
+	return &t422CheckpointControl{t422StaleControl: base, reuse: reuse}, nil
 }
 
 func (control *t422CheckpointControl) captureFinal(ctx context.Context, state candidate.State, response t421FinalAuthorityResponse) error {
