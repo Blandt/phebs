@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"go/ast"
 	"go/format"
 	"go/parser"
@@ -292,6 +293,27 @@ func TestExecutionEpochCheckpointClosedPrefixes(t *testing.T) {
 		}
 		if !epochCheckpointClosedPrefix(t.Context(), result, terminal) {
 			t.Fatal("exact partial closure refused")
+		}
+		for _, test := range []struct {
+			name string
+			want string
+			edit func(*ExecutionEpochOneResult)
+		}{
+			{"process", "checkpoint process closure differs", func(v *ExecutionEpochOneResult) { v.SessionEmpty = false }},
+			{"store", "checkpoint store closure differs", func(v *ExecutionEpochOneResult) { v.Store.TerminalEOF-- }},
+			{"dispatch producer", "checkpoint dispatch producer 4 closure differs", func(v *ExecutionEpochOneResult) { v.Accounting.Producers[3].Checkpoint = 0 }},
+			{"store producer", "checkpoint store producer 4 closure differs", func(v *ExecutionEpochOneResult) { v.Store.Store.Producers[2].TerminalFencedEOF = false }},
+		} {
+			t.Run(fmt.Sprintf("terminal_%t_%s", terminal, test.name), func(t *testing.T) {
+				bad := result
+				bad.Store.Store.Producers = append([]storeaccounting.ProducerCount(nil), result.Store.Store.Producers...)
+				bad.Accounting.Producers = append([]dispatchadmission.ProducerCount(nil), result.Accounting.Producers...)
+				test.edit(&bad)
+				err := epochCheckpointClosedPrefixError(t.Context(), bad, terminal, 8)
+				if err == nil || !strings.Contains(err.Error(), test.want) {
+					t.Fatalf("closure error = %v", err)
+				}
+			})
 		}
 		if !terminal {
 			pressure := result

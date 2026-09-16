@@ -3,6 +3,7 @@ package t421
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"reflect"
@@ -122,7 +123,7 @@ func checkpointRestartError(stage string, err error) error {
 
 func (run *ExecutionEpochOneRun) checkpointRestart(ctx context.Context, pressure, backup bool) (_ *ExecutionEpochOneRun, retErr error) {
 	if run == nil || ctx == nil || ctx.Err() != nil || run.flow == nil || run.control == nil || run.epoch.Epoch != 3 {
-		return nil, ErrExecutionEpochOne
+		return nil, checkpointRestartError("input", nil)
 	}
 	flow := run.flow
 	flow.mu.Lock()
@@ -151,7 +152,7 @@ func (run *ExecutionEpochOneRun) checkpointRestart(ctx context.Context, pressure
 	if !valid || boundsErr != nil {
 		run.mu.Unlock()
 		flow.mu.Unlock()
-		return nil, ErrExecutionEpochOne
+		return nil, checkpointRestartError("retained precondition", boundsErr)
 	}
 	deadline := time.Now().Add(time.Duration(flow.plan.PhaseDeadlines[7].DeadlineMS) * time.Millisecond)
 	if deadline.After(run.lifetimeDeadline) {
@@ -171,7 +172,7 @@ func (run *ExecutionEpochOneRun) checkpointRestart(ctx context.Context, pressure
 	if boundsErr != nil || !run.phaseTimer.Stop() {
 		run.mu.Unlock()
 		flow.mu.Unlock()
-		return nil, ErrExecutionEpochOne
+		return nil, checkpointRestartError("phase timer", boundsErr)
 	}
 	close(run.phaseDone)
 	if !time.Now().Before(run.phaseDeadline) {
@@ -179,7 +180,7 @@ func (run *ExecutionEpochOneRun) checkpointRestart(ctx context.Context, pressure
 		run.stopOnce.Do(func() { close(run.stop) })
 		run.mu.Unlock()
 		flow.mu.Unlock()
-		return nil, ErrExecutionEpochOne
+		return nil, checkpointRestartError("prior deadline", nil)
 	}
 	lifetime, cancel := context.WithDeadline(ctx, lifetimeDeadline)
 	operation, finishOperation := context.WithDeadline(lifetime, deadline)
@@ -208,33 +209,73 @@ func (run *ExecutionEpochOneRun) checkpointRestart(ctx context.Context, pressure
 		close(run.returnStartDone)
 		flow.mu.Unlock()
 	}()
-	if reader.beginCheckpoint() != nil || run.advanceReturnPhase(operation, 8) != nil || run.control.OpenRequests(operation) != nil ||
-		reader.sampleRecoveryWorkspace(operation, 3) != nil || reader.prepareRecovery(operation, true) != nil {
-		return nil, ErrExecutionEpochOne
+	if err := reader.beginCheckpoint(); err != nil {
+		return nil, checkpointRestartError("inspection begin", err)
 	}
-	if _, err := flow.recordOptionalNamedExecutionEvent("process_restart", "injection:process_restart:prepare"); err != nil ||
-		run.control.FenceRequests(operation) != nil || run.control.ReopenOwners(operation) != nil {
-		return nil, ErrExecutionEpochOne
+	if err := run.advanceReturnPhase(operation, 8); err != nil {
+		return nil, checkpointRestartError("phase advance", err)
 	}
-	if _, err := flow.recordOptionalNamedExecutionEvent("process_restart", "injection:process_restart:arm"); err != nil ||
-		reader.checkpoint(operation, false) != nil {
-		return nil, ErrExecutionEpochOne
+	if err := run.control.OpenRequests(operation); err != nil {
+		return nil, checkpointRestartError("request open", err)
+	}
+	if err := reader.sampleRecoveryWorkspace(operation, 3); err != nil {
+		return nil, checkpointRestartError("workspace sample", err)
+	}
+	if err := reader.prepareRecovery(operation, true); err != nil {
+		return nil, checkpointRestartError("recovery preparation", err)
+	}
+	if _, err := flow.recordOptionalNamedExecutionEvent("process_restart", "injection:process_restart:prepare"); err != nil {
+		return nil, checkpointRestartError("prepare event", err)
+	}
+	if err := run.control.FenceRequests(operation); err != nil {
+		return nil, checkpointRestartError("request fence", err)
+	}
+	if err := run.control.ReopenOwners(operation); err != nil {
+		return nil, checkpointRestartError("owner reopen", err)
+	}
+	if _, err := flow.recordOptionalNamedExecutionEvent("process_restart", "injection:process_restart:arm"); err != nil {
+		return nil, checkpointRestartError("arm event", err)
+	}
+	if err := reader.checkpoint(operation, false); err != nil {
+		return nil, checkpointRestartError("checkpoint hit", err)
 	}
 	if _, err := flow.recordOptionalNamedExecutionEvent("process_restart", "injection:process_restart:hit"); err != nil {
-		return nil, ErrExecutionEpochOne
+		return nil, checkpointRestartError("hit event", err)
 	}
 	handoff, err := reader.checkpointHandoff()
-	if err != nil || run.enterTerminal(operation) != nil || run.control.TerminalQuiesce(operation) != nil || flow.parent.Pause(operation) != nil ||
-		flow.controller.Fence() != nil || flow.store.Fence() != nil || run.control.Checkpoint(operation) != nil ||
-		flow.store.ArmTerminalEOF(4, 8) != nil || flow.controller.ExpectHardDeath(4) != nil {
-		return nil, ErrExecutionEpochOne
+	if err != nil {
+		return nil, checkpointRestartError("handoff", err)
+	}
+	if err := run.enterTerminal(operation); err != nil {
+		return nil, checkpointRestartError("terminal entry", err)
+	}
+	if err := run.control.TerminalQuiesce(operation); err != nil {
+		return nil, checkpointRestartError("terminal quiesce", err)
+	}
+	if err := flow.parent.Pause(operation); err != nil {
+		return nil, checkpointRestartError("parent pause", err)
+	}
+	if err := flow.controller.Fence(); err != nil {
+		return nil, checkpointRestartError("dispatch fence", err)
+	}
+	if err := flow.store.Fence(); err != nil {
+		return nil, checkpointRestartError("store fence", err)
+	}
+	if err := run.control.Checkpoint(operation); err != nil {
+		return nil, checkpointRestartError("control checkpoint", err)
+	}
+	if err := flow.store.ArmTerminalEOF(4, 8); err != nil {
+		return nil, checkpointRestartError("store terminal EOF", err)
+	}
+	if err := flow.controller.ExpectHardDeath(4); err != nil {
+		return nil, checkpointRestartError("expected hard death", err)
 	}
 	flow.mu.Lock()
 	run.mu.Lock()
 	if run.stopping || run.err != nil || lifetime.Err() != nil || flow.closed || flow.retained != nil {
 		run.mu.Unlock()
 		flow.mu.Unlock()
-		return nil, ErrExecutionEpochOne
+		return nil, checkpointRestartError("terminal retained state", lifetime.Err())
 	}
 	run.terminalRequested, run.terminalContext, run.retainParent = true, operation, true
 	flow.retained = run
@@ -246,14 +287,17 @@ func (run *ExecutionEpochOneRun) checkpointRestart(ctx context.Context, pressure
 	run.stopOnce.Do(func() { close(run.stop) })
 	stopped, err := run.Wait(operation)
 	if err != nil {
-		return nil, ErrExecutionEpochOne
+		if closureErr := epochCheckpointClosedPrefixError(operation, stopped, true, 8); closureErr != nil {
+			err = errors.Join(err, closureErr)
+		}
+		return nil, checkpointRestartError("prior wait", err)
 	}
 	if _, err := flow.recordOptionalNamedExecutionEvent("process_restart", "injection:process_restart:process-stop"); err != nil {
-		return nil, ErrExecutionEpochOne
+		return nil, checkpointRestartError("process-stop event", err)
 	}
 	processIndex := slices.IndexFunc(stopped.ServerProcesses.Phases, func(value ExecutionServerProcessPhase) bool { return value.Phase == 8 })
 	if !stopped.ServerProcesses.Joined || processIndex < 0 || !stopped.ServerProcesses.Phases[processIndex].Observation.Available {
-		return nil, ErrExecutionEpochOne
+		return nil, checkpointRestartError("prior process observation", nil)
 	}
 	processPrior := stopped.ServerProcesses.Phases[processIndex].Observation
 	flow.mu.Lock()
@@ -543,16 +587,26 @@ func (run *ExecutionEpochOneRun) newCheckpointInspection(ctx context.Context) (*
 }
 
 func epochCheckpointClosedPrefix(ctx context.Context, result ExecutionEpochOneResult, terminal bool) bool {
-	return epochCheckpointClosedPrefixAt(ctx, result, terminal, 8)
+	return epochCheckpointClosedPrefixError(ctx, result, terminal, 8) == nil
 }
 
 func epochCheckpointClosedPrefixAt(ctx context.Context, result ExecutionEpochOneResult, terminal bool, phase uint32) bool {
+	return epochCheckpointClosedPrefixError(ctx, result, terminal, phase) == nil
+}
+
+func epochCheckpointClosedPrefixError(ctx context.Context, result ExecutionEpochOneResult, terminal bool, phase uint32) error {
 	opened, ordinal := 4, uint64(7)
 	if terminal {
 		opened, ordinal = 3, 6
 	}
-	if ctx == nil || ctx.Err() != nil || !result.RootStarted || !result.RootJoined || !result.SessionEmpty || result.Store.Opened != opened || result.Store.TerminalEOF != opened || result.Store.Store.Phase != phase || result.Store.Complete {
-		return false
+	if ctx == nil || ctx.Err() != nil {
+		return errors.New("checkpoint closure context is unavailable")
+	}
+	if !result.RootStarted || !result.RootJoined || !result.SessionEmpty {
+		return fmt.Errorf("checkpoint process closure differs: started=%t joined=%t session_empty=%t", result.RootStarted, result.RootJoined, result.SessionEmpty)
+	}
+	if result.Store.Opened != opened || result.Store.TerminalEOF != opened || result.Store.Store.Phase != phase || result.Store.Complete {
+		return fmt.Errorf("checkpoint store closure differs: opened=%d terminal_eof=%d phase=%d complete=%t", result.Store.Opened, result.Store.TerminalEOF, result.Store.Store.Phase, result.Store.Complete)
 	}
 	for _, id := range []uint32{1, 2, 3, 4, 5, 7, 8, 9} {
 		if id == 5 && terminal {
@@ -572,7 +626,7 @@ func epochCheckpointClosedPrefixAt(ctx context.Context, result ExecutionEpochOne
 			}
 		}
 		if !found {
-			return false
+			return fmt.Errorf("checkpoint dispatch producer %d closure differs", id)
 		}
 	}
 	for id := uint32(2); id <= uint32(opened+1); id++ {
@@ -586,10 +640,10 @@ func epochCheckpointClosedPrefixAt(ctx context.Context, result ExecutionEpochOne
 			}
 		}
 		if !found {
-			return false
+			return fmt.Errorf("checkpoint store producer %d closure differs", id)
 		}
 	}
-	return true
+	return nil
 }
 
 func (reader *executionEpochInspection) checkpointFinalMatches(authority AuthorityPhaseResult) bool {

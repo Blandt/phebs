@@ -3748,3 +3748,18 @@ in [docs/ROADMAP.md](./docs/ROADMAP.md).
   unenriched form. Suppress only the exact bare-sentinel repetition and pass
   the same stage-enriched error to finish; classification and control flow stay
   unchanged.
+
+- 2026-09-15: **T42.2n retains the complete checkpoint handoff boundary.**
+  The exact independently reviewed `b45ea6e1` signed readiness rehearsal
+  stopped in `process_restart` after checkpoint preparation, reused partition
+  completion, and terminal EOF, before successor reopening. Its existing stop,
+  dispatch, store, native, and output diagnostics were clean, while the shared
+  checkpoint handoff still collapsed pre-successor operations and the joined
+  closure predicate to the bare epoch sentinel. Retain a fixed label for each
+  existing handoff call and report only the first differing process, aggregate
+  store, dispatch-producer, or store-producer closure predicate. Public
+  `errors.Is` classification, validation, ordering, calls, deadlines, state,
+  and evidence remain unchanged. Successful execution adds no I/O, event,
+  child, lock, corpus read, hash, cache operation, or persistent allocation;
+  only an already-failed path formats bounded scalar state into the existing
+  clipped private diagnostic.
