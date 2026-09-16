@@ -74,6 +74,10 @@ func TestEpochFinishFailureRetainsFirstCheckpointCause(t *testing.T) {
 	if got.Error() != "execution epoch-one launch unavailable or incomplete: checkpoint restart prior finish existing state" {
 		t.Fatalf("checkpoint sentinel was repeated: %v", got)
 	}
+	got = epochFinishFailure(run, true, ErrExecutionEpochOne, "run context", context.DeadlineExceeded)
+	if got.Error() != "execution epoch-one launch unavailable or incomplete: checkpoint restart prior finish run context: context deadline exceeded" {
+		t.Fatalf("early checkpoint failure was not classified: %v", got)
+	}
 }
 
 func TestExecutionEpochCheckpointBounds(t *testing.T) {

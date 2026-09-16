@@ -842,13 +842,16 @@ func epochLaunchError(number uint64, stage string, err error) error {
 }
 
 func epochFinishFailure(run *ExecutionEpochOneRun, terminal bool, current error, stage string, cause error) error {
+	if cause == ErrExecutionEpochOne {
+		cause = nil
+	}
 	if current != nil {
+		if current == ErrExecutionEpochOne && terminal && run != nil && run.epoch.Epoch == 3 {
+			return checkpointRestartError("prior finish "+stage, cause)
+		}
 		return current
 	}
 	if terminal && run != nil && run.epoch.Epoch == 3 {
-		if cause == ErrExecutionEpochOne {
-			cause = nil
-		}
 		return checkpointRestartError("prior finish "+stage, cause)
 	}
 	return ErrExecutionEpochOne
@@ -1078,6 +1081,18 @@ func (run *ExecutionEpochOneRun) finish(ctx context.Context, cancel context.Canc
 	restoredCancel, restoredDone := run.restoredExecutionCancel, run.restoredExecutionDone
 	terminal, terminalRequested := run.terminalEntered, run.terminalRequested
 	run.mu.Unlock()
+	if failure != nil {
+		stage, cause := strings.ReplaceAll(wake, "_", " "), diagnostic.Before.WakeError
+		switch {
+		case diagnostic.Before.Context != nil:
+			stage, cause = "run context", diagnostic.Before.Context
+		case wake == "dispatch_context":
+			cause = diagnostic.Before.Dispatch
+		case wake == "native_wait":
+			cause = waitErr
+		}
+		failure = epochFinishFailure(run, terminal, failure, stage, cause)
+	}
 	if restoredCancel != nil {
 		restoredCancel()
 		<-restoredDone

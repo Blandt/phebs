@@ -3787,3 +3787,9 @@ in [docs/ROADMAP.md](./docs/ROADMAP.md).
   wrapper already preserves `errors.Is` classification, so normalize only the
   exact sentinel to nil as the sibling launch helper does; retain joined or
   otherwise distinct causes that may carry additional failure detail.
+  Corrected-range OCR then found one medium early-context gap: cancellation,
+  dispatch shutdown, or premature native exit can set the exact sentinel before
+  terminal state is captured. Immediately after that capture, classify only
+  the exact sentinel from the already-recorded wake/context cause. Later
+  cleanup still preserves that first cause, and nonterminal behavior remains
+  the unchanged sentinel.
