@@ -61,7 +61,7 @@ export function RepositoryTree({
       fetchFolderContents(repo, ref, path, controller.current.signal)
         .then(({ entries }) => {
           if (requestGeneration !== generation.current) return
-          cache.current.set(key, { entries: sortEntries(entries), loading: false })
+          cache.current.set(key, { entries: sortEntries(entries ?? []), loading: false })
           renderCache((value) => value + 1)
         })
         .catch((error) => {

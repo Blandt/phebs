@@ -345,6 +345,12 @@ test('adapts repository status without inventing a focused unit', () => {
     indexed_commit_hash: commit,
     orphaned: false,
     last_index_job_state: 'unavailable',
+    last_extraction_job_state: 'unavailable',
+    last_caller_job_state: 'unavailable',
+    last_resolver_job_state: 'unavailable',
+    is_fork: false,
+    is_archived: false,
+    is_public: true,
   } satisfies RepoStatus)
   expect(whole).toEqual({
     repository: 'github.com/acme/whole',
@@ -361,6 +367,12 @@ test('preserves a retained whole-repository unit and labels its replacement gap'
     indexed_commit_hash: commit,
     orphaned: false,
     last_index_job_state: 'unavailable',
+    last_extraction_job_state: 'unavailable',
+    last_caller_job_state: 'unavailable',
+    last_resolver_job_state: 'unavailable',
+    is_fork: false,
+    is_archived: false,
+    is_public: true,
     analysis_unit: {
       schema: 'analysis-unit-v1',
       name: 'legacy-service',
@@ -493,6 +505,12 @@ test('normalizes a nullable transport primary-path selection defensively', () =>
     clone_url: 'https://github.com/acme/null-primary.git',
     orphaned: false,
     last_index_job_state: 'unavailable',
+    last_extraction_job_state: 'unavailable',
+    last_caller_job_state: 'unavailable',
+    last_resolver_job_state: 'unavailable',
+    is_fork: false,
+    is_archived: false,
+    is_public: true,
     analysis_unit: {
       schema: 'analysis-unit-v1',
       name: 'null-primary-service',

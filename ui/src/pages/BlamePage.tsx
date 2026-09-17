@@ -3,7 +3,7 @@ import { useStyletron } from 'baseui'
 import { Notification, KIND as NOTIFICATION_KIND } from 'baseui/notification'
 import { Spinner } from 'baseui/spinner'
 import { fetchBlame } from '../api'
-import type { BlameResult, GitCommit } from '../api'
+import type { BlameLine, BlameResult, GitCommit } from '../api'
 import { href } from '../router'
 import { CommitIcon, WarningIcon } from '../icons'
 import { FONTS, usePhebsTokens } from '../theme'
@@ -33,7 +33,7 @@ export default function BlamePage({ params }: { params: URLSearchParams }) {
     return () => controller.abort()
   }, [repo, path, ref])
 
-  const commits = useMemo(() => new Map(result?.commits.map((commit) => [commit.id, commit]) ?? []), [result])
+  const commits = useMemo(() => new Map((result?.commits ?? []).map((commit) => [commit.id, commit])), [result])
 
   return (
     <div>
@@ -59,13 +59,13 @@ export default function BlamePage({ params }: { params: URLSearchParams }) {
       )}
       {result && (
         <div className={css({ border: `1px solid ${tok.cardBorder}`, borderRadius: '8px', overflowX: 'auto' })}>
-          {result.lines.map((line, index) => (
+          {(result.lines ?? []).map((line, index) => (
             <BlameRow
               key={line.line}
               repo={repo}
               line={line}
               commit={commits.get(line.commit_id)}
-              repeated={index > 0 && result.lines[index - 1].commit_id === line.commit_id}
+              repeated={index > 0 && (result.lines ?? [])[index - 1].commit_id === line.commit_id}
             />
           ))}
         </div>
@@ -74,7 +74,7 @@ export default function BlamePage({ params }: { params: URLSearchParams }) {
   )
 }
 
-function BlameRow({ repo, line, commit, repeated }: { repo: string; line: BlameResult['lines'][number]; commit?: GitCommit; repeated: boolean }) {
+function BlameRow({ repo, line, commit, repeated }: { repo: string; line: BlameLine; commit?: GitCommit; repeated: boolean }) {
   const [css] = useStyletron()
   const tok = usePhebsTokens()
   return (
