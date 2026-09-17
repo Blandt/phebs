@@ -2464,11 +2464,18 @@ func serve(ctx context.Context, args []string) (retErr error) {
 		}
 		apiHandler, mcpHandler = exactReadState.wrap(apiHandler), exactReadState.wrap(mcpHandler)
 	}
-	handler := t422OwnerHTTPHandler(owners, newHTTPHandler(authService, apiHandler, mcpHandler, promhttp.Handler(), http.FileServerFS(dist)), semanticLaunch)
+	handler := t422OwnerHTTPHandler(owners, newHTTPHandler(authService, apiHandler, mcpHandler, promhttp.Handler(), http.FileServerFS(dist), cfg.Server), semanticLaunch)
 
 	srv := &http.Server{
-		Addr: cfg.Server.Addr, Handler: handler, ReadHeaderTimeout: 10 * time.Second,
-		BaseContext: t421ExactReadServerBaseContext(ctx, exactReads),
+		Addr: cfg.Server.Addr, Handler: handler,
+		ReadHeaderTimeout: 10 * time.Second,
+		// Slow-client bounds (slowloris-class): the API and MCP handlers
+		// take small JSON bodies and short responses; nothing here expects
+		// a large request upload or a response stream longer than a minute.
+		ReadTimeout:  15 * time.Second,
+		WriteTimeout: 60 * time.Second,
+		IdleTimeout:  120 * time.Second,
+		BaseContext:  t421ExactReadServerBaseContext(ctx, exactReads),
 	}
 	shutdownErr := make(chan error, 1)
 	runBackground(func() {
@@ -2625,7 +2632,7 @@ func bindSyntheticWorkbench(
 	return nil
 }
 
-func newHTTPHandler(authService *auth.Service, apiHandler, mcpHandler, metricsHandler, uiHandler http.Handler) http.Handler {
+func newHTTPHandler(authService *auth.Service, apiHandler, mcpHandler, metricsHandler, uiHandler http.Handler, serverCfg config.Server) http.Handler {
 	mux := http.NewServeMux()
 	protectedAPI := authService.Require(apiHandler)
 	identifiedAPI := authService.Identify(apiHandler)
@@ -2642,9 +2649,12 @@ func newHTTPHandler(authService *auth.Service, apiHandler, mcpHandler, metricsHa
 		}
 		protectedAPI.ServeHTTP(w, r)
 	}))
-	mux.Handle("GET /metrics", metricsHandler)
+	// /metrics is operator telemetry: it sits behind auth like every other
+	// protected route, not on the public surface.
+	mux.Handle("GET /metrics", authService.Require(metricsHandler))
 	mux.Handle("/", uiHandler)
-	return api.WithRetentionStatusWarning(authService.LoadAndSave(mux))
+	handler := api.WithRetentionStatusWarning(authService.LoadAndSave(mux))
+	return securityHeadersMiddleware(serverCfg.SecurityHeadersEnabled())(handler)
 }
 
 func loadServerConfig(path string) (*config.Config, []byte, error) {
