@@ -10,7 +10,7 @@ when two pages appear to overlap.
 |---|---|
 | Understand the product | [Project README](../README.md), then [VISION.md](./VISION.md) |
 | Install, configure, or operate phebs | [MANUAL.md](./MANUAL.md), then its task guide |
-| Plan or implement a change | [ROADMAP.md](./ROADMAP.md), then [BACKLOG.md](./BACKLOG.md) and [PLAN.md](../PLAN.md) |
+| Plan or implement a change | [PLAN_SUMMARY.md](./PLAN_SUMMARY.md), then [ROADMAP.md](./ROADMAP.md), [BACKLOG.md](./BACKLOG.md), and [PLAN.md](../PLAN.md) |
 | Evaluate a pilot | [PITCH.md](./PITCH.md), then [PILOT_CHARTER.md](./PILOT_CHARTER.md) |
 | Compare phebs with other code search tools | [COMPARISON.md](./COMPARISON.md) |
 | Review an evidence pack | [EVIDENCE_PACK_CARD.md](./EVIDENCE_PACK_CARD.md) and [PACK_MANIFEST.md](./PACK_MANIFEST.md) |
@@ -26,6 +26,7 @@ when two pages appear to overlap.
 | Active and proposed work | [BACKLOG.md](./BACKLOG.md) | Tickets and acceptance criteria are the merge bar |
 | Completed ticket history | [BACKLOG_COMPLETED.md](./BACKLOG_COMPLETED.md) | Append through a reviewed archive move; do not rewrite completed narratives |
 | Architecture and decisions | [PLAN.md](../PLAN.md) | Append dated ADR rows; do not rewrite historical decisions |
+| Architecture digest | [PLAN_SUMMARY.md](./PLAN_SUMMARY.md) | Orientation only; authority remains [PLAN.md](../PLAN.md) |
 | Product direction | [VISION.md](./VISION.md) | Describe direction, not current behavior or setup |
 | Interface philosophy, discipline, and design language | [DESIGN_CHARTER.md](./DESIGN_CHARTER.md) | Governs presentation only; it cannot broaden authority, claims, or caveats |
 | Pilot authority and claims | [PILOT_CHARTER.md](./PILOT_CHARTER.md) | Downstream documents cannot broaden its authority |

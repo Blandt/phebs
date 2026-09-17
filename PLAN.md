@@ -1,5 +1,13 @@
 # phebs — Architecture and Implementation Plan
 
+> **Reading this document.** PLAN.md is the project's append-only decision
+> ledger: architecture, dated ADR bullets, and phase narratives. It is
+> intentionally never rewritten — entries stay as written, even when later
+> entries supersede them. For a one-page orientation, start with
+> [docs/PLAN_SUMMARY.md](docs/PLAN_SUMMARY.md); for current sequencing see
+> [docs/ROADMAP.md](docs/ROADMAP.md), and for active tickets see
+> [docs/BACKLOG.md](docs/BACKLOG.md).
+
 **Shape:** single Go binary · zoekt as a library · supervised SurrealDB · embedded TypeScript/React SPA
 
 **Version:** v2.3 (2026-07-09).
