@@ -3,9 +3,12 @@
 package t4013
 
 import (
+	"context"
 	"os"
+	"os/exec"
 	"slices"
 	"testing"
+	"time"
 
 	"golang.org/x/sys/unix"
 )
@@ -30,6 +33,18 @@ func TestDarwinSessionInventoryUsesNativeRecords(t *testing.T) {
 }
 
 func TestPrivateProcessSessionMembershipNamesMembers(t *testing.T) {
+	const helper = "T4013_SESSION_MEMBERSHIP_HELPER"
+	if os.Getenv(helper) != "1" {
+		// A Terminal session may contain a protected login process, not ours.
+		ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+		defer cancel()
+		command := exec.CommandContext(ctx, os.Args[0], "-test.run=^TestPrivateProcessSessionMembershipNamesMembers$", "-test.count=1")
+		command.Env = append(os.Environ(), helper+"=1")
+		if output, err := runCustodyCombinedOutput(command); err != nil {
+			t.Fatalf("isolated session membership: %v\n%s", err, output)
+		}
+		return
+	}
 	for _, invalid := range []int{0, -1} {
 		if _, err := PrivateProcessSessionMembership(invalid); err == nil {
 			t.Fatalf("invalid session %d was accepted", invalid)
@@ -38,6 +53,9 @@ func TestPrivateProcessSessionMembershipNamesMembers(t *testing.T) {
 	sessionID, err := unix.Getsid(os.Getpid())
 	if err != nil {
 		t.Fatal(err)
+	}
+	if sessionID != os.Getpid() {
+		t.Fatalf("membership fixture did not own its session: session=%d pid=%d", sessionID, os.Getpid())
 	}
 	members, err := PrivateProcessSessionMembership(sessionID)
 	if err != nil {

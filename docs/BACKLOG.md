@@ -13560,6 +13560,18 @@ gate limitations: signed readiness and full T42.2n acceptance remain open,
 and T42.2o author/seal/freeze remains acceptance-gated. No push, retry, ceremony
 or broader cleanup follows from this request.
 
+**T42.2n terminal session-fixture correction, 2026-09-16:** exact `f229374a`
+passed the full command race suite (1,138.463 seconds; 283 top-level passes
+and four explicit skips). The next custody package failed one test on native
+`EPERM`: its membership fixture inspected the inherited Terminal session,
+including a protected root-owned `login` process. Preserve this failure and
+all completed passes with their original attribution. The fixture now runs
+itself in an owned session through the existing custody helper and verifies
+its session ID equals its PID before the unchanged membership assertions.
+Production denial handling and all admission bounds remain unchanged. Focused
+normal/race checks, exact-source review and the remaining terminal matrix are
+still required; no signed readiness, T42.2n closure or seal is established.
+
 **T42.3 · Scale posture decision and neutral product closure** — independently
 review the T42.2 receipt, replay representative All code → service →
 relationship → Workbench → proof → MCP flows, and record one decision:

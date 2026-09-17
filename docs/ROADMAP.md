@@ -64,6 +64,15 @@ sequence.
 
 ## Now
 
+**T42.2n terminal machine-gate continuation, 2026-09-16:** the exact
+`f229374a` command race suite passed. The custody package then failed because
+its membership fixture inspected the inherited Terminal session and received
+`EPERM` for a protected `login` process. A test-only correction gives that
+fixture its own session using the existing custody helper; production refusal
+semantics remain unchanged. Preserve the failed gate and completed passes.
+Focused verification, independent review and the remaining exact-source matrix
+precede acceptance; signed/native readiness and V3 sealing remain open.
+
 **T42.2n archive diagnostic continuation, 2026-09-16:** the exact `2340ca7c`
 signed readiness attempt reached archive publication and failed before restore.
 The backup child's output was not retained; the specific rejected predicate

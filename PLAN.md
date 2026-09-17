@@ -3927,3 +3927,20 @@ in [docs/ROADMAP.md](./docs/ROADMAP.md).
   attempt remains failed and its initiating cause unknown. This documentation
   record changes no implementation, cost, evidence byte, admission bound or
   deadline. No push, retry or broader custody cleanup is authorized here.
+
+- **2026-09-16 — T42.2n session-membership fixture isolation.** The exact
+  `f229374a` terminal matrix passed the command race suite in 1,138.463 seconds,
+  then failed `TestPrivateProcessSessionMembershipNamesMembers` with native
+  `EPERM` for PID 64684. The fixture inspected its inherited Terminal session;
+  a subsequent native observation identified that still-live PID as root-owned
+  `login`, started before the failed test. Preserve the failed package result.
+  Self-reexecute only the membership test through the existing
+  `runCustodyCombinedOutput` helper, require the child session ID to equal its
+  PID, and retain every coherent-record and self-membership assertion. This
+  adds one test-only child with a ten-second command context and the helper's
+  existing session cancellation/join checks; no readiness handshake or retry
+  is added. Production denial, lifetime, membership and zombie predicates stay
+  unchanged. Query/request, sync, startup/restart, retry/no-op, publication,
+  lock/cache, memory/disk and production child costs are unchanged. Fresh
+  affected gates and independent review remain required; this correction is
+  not a custody-package pass or signed/native readiness acceptance.
