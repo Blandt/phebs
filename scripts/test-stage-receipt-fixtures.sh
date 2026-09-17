@@ -15,11 +15,23 @@ repo_root="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
 stage_src="$repo_root/scripts/stage-receipt-fixtures.sh"
 
 work="$(mktemp -d "${TMPDIR:-/tmp}/stage-fixtures-test-XXXXXX")"
-trap 'rm -rf "$work"' EXIT
+children=""
+cleanup() {
+  # Release any test barriers before joining our direct staging children.
+  # Each barrier also has its own five-second bound, including on failure.
+  touch "$work/release-all"
+  for child in $children; do
+    wait "$child" 2>/dev/null || :
+  done
+  rm -rf "$work"
+}
+trap cleanup EXIT
+trap 'exit 1' HUP INT TERM
 
 n=0
 pass=0
 fail=0
+skip=0
 ok() { n=$((n + 1)); pass=$((pass + 1)); printf 'ok %d - %s\n' "$n" "$1"; }
 bad() { n=$((n + 1)); fail=$((fail + 1)); printf 'not ok %d - %s\n' "$n" "$1: $2"; }
 
@@ -67,6 +79,10 @@ no_temp_leftovers() {
   [ -z "$(find "$1" -maxdepth 1 -name '.stage-bundle-*' -print 2>/dev/null)" ]
 }
 
+same_mtime() {
+  [ ! "$1" -nt "$2" ] && [ ! "$1" -ot "$2" ]
+}
+
 # ---------------------------------------------------------------- defect 6
 
 # 1: successful staging returns 0 and emits exactly the expected exports.
@@ -88,6 +104,7 @@ if sh "$skel/scripts/stage-receipt-fixtures.sh" --env >"$out" 2>"$work/d6-succes
     bad "d6: successful staging returns 0 and emits the expected exports" "output or staged bytes wrong"
   fi
 else
+  cat "$work/d6-success.err" >&2
   bad "d6: successful staging returns 0 and emits the expected exports" "nonzero exit"
 fi
 
@@ -129,6 +146,7 @@ skel="$(make_skeleton d7-missing-root)"
 set -- $(staged_paths "$skel"); t307_dst="$1"; t323_dst="$2"; fakeroot="$3"
 if sh "$skel/scripts/stage-receipt-fixtures.sh" >/dev/null 2>&1 \
   && [ -d "$fakeroot" ] && [ ! -L "$fakeroot" ] \
+  && [ "$(LC_ALL=C ls -ld "$fakeroot" | awk '{print substr($1, 1, 10)}')" = "drwx------" ] \
   && [ -f "$t307_dst" ] && [ -f "$t323_dst" ] \
   && mode644 "$t307_dst" && mode644 "$t323_dst" \
   && no_temp_leftovers "$fakeroot"; then
@@ -142,12 +160,16 @@ skel="$(make_skeleton d7-identical)"
 # shellcheck disable=SC2086
 set -- $(staged_paths "$skel"); t307_dst="$1"; t323_dst="$2"; fakeroot="$3"
 sh "$skel/scripts/stage-receipt-fixtures.sh" >/dev/null 2>&1
-touch "$work/d7-ref"
-sleep 1
+# A fixed old timestamp is exact on macOS and Linux. A rewrite now must
+# differ from it; no wall-clock sleep or subsecond ordering is involved.
+touch -t 200001010000 "$t307_dst" "$t323_dst" "$work/d7-ref"
+chmod 600 "$t307_dst" "$t323_dst"
 if sh "$skel/scripts/stage-receipt-fixtures.sh" --env >/dev/null 2>"$work/d7-identical.err"; then
-  if [ "$t307_dst" -ot "$work/d7-ref" ] && [ "$t323_dst" -ot "$work/d7-ref" ] \
+  if same_mtime "$t307_dst" "$work/d7-ref" && same_mtime "$t323_dst" "$work/d7-ref" \
     && cmp -s "$repo_root/docs/fixtures/t30.7-neutral-service/t307-neutral-service.bundle" "$t307_dst" \
     && cmp -s "$repo_root/spike/t323/t323-neutral-corpus.bundle" "$t323_dst" \
+    && [ "$(LC_ALL=C ls -ld "$t307_dst" | awk '{print substr($1, 1, 10)}')" = "-rw-------" ] \
+    && [ "$(LC_ALL=C ls -ld "$t323_dst" | awk '{print substr($1, 1, 10)}')" = "-rw-------" ] \
     && no_temp_leftovers "$fakeroot"; then
     ok "d7: identical bytes reused, mtime and content preserved"
   else
@@ -155,6 +177,13 @@ if sh "$skel/scripts/stage-receipt-fixtures.sh" --env >/dev/null 2>"$work/d7-ide
   fi
 else
   bad "d7: identical bytes reused, mtime and content preserved" "restage exited nonzero"
+fi
+# Prove that the same timestamp predicate rejects an actual rewrite.
+touch "$t307_dst"
+if same_mtime "$t307_dst" "$work/d7-ref"; then
+  bad "d7: timestamp oracle rejects a rewrite" "rewritten file still looks unchanged"
+else
+  ok "d7: timestamp oracle rejects a rewrite"
 fi
 
 # 5: mismatched bytes are refused; the staged file is left untouched.
@@ -231,7 +260,7 @@ skel="$(make_skeleton d7-root-owner)"
 set -- $(staged_paths "$skel"); t307_dst="$1"; t323_dst="$2"; fakeroot="$3"
 mkdir -p "$fakeroot"
 if [ "$(id -u)" -eq 0 ] && id nobody >/dev/null 2>&1; then
-  chown nobody:nogroup "$fakeroot"
+  chown "$(id -u nobody):$(id -g nobody)" "$fakeroot"
   if sh "$skel/scripts/stage-receipt-fixtures.sh" >/dev/null 2>"$work/d7-root-owner.err"; then
     bad "d7: wrong-owner root refused" "staging exited 0 on a foreign-owned root"
   else
@@ -241,8 +270,9 @@ if [ "$(id -u)" -eq 0 ] && id nobody >/dev/null 2>&1; then
       bad "d7: wrong-owner root refused" "refused for the wrong reason"
     fi
   fi
-  chown root:root "$fakeroot"
+  chown "$(id -u):$(id -g)" "$fakeroot"
 else
+  skip=$((skip + 1))
   printf 'SKIP d7: wrong-owner root refused (needs uid 0 to chown; running as uid %s)\n' "$(id -u)"
 fi
 
@@ -267,9 +297,146 @@ else
   bad "d7: unknown flag exits 2" "exit was $rc"
 fi
 
+# --- R4: private roots and deterministic concurrent first publications. ---
+for unsafe_mode in 755 770 777; do
+  skel="$(make_skeleton "r4-mode-$unsafe_mode")"
+  fakeroot="$skel/fixture-root"
+  mkdir -m "$unsafe_mode" "$fakeroot"
+  if sh "$skel/scripts/stage-receipt-fixtures.sh" >/dev/null 2>"$work/mode.err"; then
+    bad "r4: mode $unsafe_mode root refused" "staging accepted a non-private root"
+  elif grep -q "must have mode 0700" "$work/mode.err" && [ -z "$(ls -A "$fakeroot")" ]; then
+    ok "r4: mode $unsafe_mode root refused"
+  else
+    bad "r4: mode $unsafe_mode root refused" "wrong refusal or files were staged"
+  fi
+done
+
+if [ "$(uname -s)" = Darwin ]; then
+  skel="$(make_skeleton r4-acl)"
+  fakeroot="$skel/fixture-root"
+  mkdir -m 700 "$fakeroot"
+  chmod +a 'everyone allow add_file' "$fakeroot"
+  if sh "$skel/scripts/stage-receipt-fixtures.sh" >/dev/null 2>"$work/acl.err"; then
+    bad "r4: ACL-bearing 0700 root refused" "staging accepted an ACL"
+  elif grep -q "must have mode 0700" "$work/acl.err" && [ -z "$(ls -A "$fakeroot")" ]; then
+    ok "r4: ACL-bearing 0700 root refused"
+  else
+    bad "r4: ACL-bearing 0700 root refused" "wrong refusal or files were staged"
+  fi
+else
+  skip=$((skip + 1))
+  printf 'SKIP r4: Darwin ACL marker check (requires macOS)\n'
+fi
+
+# Pause after the script's absence check but before the real atomic link.
+# No production hook is needed: the shim changes scheduling only, then execs
+# the native utility with the original arguments. All paths are disposable.
+real_link="$(command -v link)"
+mkdir "$work/bin"
+cat >"$work/bin/link" <<'EOF'
+#!/bin/sh
+set -eu
+case "$2" in
+  */t307-neutral-service.bundle)
+    touch "$STAGING_TEST_BARRIER.ready"
+    tries=0
+    while [ ! -f "$STAGING_TEST_BARRIER.release" ] && [ ! -f "$STAGING_TEST_RELEASE_ALL" ]; do
+      tries=$((tries + 1))
+      [ "$tries" -le 100 ] || exit 124
+      sleep 0.05
+    done
+    ;;
+esac
+exec "$STAGING_TEST_LINK" "$@"
+EOF
+chmod 700 "$work/bin/link"
+STAGING_TEST_LINK="$real_link"
+STAGING_TEST_RELEASE_ALL="$work/release-all"
+export STAGING_TEST_LINK STAGING_TEST_RELEASE_ALL
+
+wait_ready() {
+  ready_tries=0
+  while [ ! -f "$1.ready" ] || [ ! -f "$2.ready" ]; do
+    ready_tries=$((ready_tries + 1))
+    [ "$ready_tries" -le 100 ] || return 1
+    sleep 0.05
+  done
+}
+
+for race_kind in identical differing; do
+  first="$(make_skeleton "r4-$race_kind-a")"
+  second="$(make_skeleton "r4-$race_kind-b")"
+  shared_root="$first/fixture-root"
+  printf "export const RECEIPT_FIXTURE_ROOT = '%s'\n" "$shared_root" >"$second/ui/receipts/fixtureRoot.ts"
+  if [ "$race_kind" = differing ]; then
+    # Replace only this skeleton's docs symlink, never the real fixture.
+    rm "$second/docs"
+    mkdir -p "$second/docs/fixtures/t30.7-neutral-service"
+    printf 'different bundle bytes\n' >"$second/docs/fixtures/t30.7-neutral-service/t307-neutral-service.bundle"
+  fi
+  STAGING_TEST_BARRIER="$first/barrier" PATH="$work/bin:$PATH" \
+    sh "$first/scripts/stage-receipt-fixtures.sh" >"$first/out" 2>"$first/err" &
+  first_pid=$!
+  children="$first_pid"
+  STAGING_TEST_BARRIER="$second/barrier" PATH="$work/bin:$PATH" \
+    sh "$second/scripts/stage-receipt-fixtures.sh" >"$second/out" 2>"$second/err" &
+  second_pid=$!
+  children="$children $second_pid"
+  ready=0
+  wait_ready "$first/barrier" "$second/barrier" || ready=1
+  touch "$first/barrier.release"
+  first_rc=0
+  wait "$first_pid" || first_rc=$?
+  children="$second_pid"
+  touch "$second/barrier.release"
+  second_rc=0
+  wait "$second_pid" || second_rc=$?
+  children=""
+  expected_second=0
+  [ "$race_kind" = identical ] || expected_second=1
+  if [ "$ready" -eq 0 ] && [ "$first_rc" -eq 0 ] && [ "$second_rc" -eq "$expected_second" ] \
+    && cmp -s "$repo_root/docs/fixtures/t30.7-neutral-service/t307-neutral-service.bundle" "$shared_root/t307-neutral-service.bundle" \
+    && no_temp_leftovers "$shared_root"; then
+    ok "r4: concurrent $race_kind publishers preserve the winner"
+  else
+    bad "r4: concurrent $race_kind publishers preserve the winner" "ready=$ready first=$first_rc second=$second_rc"
+  fi
+done
+
+# A target directory or symlink appearing at the publication boundary must
+# cause refusal, not ln's implicit creation of a file inside that directory.
+for collision in directory symlink; do
+  skel="$(make_skeleton "r4-collision-$collision")"
+  fakeroot="$skel/fixture-root"
+  STAGING_TEST_BARRIER="$skel/barrier" PATH="$work/bin:$PATH" \
+    sh "$skel/scripts/stage-receipt-fixtures.sh" >"$skel/out" 2>"$skel/err" &
+  collision_pid=$!
+  children="$collision_pid"
+  ready=0
+  wait_ready "$skel/barrier" "$skel/barrier" || ready=1
+  target="$fakeroot/t307-neutral-service.bundle"
+  if [ "$collision" = symlink ]; then
+    mkdir "$skel/untouched"
+    ln -s "$skel/untouched" "$target"
+    target="$skel/untouched"
+  else
+    mkdir "$target"
+  fi
+  touch "$skel/barrier.release"
+  collision_rc=0
+  wait "$collision_pid" || collision_rc=$?
+  children=""
+  if [ "$ready" -eq 0 ] && [ "$collision_rc" -eq 1 ] \
+    && [ -z "$(ls -A "$target")" ] && no_temp_leftovers "$fakeroot"; then
+    ok "r4: $collision publication collision refuses without traversal"
+  else
+    bad "r4: $collision publication collision refuses without traversal" "ready=$ready exit=$collision_rc"
+  fi
+done
+
 # ---------------------------------------------------------------- summary
 printf '%s\n' "----"
-printf 'passed %d/%d\n' "$pass" "$n"
+printf 'passed %d/%d; skipped %d\n' "$pass" "$n" "$skip"
 if [ "$fail" -ne 0 ]; then
   printf '%d case(s) FAILED\n' "$fail" >&2
   exit 1

@@ -11,19 +11,17 @@
 #
 # Safety contract (the fixture root is a shared /tmp path, so every write
 # is validated before it happens):
-#   * the root must be a real directory owned by the current user; a
-#     symlink, a non-directory, or a foreign-owned root is refused;
-#   * a missing root is created with plain mkdir (never mkdir -p, which
-#     would silently follow a planted symlink), then re-validated;
+#   * the root must be a real, owner-only (0700), current-user directory
+#     without an ACL; existing permissions are never changed;
+#   * a missing root is created with mkdir -m 700, then re-validated;
 #   * each destination is inspected BEFORE writing: symlinks, non-regular
 #     files, and files not owned by the current user are refused;
 #   * a staged bundle whose bytes already match the source is reused
 #     untouched (content, mtime, and mode preserved);
 #   * a staged bundle whose bytes differ is refused, never truncated or
 #     overwritten in place -- remove it by hand if restaging is intended;
-#   * first publication copies to a temp file in the same directory and
-#     renames it into place, so a concurrent reader never sees a partial
-#     bundle.
+#   * first publication hard-links a complete temp file into place without
+#     replacement; a losing publisher revalidates the winner's bytes.
 #
 # Usage:
 #   scripts/stage-receipt-fixtures.sh             stage, print a summary
@@ -87,38 +85,37 @@ owned_by_me() {
   [ "$(ls -ldn "$1" 2>/dev/null | awk '{print $3}')" = "$(id -u)" ]
 }
 
-# --- Fixture root: must be a real directory owned by the current user. ---
+# A failed creation may mean another publisher won; validate either result.
+if [ ! -e "$fixture_root" ] && [ ! -L "$fixture_root" ]; then
+  mkdir -m 700 "$fixture_root" 2>/dev/null || :
+fi
 if [ -L "$fixture_root" ]; then
   refuse "fixture root $fixture_root is a symlink"
 fi
-if [ -e "$fixture_root" ]; then
-  if [ ! -d "$fixture_root" ]; then
-    refuse "fixture root $fixture_root is not a directory"
-  fi
-  if ! owned_by_me "$fixture_root"; then
-    refuse "fixture root $fixture_root is not owned by uid $(id -u)"
-  fi
-else
-  # Plain mkdir, not mkdir -p: mkdir fails on an existing symlink instead of
-  # silently following it. A lost creation race re-validates whatever is
-  # there now instead of trusting the earlier absence check.
-  if ! mkdir "$fixture_root" 2>/dev/null; then
-    if [ -L "$fixture_root" ]; then
-      refuse "fixture root $fixture_root appeared as a symlink"
-    fi
-    if [ ! -d "$fixture_root" ]; then
-      refuse "fixture root $fixture_root is not a directory"
-    fi
-    if ! owned_by_me "$fixture_root"; then
-      refuse "fixture root $fixture_root is not owned by uid $(id -u)"
-    fi
-  fi
+if [ ! -d "$fixture_root" ]; then
+  refuse "fixture root $fixture_root is not a directory"
 fi
+if ! owned_by_me "$fixture_root"; then
+  refuse "fixture root $fixture_root is not owned by uid $(id -u)"
+fi
+# On Darwin, an xattr marker can hide the ACL marker, so inspect ACL rows
+# too. Plain xattrs do not grant access. GNU ls marks an ACL with '+'.
+if [ "$(uname -s)" = Darwin ]; then
+  root_metadata="$(LC_ALL=C ls -lden "$fixture_root")" || refuse "could not inspect fixture root"
+else
+  root_metadata="$(LC_ALL=C ls -ldn "$fixture_root")" || refuse "could not inspect fixture root"
+fi
+case "$(printf '%s\n' "$root_metadata" | awk '{print $1}')" in
+  drwx------ | drwx------@) ;;
+  *) refuse "fixture root $fixture_root must have mode 0700 without an ACL" ;;
+esac
 
-stage_one() {
-  # $1: source bundle, $2: destination path. Never overwrites in place.
-  src="$1"
-  dst="$2"
+tmp=""
+trap '[ -z "$tmp" ] || rm -f "$tmp"' EXIT
+trap 'exit 1' HUP INT TERM
+
+reuse_existing() {
+  # src/dst belong to stage_one. Return false only when dst is absent.
   if [ -L "$dst" ]; then
     refuse "destination $dst is a symlink"
   fi
@@ -135,18 +132,29 @@ stage_one() {
     fi
     refuse "destination $dst exists with different bytes; refusing to overwrite in place (remove it first to restage)"
   fi
-  # Publish via a temp file in the same directory, then rename into place:
-  # concurrent readers only ever see the complete bundle, never a partial
-  # copy. mktemp creates the temp file mode 600; it becomes 644 below.
-  tmp="$(mktemp "$fixture_root/.stage-bundle-XXXXXX")" || refuse "could not create temp file in $fixture_root"
-  if cp "$src" "$tmp" && chmod 644 "$tmp" && mv "$tmp" "$dst"; then
-    :
-  else
-    rc=$?
-    rm -f "$tmp"
-    printf 'stage-receipt-fixtures: failed to publish %s\n' "$dst" >&2
-    exit "$rc"
+  return 1
+}
+
+stage_one() {
+  src="$1"
+  dst="$2"
+  if reuse_existing; then
+    return 0
   fi
+  tmp="$(mktemp "$fixture_root/.stage-bundle-XXXXXX")" || refuse "could not create temp file in $fixture_root"
+  if ! cp "$src" "$tmp" || ! chmod 644 "$tmp"; then
+    refuse "could not prepare $dst"
+  fi
+  # POSIX link performs link(2) on this exact destination, unlike ln's
+  # directory-target behavior. It never replaces a file or follows a
+  # destination symlink to a directory. No stale lock or wait is needed.
+  if ! link "$tmp" "$dst" 2>/dev/null; then
+    if ! reuse_existing; then
+      refuse "could not publish $dst"
+    fi
+  fi
+  rm -f "$tmp"
+  tmp=""
 }
 
 stage_one "$t307_src" "$t307_dst"

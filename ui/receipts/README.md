@@ -39,14 +39,19 @@ machine — otherwise macOS and Ubuntu CI can never share one baseline set.
 
 - **Staging safety contract.** The fixture root is a shared `/tmp` path,
   so the staging script validates before every write: the root must be a
-  real directory owned by the current user (a symlink, a non-directory,
-  or a foreign-owned root is refused); each destination is refused if it
-  is a symlink, a non-regular file, or not owned by the current user. A
+  real directory owned by the current user, mode 0700 without an ACL
+  (symlinks, other modes/ACLs, and foreign owners are refused).
+  Existing roots are never chmodded automatically; inspect an old root and
+  stop its receipt runs before changing its permissions. Each destination
+  is refused if it is a symlink, a non-regular file, or not owned by the current user. A
   staged bundle whose bytes already match the source is reused untouched.
   A staged bundle whose bytes **differ** is refused, never truncated or
   overwritten in place — remove it by hand if restaging is intended. New
-  bundles publish via a temp file in the same directory renamed into
-  place, so a concurrent reader never sees a partial copy. The regression
+  bundles publish through the POSIX `link` utility from a complete temp file
+  in that directory: publication never replaces an existing name or follows
+  a destination symlink. A simultaneous publisher revalidates and reuses an
+  identical winner, or refuses differing bytes. No lock or stale-lock recovery
+  is needed, and concurrent readers never see a partial copy. The regression
   tests (`sh scripts/test-stage-receipt-fixtures.sh`, also run in CI's
   static job) cover all of these cases against disposable fake roots.
 

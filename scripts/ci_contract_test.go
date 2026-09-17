@@ -47,12 +47,19 @@ func TestCIContractPinsToolsAndNamedGates(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, command := range []string{
-		"test: verify-glossary\n\tgo test ./... -timeout=60m\n",
-		"ci-go: verify-go verify-surreal\n\tgo test ./... -count=1 -timeout=60m\n",
+	for _, gate := range []struct {
+		target        string
+		prerequisites string
+		command       string
+	}{
+		{"test", "verify-glossary", "\tgo test ./... -timeout=60m"},
+		{"ci-go", "verify-go verify-surreal", "\tgo test ./... -count=1 -timeout=60m"},
 	} {
-		if !strings.Contains(string(makefile), command) {
-			t.Errorf("Makefile is missing full-suite allowance %q", command)
+		// Match only this target's recipe, allowing its comment and engine
+		// guard without accidentally accepting a command in another target.
+		recipe := regexp.MustCompile(`(?m)^` + regexp.QuoteMeta(gate.target+": "+gate.prerequisites) + `(?:[ \t]+#[^\n]*)?\n(?:\t[^\n]*\n)*`).FindString(string(makefile))
+		if !strings.Contains(recipe, gate.command+"\n") {
+			t.Errorf("Makefile target %s is missing full-suite allowance %q", gate.target, gate.command)
 		}
 	}
 	for _, exact := range []string{
@@ -102,8 +109,14 @@ func TestCIContractPinsToolsAndNamedGates(t *testing.T) {
 	if strings.Contains(workflow, `sha256sum "dist/release/`) {
 		t.Error("release checksum records a CI-internal path instead of the adjacent archive basename")
 	}
-	if count := strings.Count(workflow, `sh scripts/install-surreal-ci.sh "$RUNNER_TEMP"`); count != 3 {
-		t.Errorf("pinned SurrealDB installer calls = %d, want 3", count)
+	for _, job := range []string{"go-test", "race", "screenshots", "release"} {
+		jobBody := regexp.MustCompile(`(?m)^  ` + regexp.QuoteMeta(job) + `:\n(?:[ ]{4,}[^\n]*\n|\n)*`).FindString(workflow)
+		if count := strings.Count(jobBody, `sh scripts/install-surreal-ci.sh "$RUNNER_TEMP"`); count != 1 {
+			t.Errorf("job %s pinned SurrealDB installer calls = %d, want 1", job, count)
+		}
+	}
+	if count := strings.Count(workflow, `sh scripts/install-surreal-ci.sh "$RUNNER_TEMP"`); count != 4 {
+		t.Errorf("pinned SurrealDB installer calls = %d, want 4", count)
 	}
 	installerBytes, err := os.ReadFile(filepath.Join(root, "scripts", "install-surreal-ci.sh"))
 	if err != nil {
@@ -130,7 +143,7 @@ func TestCIContractPinsToolsAndNamedGates(t *testing.T) {
 // run the staging regression tests in the static job. The staging script
 // itself must refuse symlinks/foreign owners at the shared fixture root
 // and destinations, reuse identical bytes, never overwrite differing
-// bytes in place, and publish new bundles via temp-file plus rename.
+// bytes in place, and publish new bundles with create-only hard links.
 func TestReceiptFixtureStagingContract(t *testing.T) {
 	root := filepath.Clean("..")
 
@@ -163,7 +176,9 @@ func TestReceiptFixtureStagingContract(t *testing.T) {
 		"is a symlink",
 		"not owned by",
 		"refusing to overwrite in place",
-		`mv "$tmp" "$dst"`,
+		`link "$tmp" "$dst"`,
+		`mkdir -m 700 "$fixture_root"`,
+		"must have mode 0700 without an ACL",
 	} {
 		if !strings.Contains(script, required) {
 			t.Errorf("staging script is missing safety property %q", required)
