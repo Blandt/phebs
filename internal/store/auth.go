@@ -376,18 +376,31 @@ func (s *Surreal) TouchAPIKey(ctx context.Context, id string, at time.Time) erro
 
 const legacyAPIKeyID = "legacy-config"
 
+// LegacyAPIKeyUserID is the reserved user_id carried by the legacy
+// config-file API key row. Ordinary rows carry their owner's user record id,
+// so user-scoped revocation can target the legacy key by this identity without
+// matching any user's keys. The auth handler passes it when an administrator
+// revokes the legacy key through the API; SetLegacyAPIKey assigns it on every
+// startup sync, which also heals rows written before this identity existed.
+const LegacyAPIKeyUserID = "legacy-config"
+
 func (s *Surreal) SetLegacyAPIKey(ctx context.Context, hash string, at time.Time) error {
 	if hash == "" {
 		_, err := storeQuery[any](ctx, s.accounting, s.db, "DELETE $rid",
 			map[string]any{"rid": apiKeyID(legacyAPIKeyID)}, storeWrite(1))
 		return err
 	}
+	// revoked_at is assigned before hash so its predicate always reads the
+	// pre-update hash: an unchanged config hash preserves an API revocation
+	// across restarts, while a rotated hash starts unrevoked.
 	_, err := storeQuery[any](ctx, s.accounting, s.db,
-		`UPSERT $rid SET user_id = '', name = 'Legacy config key', prefix = 'legacy',
+		`UPSERT $rid SET
+            revoked_at = IF hash = $hash THEN revoked_at ELSE NONE END,
+            user_id = $legacy_user_id, name = 'Legacy config key', prefix = 'legacy',
             hash = $hash, capabilities = [],
-            created_at = IF created_at = NONE THEN $at ELSE created_at END,
-            revoked_at = NONE`,
-		map[string]any{"rid": apiKeyID(legacyAPIKeyID), "hash": hash, "at": at}, storeWrite(1))
+            created_at = IF created_at = NONE THEN $at ELSE created_at END`,
+		map[string]any{"rid": apiKeyID(legacyAPIKeyID), "hash": hash, "at": at,
+			"legacy_user_id": LegacyAPIKeyUserID}, storeWrite(1))
 	return err
 }
 
