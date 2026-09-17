@@ -13608,12 +13608,12 @@ timed out, but found the same whole-sample guard on final removal and one test
 triage ambiguity; both are corrected. A second partial review again timed out
 on production and found one low missing growth-direction assertion; the
 regression now refuses both ballast shrink and growth drift. Each of three
-sites replaces a three-field equality with one allocation equality: six scalar
-comparisons are removed and three remain, with no new I/O, lock, timer, retry,
-child or allocation. Evidence, checkout/log and operational roots remain at
-`/private/tmp/t422-signed-readiness-3045607136`,
-`/private/tmp/t422-readiness-03c26e90.sXcevi`, and
-`/private/tmp/phebs-t422-3525296018`; `/dev/disk5s1` remains mounted at
+sites replaces a three-field equality with one `Allocated` equality: six
+scalar comparisons are removed and three remain, with no new I/O, lock, timer,
+retry, child or memory allocation. The evidence root is
+`/private/tmp/t422-signed-readiness-3045607136`; checkout/log custody is
+`/private/tmp/t422-readiness-03c26e90.sXcevi`; operational custody is
+`/private/tmp/phebs-t422-3525296018`. `/dev/disk5s1` remains mounted at
 `/private/tmp/phebs-t422-3525296018/t422-pressure-3601212463/mount`. No process
 survives and no unchanged retry occurred. Immutable source, independent review,
 the longer-allowance package gates and a fresh visible-terminal readiness matrix
