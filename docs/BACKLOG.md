@@ -13572,6 +13572,19 @@ Production denial handling and all admission bounds remain unchanged. Focused
 normal/race checks, exact-source review and the remaining terminal matrix are
 still required; no signed readiness, T42.2n closure or seal is established.
 
+**T42.2n session-fixture review correction, 2026-09-17:** exact `7323c6b8`
+passed twenty focused normal and ten focused race repetitions plus the complete
+custody package normally and under race. Independent review found one low
+future-rename gap: a zero-exit child whose exact selector matched nothing would
+not prove the isolated assertions ran. The child now writes one fixed marker
+only after those assertions and the parent requires it from the existing
+bounded joined output. The corrected focused repetitions pass again, followed
+by complete package normal/race in 115.356/132.860 seconds. Production work and
+all numerical bounds remain unchanged. Fresh static/documentation gates, an
+immutable commit and independent exact-source re-review remain required before
+the signed native readiness matrix; this does not close T42.2n or authorize a
+seal.
+
 **T42.3 · Scale posture decision and neutral product closure** — independently
 review the T42.2 receipt, replay representative All code → service →
 relationship → Workbench → proof → MCP flows, and record one decision:

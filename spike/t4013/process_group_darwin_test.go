@@ -3,6 +3,7 @@
 package t4013
 
 import (
+	"bytes"
 	"context"
 	"os"
 	"os/exec"
@@ -33,15 +34,22 @@ func TestDarwinSessionInventoryUsesNativeRecords(t *testing.T) {
 }
 
 func TestPrivateProcessSessionMembershipNamesMembers(t *testing.T) {
-	const helper = "T4013_SESSION_MEMBERSHIP_HELPER"
+	const (
+		helper = "T4013_SESSION_MEMBERSHIP_HELPER"
+		marker = "t4013-session-membership-passed\n"
+	)
 	if os.Getenv(helper) != "1" {
 		// A Terminal session may contain a protected login process, not ours.
 		ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 		defer cancel()
 		command := exec.CommandContext(ctx, os.Args[0], "-test.run=^TestPrivateProcessSessionMembershipNamesMembers$", "-test.count=1")
 		command.Env = append(os.Environ(), helper+"=1")
-		if output, err := runCustodyCombinedOutput(command); err != nil {
+		output, err := runCustodyCombinedOutput(command)
+		if err != nil {
 			t.Fatalf("isolated session membership: %v\n%s", err, output)
+		}
+		if !bytes.Contains(output, []byte(marker)) {
+			t.Fatalf("isolated session membership did not complete:\n%s", output)
 		}
 		return
 	}
@@ -73,5 +81,8 @@ func TestPrivateProcessSessionMembershipNamesMembers(t *testing.T) {
 	}
 	if self < 0 {
 		t.Fatalf("own session membership does not name the test process: %+v", members)
+	}
+	if _, err := os.Stdout.WriteString(marker); err != nil {
+		t.Fatal(err)
 	}
 }

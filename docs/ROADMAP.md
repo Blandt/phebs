@@ -64,6 +64,15 @@ sequence.
 
 ## Now
 
+**T42.2n session-fixture review correction, 2026-09-17:** the isolated child
+fixture passed focused and complete package normal/race gates. Exact-commit
+review found one low future-rename hole in its child-selector evidence, so the
+child now emits a fixed marker only after all membership assertions and the
+parent requires that marker from the bounded joined output. Corrected focused
+and complete package gates pass. Static/documentation checks, immutable-source
+re-review and the signed native readiness matrix remain open; no seal or
+ceremony follows.
+
 **T42.2n terminal machine-gate continuation, 2026-09-16:** the exact
 `f229374a` command race suite passed. The custody package then failed because
 its membership fixture inspected the inherited Terminal session and received

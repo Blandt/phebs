@@ -3944,3 +3944,15 @@ in [docs/ROADMAP.md](./docs/ROADMAP.md).
   lock/cache, memory/disk and production child costs are unchanged. Fresh
   affected gates and independent review remain required; this correction is
   not a custody-package pass or signed/native readiness acceptance.
+
+- **2026-09-17 — T42.2n session-fixture completion witness.** Independent
+  review of exact `7323c6b8` found one low test-evidence gap: a later test-name
+  drift could make the child selector match nothing while still exiting zero.
+  Require one fixed completion marker written only after all child membership
+  assertions pass, and require the parent to observe it in the already-bounded
+  joined output. The correction adds one tiny test-only write and substring
+  check; it changes no production path, admission bound or custody deadline.
+  Twenty focused normal and ten focused race repetitions pass, followed by the
+  complete `spike/t4013/...` package in 115.356 seconds and its race package in
+  132.860 seconds. Fresh static/documentation gates, an immutable correction
+  commit and exact-source re-review remain required before native readiness.
