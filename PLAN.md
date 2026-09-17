@@ -3972,17 +3972,24 @@ in [docs/ROADMAP.md](./docs/ROADMAP.md).
   target computation and post-mutation capacity/delta checks continue to use
   the current values and fail closed. Ballast allocation drift still refuses.
 
-  This removes two scalar equality comparisons, leaving one on each of the two
-  later fixed target transitions. It adds no read, scan, hash, mutation,
-  timer, retry, lock, child, allocation, event, deadline or admission change;
-  ordinary query/request, sync, startup/restart, retry/no-op and publication
+  The first exact review of `295aa529` was partial because the production file
+  timed out, but it found that final ballast removal still used the same whole-
+  sample comparison after owned `pressure_75` work. Route that third fixed
+  continuation through the same allocation-only guard, and split the regression
+  assertions so capacity and allocation drift failures remain distinguishable.
+  This removes two scalar equality comparisons, leaving one at each of the
+  three fixed continuation/removal preconditions. It adds no read, scan, hash,
+  mutation, timer, retry, lock, child, allocation, event, deadline or admission
+  change. Ordinary query/request, sync, startup/restart, retry/no-op and
+  publication
   paths remain unchanged. Twenty focused normal and ten focused race
-  repetitions pass; the complete pressure selector passes in 75.015 seconds
-  normally and 883.534 seconds under race. One broader package attempt hit its
-  inherited ten-minute alarm during the unchanged full V3 receipt constructor,
-  without an assertion failure, and is not a package pass. Vet, all-package
-  compilation, pinned lint, documentation, glossary, module, formatting, shell
+  repetitions pass; the corrected complete pressure selector passes in 77.761
+  seconds normally and 908.723 seconds under race. One broader package attempt
+  hit its inherited ten-minute alarm during the unchanged full V3 receipt
+  constructor, without an assertion failure, and is not a package pass. Vet,
+  all-package compilation, pinned lint, documentation, glossary, module,
+  formatting, shell
   and whitespace gates pass. Preserve the failed mount and private evidence
   until reviewed disposition; no process survives and no unchanged retry is
-  made. An immutable commit, independent review and a fresh visible-terminal
-  readiness matrix remain required before T42.2n acceptance.
+  made. A corrected immutable commit, complete independent review and a fresh
+  visible-terminal readiness matrix remain required before T42.2n acceptance.

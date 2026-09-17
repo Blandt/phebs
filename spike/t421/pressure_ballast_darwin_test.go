@@ -75,9 +75,13 @@ func TestExecutionPressureBallastSize(t *testing.T) {
 
 func TestExecutionPressureBallastContinuation(t *testing.T) {
 	prior := executionPressureBallastSample{Used: 90 << 30, Available: 6 << 30, Allocated: 40 << 30}
-	if !pressureBallastAllocationUnchanged(prior, executionPressureBallastSample{Used: prior.Used + 4096, Available: prior.Available - 4096, Allocated: prior.Allocated}) ||
-		pressureBallastAllocationUnchanged(prior, executionPressureBallastSample{Used: prior.Used, Available: prior.Available, Allocated: prior.Allocated - 4096}) {
-		t.Fatal("capacity drift was treated as ballast drift")
+	drifted := executionPressureBallastSample{Used: prior.Used + 4096, Available: prior.Available - 4096, Allocated: prior.Allocated}
+	if !pressureBallastAllocationUnchanged(prior, drifted) {
+		t.Fatal("owned capacity drift was treated as ballast drift")
+	}
+	shrunk := executionPressureBallastSample{Used: prior.Used, Available: prior.Available, Allocated: prior.Allocated - 4096}
+	if pressureBallastAllocationUnchanged(prior, shrunk) {
+		t.Fatal("ballast allocation drift was treated as owned capacity drift")
 	}
 }
 

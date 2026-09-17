@@ -13591,19 +13591,24 @@ stopped before the `pressure_75` ballast event. The retained inode never left
 its preceding 45,732,614,144-byte logical/allocated size. The continuation
 guard incorrectly required the entire filesystem-capacity sample to stay
 byte-identical while owned database and lifecycle work continued between
-targets. It now requires only unchanged ballast allocation; all inode/path/
-owner/mode/link/FSID custody, fresh workspace/headroom computation, current
-target arithmetic and post-mutation checks remain exact. Twenty focused normal
-and ten race repetitions pass; the complete pressure selector passes normally
-and under race in 75.015/883.534 seconds. A broader package attempt reached the
+targets. Both later targets and final removal now require only unchanged
+ballast allocation; all inode/path/owner/mode/link/FSID custody, fresh
+workspace/headroom computation, current target arithmetic and post-mutation
+checks remain exact. The new `TestExecutionPressureBallastContinuation`
+regression is included in twenty focused normal and ten race repetitions; the
+corrected complete pressure selector passes normally and under race in
+77.761/908.723 seconds. A broader package attempt reached the
 unchanged full V3 receipt constructor's inherited ten-minute alarm without an
 assertion failure and is not a package pass. Static, all-package compile,
 documentation, glossary, module, formatting, shell and whitespace gates pass.
-Production cost is reduced from three scalar comparisons to one at each of two
-fixed continuations, with no new I/O, lock, timer, retry, child or allocation.
+The first exact review of `295aa529` was partial because the production file
+timed out, but found the same whole-sample guard on final removal and one test
+triage ambiguity; both are corrected. Production cost is reduced from three
+scalar comparisons to one at each of three fixed continuations, with no new
+I/O, lock, timer, retry, child or allocation.
 The failed mount/evidence remains retained, no process survives and no
 unchanged retry occurred. Immutable source, independent review and a fresh
-user-terminal readiness matrix remain open; no acceptance, seal or ceremony
+visible-terminal readiness matrix remain open; no acceptance, seal or ceremony
 follows.
 
 **T42.3 · Scale posture decision and neutral product closure** — independently

@@ -151,7 +151,7 @@ func (b *executionPressureBallast) remove(ctx context.Context, run *ExecutionEpo
 	defer func() { b.failed = retErr != nil }()
 	var err error
 	out.Before, err = b.sample()
-	if err != nil || out.Before != b.last || resizeExecutionPressureBallast(ctx, b.file, out.Before.Allocated, 0) != nil {
+	if err != nil || !pressureBallastAllocationUnchanged(b.last, out.Before) || resizeExecutionPressureBallast(ctx, b.file, out.Before.Allocated, 0) != nil {
 		run.mu.Unlock()
 		return out, errPressureVolume
 	}
@@ -329,7 +329,7 @@ func pressureBallastSize(before executionPressureBallastSample, target PressureT
 }
 
 func pressureBallastAllocationUnchanged(prior, current executionPressureBallastSample) bool {
-	// Owned database work may change volume capacity between targets.
+	// Owned database work may change volume capacity between mutations.
 	return prior.Allocated == current.Allocated
 }
 
