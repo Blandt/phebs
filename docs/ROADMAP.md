@@ -72,18 +72,17 @@ guard had required the whole filesystem-capacity sample to remain identical
 across owned database/lifecycle work. The correction keeps exact ballast and
 inode custody but refreshes `Used/Available` for both later targets and final
 removal while retaining current target/headroom checks. The named continuation
-regression pins capacity drift plus both directions of ballast-allocation drift.
-Two independent-review attempts remain partial because the production file
-timed out; their final-removal, test-triage and symmetric-drift findings are
-corrected. The focused regression passes twenty normal and ten race repetitions;
-the complete pressure selector passes in 77.761/908.723 seconds normally/under
-race, and static/documentation gates pass. Each of three fixed continuation/
-removal checks now
-performs one scalar comparison instead of three, with no new I/O, lock, timer,
-retry, child or allocation. One broader package attempt hit the unchanged full
-V3 receipt constructor's default ten-minute alarm and is not a package pass.
-The failed mount and private evidence remain preserved; no process survives and
-no retry occurred. A
+regression pins capacity drift plus both directions of ballast-allocation
+drift. Two independent-review attempts at `295aa529` remain partial because the
+production file timed out; their final-removal, test-triage and symmetric-drift
+findings are corrected. The focused regression passes twenty normal and ten
+race repetitions; the complete pressure selector passes in 77.761/908.723
+seconds normally/under race, and static/documentation gates pass. Each of three
+fixed continuation/removal checks now performs one scalar comparison instead
+of three, with no new I/O, lock, timer, retry, child or allocation. One broader
+package attempt hit the unchanged full V3 receipt constructor's default
+ten-minute alarm and is not a package pass. The failed mount and private
+evidence remain preserved; no process survives and no retry occurred. A
 corrected immutable commit, complete review and a fresh visible-terminal
 readiness matrix remain before T42.2n acceptance; seal and ceremony stay gated.
 
