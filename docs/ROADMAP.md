@@ -64,6 +64,21 @@ sequence.
 
 ## Now
 
+**T42.2n pressure-continuation correction, 2026-09-17:** exact `03c26e90`
+passed prerequisite gates and exact review, then its signed readiness run
+passed through `pressure_90` and stopped before mutating the `pressure_75`
+ballast. The retained inode stayed at the prior 45,732,614,144-byte size. The
+guard had required the whole filesystem-capacity sample to remain identical
+across owned database/lifecycle work. The correction keeps exact ballast and
+inode custody but refreshes `Used/Available` for the existing target and
+headroom checks. Focused repetitions and the complete pressure selector pass
+normally and under race; static/documentation gates also pass. One broader
+package attempt hit the unchanged full V3 receipt constructor's default
+ten-minute alarm and is not a package pass. The failed mount and private
+evidence remain preserved; no process survives and no retry occurred. Immutable
+review and a fresh visible-terminal readiness matrix remain before T42.2n
+acceptance; seal and ceremony stay gated.
+
 **T42.2n session-fixture review correction, 2026-09-17:** the isolated child
 fixture passed focused and complete package normal/race gates. Exact-commit
 review found one low future-rename hole in its child-selector evidence, so the

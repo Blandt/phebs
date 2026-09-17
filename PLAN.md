@@ -3956,3 +3956,33 @@ in [docs/ROADMAP.md](./docs/ROADMAP.md).
   complete `spike/t4013/...` package in 115.356 seconds and its race package in
   132.860 seconds. Fresh static/documentation gates, an immutable correction
   commit and exact-source re-review remain required before native readiness.
+
+- **2026-09-17 — T42.2n refreshes owned capacity between pressure targets.**
+  Exact reviewed source `03c26e90` passed the complete prerequisite gates and
+  entered signed readiness. It passed preflight through `pressure_90`, then
+  stopped in `pressure_75` after 1.056 seconds before the ballast event. The
+  retained inode stayed at the preceding 45,732,614,144-byte logical and
+  allocated size, so this is a pre-mutation refusal rather than the earlier
+  asynchronous APFS shrink case. The private volume was still running owned
+  SurrealDB and lifecycle work between targets, but the ballast guard required
+  the complete filesystem `Used/Available/Allocated` sample to equal the prior
+  post-mutation sample. Preserve exact inode, path, owner, mode, link, FSID and
+  allocated-block continuity, while accepting refreshed filesystem capacity.
+  The existing fresh workspace sample, remaining-target headroom calculation,
+  target computation and post-mutation capacity/delta checks continue to use
+  the current values and fail closed. Ballast allocation drift still refuses.
+
+  This removes two scalar equality comparisons, leaving one on each of the two
+  later fixed target transitions. It adds no read, scan, hash, mutation,
+  timer, retry, lock, child, allocation, event, deadline or admission change;
+  ordinary query/request, sync, startup/restart, retry/no-op and publication
+  paths remain unchanged. Twenty focused normal and ten focused race
+  repetitions pass; the complete pressure selector passes in 75.015 seconds
+  normally and 883.534 seconds under race. One broader package attempt hit its
+  inherited ten-minute alarm during the unchanged full V3 receipt constructor,
+  without an assertion failure, and is not a package pass. Vet, all-package
+  compilation, pinned lint, documentation, glossary, module, formatting, shell
+  and whitespace gates pass. Preserve the failed mount and private evidence
+  until reviewed disposition; no process survives and no unchanged retry is
+  made. An immutable commit, independent review and a fresh visible-terminal
+  readiness matrix remain required before T42.2n acceptance.

@@ -88,7 +88,7 @@ func (b *executionPressureBallast) nextTarget(ctx context.Context, run *Executio
 	}
 	target := geometry.Targets[b.next]
 	out.Before, err = b.sample()
-	if err != nil || b.next > 0 && out.Before != b.last ||
+	if err != nil || b.next > 0 && !pressureBallastAllocationUnchanged(b.last, out.Before) ||
 		b.next == 0 && (out.Before.Used < geometry.MinimumPrePressureUsedBytes || out.Before.Used > geometry.MaximumPrePressureUsedBytes) {
 		run.mu.Unlock()
 		return out, errPressureVolume
@@ -326,6 +326,11 @@ func pressureBallastSize(before executionPressureBallastSample, target PressureT
 		return 0, errPressureVolume
 	}
 	return size, nil
+}
+
+func pressureBallastAllocationUnchanged(prior, current executionPressureBallastSample) bool {
+	// Owned database work may change volume capacity between targets.
+	return prior.Allocated == current.Allocated
 }
 
 // Forecast only the known ballast change using both measured byte units. Linked
