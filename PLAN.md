@@ -3980,18 +3980,28 @@ in [docs/ROADMAP.md](./docs/ROADMAP.md).
   A second exact review was also partial because the production file timed out;
   its one low test finding adds the symmetric ballast-growth refusal beside the
   existing shrink refusal.
-  This removes two scalar equality comparisons, leaving one at each of the
-  three fixed continuation/removal preconditions. It adds no read, scan, hash,
-  mutation, timer, retry, lock, child, allocation, event, deadline or admission
-  change. Ordinary query/request, sync, startup/restart, retry/no-op and
-  publication paths remain unchanged. Twenty focused normal and ten focused race
+  The first correction replaced the three-field equality at the two later
+  `nextTarget` continuations; the second did the same at final removal. Each of
+  the three sites now compares only `Allocated`: six scalar comparisons are
+  removed in aggregate and three remain. It adds no read, scan, hash, mutation,
+  timer, retry, lock, child, allocation, event, deadline or admission change.
+  Ordinary query/request, sync, startup/restart, retry/no-op and publication
+  paths remain unchanged. Twenty focused normal and ten focused race
   repetitions pass; the corrected complete pressure selector passes in 77.761
-  seconds normally and 908.723 seconds under race. One broader package attempt
-  hit its inherited ten-minute alarm during the unchanged full V3 receipt
-  constructor, without an assertion failure, and is not a package pass. Vet,
+  seconds normally and 908.723 seconds under race. One broader normal package
+  attempt hit its inherited ten-minute alarm during the unchanged full V3
+  receipt constructor, without an assertion failure; its chained race command
+  did not start. The corrected pressure race selector alone exceeds that
+  default alarm, so complete normal/race package gates remain required with an
+  explicit longer allowance. Vet,
   all-package compilation, pinned lint, documentation, glossary, module,
-  formatting, shell and whitespace gates pass. Preserve the failed mount and
-  private evidence until reviewed disposition; no process survives and no
-  unchanged retry is made. A corrected immutable commit, complete independent
-  review and a fresh visible-terminal readiness matrix remain required before
-  T42.2n acceptance.
+  formatting, shell and whitespace gates pass. Preserve private evidence at
+  `/private/tmp/t422-signed-readiness-3045607136`, the clean detached checkout
+  and log root at `/private/tmp/t422-readiness-03c26e90.sXcevi`, and operational
+  custody at `/private/tmp/phebs-t422-3525296018`; `/dev/disk5s1` remains
+  mounted at
+  `/private/tmp/phebs-t422-3525296018/t422-pressure-3601212463/mount`.
+  No matching process
+  survives and no unchanged retry is made. A corrected immutable commit,
+  complete independent review, the longer-allowance package gates and a fresh
+  visible-terminal readiness matrix remain required before T42.2n acceptance.

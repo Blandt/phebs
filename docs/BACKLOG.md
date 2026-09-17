@@ -13597,21 +13597,27 @@ workspace/headroom computation, current target arithmetic and post-mutation
 checks remain exact. The new `TestExecutionPressureBallastContinuation`
 regression is included in twenty focused normal and ten race repetitions; the
 corrected complete pressure selector passes normally and under race in
-77.761/908.723 seconds. A broader package attempt reached the
-unchanged full V3 receipt constructor's inherited ten-minute alarm without an
-assertion failure and is not a package pass. Static, all-package compile,
+77.761/908.723 seconds. A broader normal package attempt reached the unchanged
+full V3 receipt constructor's inherited ten-minute alarm without an assertion
+failure; the chained race command did not start. Because the pressure race
+selector alone exceeds that default alarm, complete normal/race package gates
+remain open under an explicit longer allowance. Static, all-package compile,
 documentation, glossary, module, formatting, shell and whitespace gates pass.
 The first exact review of `295aa529` was partial because the production file
 timed out, but found the same whole-sample guard on final removal and one test
 triage ambiguity; both are corrected. A second partial review again timed out
 on production and found one low missing growth-direction assertion; the
-regression now refuses both ballast shrink and growth drift. Production cost
-is reduced from three scalar comparisons to one at each of three fixed
-continuations, with no new I/O, lock, timer, retry, child or allocation. The
-failed mount/evidence remains retained, no process survives and no unchanged
-retry occurred. Immutable source, independent review and a fresh
-visible-terminal readiness matrix remain open alongside the incomplete broader
-package normal/race gate; no acceptance, seal or ceremony follows.
+regression now refuses both ballast shrink and growth drift. Each of three
+sites replaces a three-field equality with one allocation equality: six scalar
+comparisons are removed and three remain, with no new I/O, lock, timer, retry,
+child or allocation. Evidence, checkout/log and operational roots remain at
+`/private/tmp/t422-signed-readiness-3045607136`,
+`/private/tmp/t422-readiness-03c26e90.sXcevi`, and
+`/private/tmp/phebs-t422-3525296018`; `/dev/disk5s1` remains mounted at
+`/private/tmp/phebs-t422-3525296018/t422-pressure-3601212463/mount`. No process
+survives and no unchanged retry occurred. Immutable source, independent review,
+the longer-allowance package gates and a fresh visible-terminal readiness matrix
+remain open; no acceptance, seal or ceremony follows.
 
 **T42.3 · Scale posture decision and neutral product closure** — independently
 review the T42.2 receipt, replay representative All code → service →
