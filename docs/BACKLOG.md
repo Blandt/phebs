@@ -13610,7 +13610,7 @@ on production and found one low missing growth-direction assertion; the
 regression now refuses both ballast shrink and growth drift. Each of three
 sites replaces a three-field equality with one `Allocated` equality: six
 scalar comparisons are removed and three remain, with no new I/O, lock, timer,
-retry, child or memory allocation. The evidence root is
+retry, child or memory allocation. The retained evidence root is
 `/private/tmp/t422-signed-readiness-3045607136`; checkout/log custody is
 `/private/tmp/t422-readiness-03c26e90.sXcevi`; operational custody is
 `/private/tmp/phebs-t422-3525296018`. `/dev/disk5s1` remains mounted at
