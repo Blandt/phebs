@@ -3993,15 +3993,15 @@ in [docs/ROADMAP.md](./docs/ROADMAP.md).
   receipt constructor, without an assertion failure; its chained race command
   did not start. The corrected pressure race selector alone exceeds that
   default alarm, so complete normal/race package gates remain required with an
-  explicit longer allowance. Vet,
-  all-package compilation, pinned lint, documentation, glossary, module,
-  formatting, shell and whitespace gates pass. Preserve private evidence at
+  explicit longer allowance. Vet, all-package compilation, pinned lint,
+  documentation, glossary, module, formatting, shell and whitespace gates
+  pass. Preserve private evidence at
   `/private/tmp/t422-signed-readiness-3045607136`, the clean detached checkout
   and log root at `/private/tmp/t422-readiness-03c26e90.sXcevi`, and operational
-  custody at `/private/tmp/phebs-t422-3525296018`; `/dev/disk5s1` remains
+  custody at `/private/tmp/phebs-t422-3525296018`. `/dev/disk5s1` remains
   mounted at
-  `/private/tmp/phebs-t422-3525296018/t422-pressure-3601212463/mount`.
-  No matching process
-  survives and no unchanged retry is made. A corrected immutable commit,
-  complete independent review, the longer-allowance package gates and a fresh
-  visible-terminal readiness matrix remain required before T42.2n acceptance.
+  `/private/tmp/phebs-t422-3525296018/t422-pressure-3601212463/mount`. No
+  matching process survives and no unchanged retry is made. A corrected
+  immutable commit, complete independent review, the longer-allowance package
+  gates and a fresh visible-terminal readiness matrix remain required before
+  T42.2n acceptance.

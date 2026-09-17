@@ -87,10 +87,9 @@ pressure race selector alone exceeds that default. Exact retained roots are
 `/private/tmp/t422-readiness-03c26e90.sXcevi`, and
 `/private/tmp/phebs-t422-3525296018`; `/dev/disk5s1` remains mounted at
 `/private/tmp/phebs-t422-3525296018/t422-pressure-3601212463/mount`, and no
-process survives. A
-corrected immutable commit, complete review, longer-allowance package gates and
-a fresh visible-terminal readiness matrix remain before T42.2n acceptance;
-seal and ceremony stay gated.
+process survives. A corrected immutable commit, complete review,
+longer-allowance package gates and a fresh visible-terminal readiness matrix
+remain before T42.2n acceptance; seal and ceremony stay gated.
 
 **T42.2n session-fixture review correction, 2026-09-17:** the isolated child
 fixture passed focused and complete package normal/race gates. Exact-commit
