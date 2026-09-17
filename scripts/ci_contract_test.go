@@ -121,3 +121,59 @@ func TestCIContractPinsToolsAndNamedGates(t *testing.T) {
 		}
 	}
 }
+
+// TestReceiptFixtureStagingContract pins the R3 hardening of the receipt
+// fixture staging path: the workflow must check the staging output before
+// eval (so a failed staging run fails the step instead of silently
+// succeeding on empty output), must invoke the script via `sh` (so the
+// step does not depend on the executable bit surviving the push), and must
+// run the staging regression tests in the static job. The staging script
+// itself must refuse symlinks/foreign owners at the shared fixture root
+// and destinations, reuse identical bytes, never overwrite differing
+// bytes in place, and publish new bundles via temp-file plus rename.
+func TestReceiptFixtureStagingContract(t *testing.T) {
+	root := filepath.Clean("..")
+
+	workflowBytes, err := os.ReadFile(filepath.Join(root, ".github", "workflows", "ci.yml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	workflow := string(workflowBytes)
+	if !strings.Contains(workflow, `receipt_env="$(sh scripts/stage-receipt-fixtures.sh --env)" || exit 1`) {
+		t.Error("workflow must capture the staging output and check it before eval")
+	}
+	if !strings.Contains(workflow, "eval \"$receipt_env\"") {
+		t.Error("workflow must eval the checked staging output")
+	}
+	if strings.Contains(workflow, `eval "$(scripts/stage-receipt-fixtures.sh --env)"`) {
+		t.Error("workflow still contains the unchecked eval that masked staging failures")
+	}
+	if !strings.Contains(workflow, "sh scripts/test-stage-receipt-fixtures.sh") {
+		t.Error("workflow must run the receipt fixture staging regression tests")
+	}
+
+	scriptBytes, err := os.ReadFile(filepath.Join(root, "scripts", "stage-receipt-fixtures.sh"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	script := string(scriptBytes)
+	for _, required := range []string{
+		`mktemp "$fixture_root/.stage-bundle-XXXXXX"`,
+		`cmp -s "$src" "$dst"`,
+		"is a symlink",
+		"not owned by",
+		"refusing to overwrite in place",
+		`mv "$tmp" "$dst"`,
+	} {
+		if !strings.Contains(script, required) {
+			t.Errorf("staging script is missing safety property %q", required)
+		}
+	}
+	if strings.Contains(script, "mkdir -p \"$fixture_root\"") {
+		t.Error("staging script must not mkdir -p the shared fixture root (it would follow a planted symlink)")
+	}
+
+	if _, err := os.Stat(filepath.Join(root, "scripts", "test-stage-receipt-fixtures.sh")); err != nil {
+		t.Errorf("staging regression test script is missing: %v", err)
+	}
+}

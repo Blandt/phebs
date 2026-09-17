@@ -30,6 +30,8 @@ jobs:
         with:
           version-file: .golangci-lint-version
           install-only: true
+      - name: Run receipt fixture staging regression tests
+        run: sh scripts/test-stage-receipt-fixtures.sh
       - name: Verify exact tools and run static gate
         run: make ci-static
 
@@ -53,7 +55,7 @@ jobs:
   race:
     name: Go concurrency race
     runs-on: ubuntu-latest
-    timeout-minutes: 50
+    timeout-minutes: 70
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -87,6 +89,106 @@ jobs:
           cache-dependency-path: go.sum
       - name: Run UI and embedded-build gate
         run: make ci-ui
+
+  screenshots:
+    name: Playwright screenshot receipts
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .node-version
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+          package-manager-cache: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: .go-version
+          cache-dependency-path: go.sum
+      - name: Install pinned SurrealDB
+        run: sh scripts/install-surreal-ci.sh "$RUNNER_TEMP"
+      - name: Boot dev instance and run screenshot receipts
+        env:
+          PHEBS_RECEIPT_EMAIL: ci-receipts@localhost.test
+        run: |
+          set -euo pipefail
+          set -m
+          # Ephemeral bootstrap operator: the receipt setup project needs one
+          # real login. The harness pins the neutral presentation identity on
+          # every captured page (ui/receipts/fixture.ts), so this address
+          # never reaches the pixels. Neutral-demo repository identities are
+          # receipt-environment-bound: the staging step below copies the
+          # bundles to the fixed fixture root (ui/receipts/fixtureRoot.ts)
+          # and make dev honors those paths, so the booted instance derives
+          # the same `local/...` names the routes address and the reviewed
+          # baselines pin — on any checkout path, on any machine.
+          PHEBS_RECEIPT_PASSWORD="$(openssl rand -hex 16)"
+          export PHEBS_RECEIPT_PASSWORD
+          printf '::add-mask::%s\n' "$PHEBS_RECEIPT_PASSWORD"
+          # Credential-bearing config: create it owner-only. The default
+          # umask 022 would leave it 0644, and the config-permissions guard
+          # refuses group/world-readable configs, which would fail the
+          # readiness loop below.
+          umask 077
+          receipts_config="$RUNNER_TEMP/phebs-ci-receipts.yaml"
+          cat > "$receipts_config" <<EOF
+          # CI copy of phebs-ux-dev.yaml: same neutral cohorts, a per-run
+          # data dir, and an ephemeral bootstrap operator for receipt auth.
+          connections:
+            - name: zoekt
+              type: git
+              url: https://github.com/sourcegraph/zoekt.git
+          server:
+            addr: "127.0.0.1:3073"
+            data_dir: "$RUNNER_TEMP/phebs-ci-receipts-data"
+          auth:
+            bootstrap_user:
+              email: ci-receipts@localhost.test
+              display_name: CI Receipts
+              password: "$PHEBS_RECEIPT_PASSWORD"
+          EOF
+          # Deterministic receipt fixture identities: stage the neutral-demo
+          # bundles at the fixed fixture root and point the dev instance at
+          # them. make dev honors these pre-set fixture paths.
+          # Capture the staging output and CHECK it before eval: a failed
+          # staging run must fail the step here, before make dev starts
+          # (eval of a failed command substitution's empty output would
+          # otherwise succeed silently). Invoked via `sh` so the step does
+          # not depend on the script's executable bit surviving the push.
+          receipt_env="$(sh scripts/stage-receipt-fixtures.sh --env)" || exit 1
+          eval "$receipt_env"
+          # make dev builds the server, its index children, and the embedded
+          # UI, then serves with the neutral demo fixtures the receipts pin.
+          make dev ARGS="-config $receipts_config" >"$RUNNER_TEMP/phebs-dev.log" 2>&1 &
+          server_pid=$!
+          trap 'kill -- -"$server_pid" 2>/dev/null || true' EXIT
+          for _ in $(seq 1 120); do
+            if curl -fsS http://127.0.0.1:3073/api/version >/dev/null 2>&1; then
+              break
+            fi
+            sleep 5
+          done
+          curl -fsS http://127.0.0.1:3073/api/version >/dev/null
+          make ui-receipts
+      - name: Retain dev log and screenshot diffs on failure
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: playwright-receipts
+          path: |
+            ${{ runner.temp }}/phebs-dev.log
+            ui/receipts/.artifacts
+          # Playwright writes screenshot output under the hidden
+          # ui/receipts/.artifacts directory; without this the pinned
+          # upload action's default hidden-file exclusion would upload the
+          # dev log while silently omitting every expected/actual/diff PNG.
+          include-hidden-files: true
+          if-no-files-found: warn
+          retention-days: 7
+          compression-level: 0
 
   release:
     name: Release bundle and fresh-data smoke
