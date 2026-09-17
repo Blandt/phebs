@@ -13610,8 +13610,8 @@ is reduced from three scalar comparisons to one at each of three fixed
 continuations, with no new I/O, lock, timer, retry, child or allocation. The
 failed mount/evidence remains retained, no process survives and no unchanged
 retry occurred. Immutable source, independent review and a fresh
-visible-terminal readiness matrix remain open; no acceptance, seal or ceremony
-follows.
+visible-terminal readiness matrix remain open alongside the incomplete broader
+package normal/race gate; no acceptance, seal or ceremony follows.
 
 **T42.3 · Scale posture decision and neutral product closure** — independently
 review the T42.2 receipt, replay representative All code → service →
