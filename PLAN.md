@@ -3977,19 +3977,21 @@ in [docs/ROADMAP.md](./docs/ROADMAP.md).
   sample comparison after owned `pressure_75` work. Route that third fixed
   continuation through the same allocation-only guard, and split the regression
   assertions so capacity and allocation drift failures remain distinguishable.
+  A second exact review was also partial because the production file timed out;
+  its one low test finding adds the symmetric ballast-growth refusal beside the
+  existing shrink refusal.
   This removes two scalar equality comparisons, leaving one at each of the
   three fixed continuation/removal preconditions. It adds no read, scan, hash,
   mutation, timer, retry, lock, child, allocation, event, deadline or admission
   change. Ordinary query/request, sync, startup/restart, retry/no-op and
-  publication
-  paths remain unchanged. Twenty focused normal and ten focused race
+  publication paths remain unchanged. Twenty focused normal and ten focused race
   repetitions pass; the corrected complete pressure selector passes in 77.761
   seconds normally and 908.723 seconds under race. One broader package attempt
   hit its inherited ten-minute alarm during the unchanged full V3 receipt
   constructor, without an assertion failure, and is not a package pass. Vet,
   all-package compilation, pinned lint, documentation, glossary, module,
-  formatting, shell
-  and whitespace gates pass. Preserve the failed mount and private evidence
-  until reviewed disposition; no process survives and no unchanged retry is
-  made. A corrected immutable commit, complete independent review and a fresh
-  visible-terminal readiness matrix remain required before T42.2n acceptance.
+  formatting, shell and whitespace gates pass. Preserve the failed mount and
+  private evidence until reviewed disposition; no process survives and no
+  unchanged retry is made. A corrected immutable commit, complete independent
+  review and a fresh visible-terminal readiness matrix remain required before
+  T42.2n acceptance.

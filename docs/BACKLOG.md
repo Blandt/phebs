@@ -13603,11 +13603,13 @@ assertion failure and is not a package pass. Static, all-package compile,
 documentation, glossary, module, formatting, shell and whitespace gates pass.
 The first exact review of `295aa529` was partial because the production file
 timed out, but found the same whole-sample guard on final removal and one test
-triage ambiguity; both are corrected. Production cost is reduced from three
-scalar comparisons to one at each of three fixed continuations, with no new
-I/O, lock, timer, retry, child or allocation.
-The failed mount/evidence remains retained, no process survives and no
-unchanged retry occurred. Immutable source, independent review and a fresh
+triage ambiguity; both are corrected. A second partial review again timed out
+on production and found one low missing growth-direction assertion; the
+regression now refuses both ballast shrink and growth drift. Production cost
+is reduced from three scalar comparisons to one at each of three fixed
+continuations, with no new I/O, lock, timer, retry, child or allocation. The
+failed mount/evidence remains retained, no process survives and no unchanged
+retry occurred. Immutable source, independent review and a fresh
 visible-terminal readiness matrix remain open; no acceptance, seal or ceremony
 follows.
 

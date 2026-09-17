@@ -83,6 +83,10 @@ func TestExecutionPressureBallastContinuation(t *testing.T) {
 	if pressureBallastAllocationUnchanged(prior, shrunk) {
 		t.Fatal("ballast allocation drift was treated as owned capacity drift")
 	}
+	grown := executionPressureBallastSample{Used: prior.Used, Available: prior.Available, Allocated: prior.Allocated + 4096}
+	if pressureBallastAllocationUnchanged(prior, grown) {
+		t.Fatal("ballast allocation growth was treated as owned capacity drift")
+	}
 }
 
 func TestExecutionPressureBallastSettlement(t *testing.T) {
