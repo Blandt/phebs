@@ -102,20 +102,17 @@ func (c *rawTestChild) stop() {
 		case <-c.done:
 		case <-time.After(c.grace):
 			_ = c.cmd.Process.Kill()
-			select {
-			case <-c.done:
-			case <-time.After(c.grace):
-			}
+			<-c.done
 		}
 	})
 }
 
-// waitResult joins the Wait goroutine and returns the child's exit result
-// plus its fully-copied captured output. Call only after the child has been
+// waitResult joins the Wait goroutine and returns its fully-copied captured
+// output plus the child's exit result. Call only after the child has been
 // asked to stop; otherwise it blocks until the registered cleanup stops it.
-func (c *rawTestChild) waitResult() (waitErr error, output string) {
+func (c *rawTestChild) waitResult() (output string, waitErr error) {
 	c.await()
-	return c.waitErr, c.output.String()
+	return c.output.String(), c.waitErr
 }
 
 // waitTestChildHealthy polls the loopback /health endpoint until timeout.
@@ -285,11 +282,11 @@ func TestOpenLocalUpgradesLegacyRootDatabase(t *testing.T) {
 		child.stop()
 		// Output is read only after the Wait goroutine is joined: exec's
 		// output-copying goroutines finish before Wait returns.
-		_, output := child.waitResult()
+		output, _ := child.waitResult()
 		t.Fatalf("legacy child never became healthy: %s", output)
 	}
 	child.stop()
-	if waitErr, output := child.waitResult(); waitErr != nil {
+	if output, waitErr := child.waitResult(); waitErr != nil {
 		t.Fatalf("legacy child exit: %v\n%s", waitErr, output)
 	}
 
@@ -376,7 +373,7 @@ func TestRawChildUnhealthyBootstrapStopsChild(t *testing.T) {
 		t.Fatal("health probe against an unbound port succeeded; want failure")
 	}
 	child.stop()
-	if waitErr, output := child.waitResult(); waitErr != nil {
+	if output, waitErr := child.waitResult(); waitErr != nil {
 		t.Fatalf("child exit: %v\n%s", waitErr, output)
 	}
 	assertNoChildMatching(t, engineArg)
@@ -400,7 +397,7 @@ func TestRawChildShutdownIgnoringChildIsKilled(t *testing.T) {
 	child := startRawTestChild(t, cmd, 2*time.Second)
 	assertChildMatching(t, marker)
 	child.stop()
-	waitErr, _ := child.waitResult()
+	_, waitErr := child.waitResult()
 	if waitErr == nil {
 		t.Fatal("shutdown-ignoring child exited cleanly; want a kill")
 	}

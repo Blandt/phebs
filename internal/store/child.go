@@ -349,27 +349,35 @@ func surrealKVDataDir(engine string) string {
 	return filepath.Dir(rest)
 }
 
-// legacyRootDatabase reports whether dataDir already holds a SurrealKV
-// database. Such databases were initialized with the historical root/root
-// credential, which SurrealDB never rotates; the first start under the new
-// binding keeps that password instead of generating one that could never
-// sign in.
-func legacyRootDatabase(dataDir string) bool {
-	info, err := os.Stat(filepath.Join(dataDir, "db"))
-	return err == nil && info.IsDir()
-}
-
 // dbDirHasNoEntries reports whether dataDir's database directory holds no
 // entries at all. An empty directory is proven uninitialized, so startup
 // may safely initialize it with a freshly published credential. Any entry
 // may belong to a database initialized with an unknown password, so a
 // non-empty directory never proves freshness.
 func dbDirHasNoEntries(dataDir string) (bool, error) {
-	entries, err := os.ReadDir(filepath.Join(dataDir, "db"))
+	path := filepath.Join(dataDir, "db")
+	info, err := os.Lstat(path)
 	if err != nil {
 		return false, fmt.Errorf("inspect database directory: %w", err)
 	}
-	return len(entries) == 0, nil
+	if !info.IsDir() {
+		return false, errors.New("database path is not a directory")
+	}
+	dir, err := os.Open(path)
+	if err != nil {
+		return false, fmt.Errorf("inspect database directory: %w", err)
+	}
+	defer func() { _ = dir.Close() }()
+	// Only emptiness matters; do not inventory and sort the entire directory
+	// while holding the credential lock.
+	_, err = dir.Readdirnames(1)
+	if errors.Is(err, io.EOF) {
+		return true, nil
+	}
+	if err != nil {
+		return false, fmt.Errorf("inspect database directory entry: %w", err)
+	}
+	return false, nil
 }
 
 // childPassLockName is the stable per-data-directory lock serializing every
@@ -489,22 +497,15 @@ func resolveChildPass(ctx context.Context, dataDir string) (string, error) {
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return "", err
 	}
-	if legacyRootDatabase(dataDir) {
-		// An empty database directory is proven uninitialized: SurrealDB
-		// has no root user yet and would initialize one with the startup
-		// password, so it takes the fresh path below — the password is
-		// persisted under this same lock before the child may start it,
-		// and is never discarded. A missing password file on a directory
-		// with any content never proves a legacy database: the credential
-		// may have been lost out of band. Refuse to guess; the caller
-		// verifies the historical root password by signing in.
-		empty, err := dbDirHasNoEntries(dataDir)
-		if err != nil {
-			return "", err
-		}
-		if !empty {
-			return "", errChildPassLegacyVerify
-		}
+	empty, err := dbDirHasNoEntries(dataDir)
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return "", err
+	}
+	if err == nil && !empty {
+		// Directory entries prove neither an initialized root nor legacy
+		// credentials. The caller must probe without supplying credentials
+		// that could initialize a new root.
+		return "", errChildPassLegacyVerify
 	}
 	pass, err := newSurrealChildPass()
 	if err != nil {
@@ -761,6 +762,24 @@ func setChildProcessOwner(lookup func() (*storeCallOwner, error)) func() {
 	return func() { childProcessOwner = previous }
 }
 
+// legacyChildCommand omits every credential-initialization input. With auth
+// enabled, an existing root can sign in but a rootless database cannot acquire
+// a throwaway root. Ignore ambient Surreal startup controls for this probe,
+// especially USER/PASS, UNAUTHENTICATED, IMPORT_FILE and default namespace/db.
+// Successful legacy verification retains this same ordinary child.
+func legacyChildCommand(ctx context.Context, binary, addr, engine string) *exec.Cmd {
+	cmd := exec.CommandContext(ctx, binary, "start", "--bind", addr,
+		"--no-defaults", "--log", "warn", engine)
+	environment := os.Environ()
+	cmd.Env = make([]string, 0, len(environment))
+	for _, entry := range environment {
+		if !strings.HasPrefix(entry, "SURREAL_") {
+			cmd.Env = append(cmd.Env, entry)
+		}
+	}
+	return cmd
+}
+
 func startOwnedEngine(ctx context.Context, engine string) (runtime LocalRuntime, owned *localEngine, err error) {
 	identity, err := findSurrealBinary(true)
 	if err != nil {
@@ -809,23 +828,23 @@ func startOwnedEngine(ctx context.Context, engine string) (runtime LocalRuntime,
 		if owner != nil {
 			return LocalRuntime{}, nil, errLegacyVerifySelectedOwner
 		}
-		// The database predates the password binding, or its credential was
-		// lost out of band: a missing password file alone proves neither.
-		// Start the child with a throwaway password — SurrealDB ignores it
-		// for an existing database — and verify the historical root password
-		// by signing in before any credential is persisted or returned.
-		if pass, err = newSurrealChildPass(); err != nil {
-			return LocalRuntime{}, nil, err
-		}
 	}
 	cmdCtx := context.WithoutCancel(ctx)
 	cmd := exec.CommandContext(cmdCtx, identity.Path, surrealChildArgs(addr, engine)...)
 	cmd.Env = append(os.Environ(), dispatchadmission.SurrealPassEnvKey+"="+pass)
+	extraEnv := []string{dispatchadmission.SurrealPassEnvKey + "=" + pass}
+	if legacyVerify {
+		cmd = legacyChildCommand(cmdCtx, identity.Path, addr, engine)
+		extraEnv = nil
+		// Ordinary dispatch accepts the already-sanitized command. Every
+		// installed exact runtime refuses a credential-free engine start,
+		// even if it has no SDK owner; its admission contract is unchanged.
+	}
 	cmd.Stderr = os.Stderr
 	cmd.Cancel = func() error { return cmd.Process.Signal(os.Interrupt) }
 	handle, err := dispatchadmission.StartProductionWithEnv(
 		ctx, dispatchadmission.SiteSurrealEngine, cmd,
-		[]string{dispatchadmission.SurrealPassEnvKey + "=" + pass},
+		extraEnv,
 	)
 	if err != nil {
 		return LocalRuntime{}, nil, fmt.Errorf("start surreal child: %w", err)

@@ -137,13 +137,28 @@ func TestProductionBootstrapHelper(t *testing.T) {
 		site = 999
 	case "compatibility":
 		site = SiteCompatibilitySandbox
+	case "surreal-no-credential":
+		command = exec.CommandContext(ctx, ProductionTool("surreal"), "-c", "exit 47")
+		site = SiteSurrealEngine
+		if owner, err := ProcessStoreOwner(); err != nil || owner != nil {
+			t.Fatal("fixture must have an installed runtime without an SDK owner")
+		}
 	case "healthy", "check-refused", "zero-budget":
 	default:
 		t.Fatal("unknown helper mode")
 	}
 	if mode != "healthy" {
-		if _, err := StartProduction(ctx, site, command); err == nil {
+		var err error
+		if mode == "surreal-no-credential" {
+			_, err = StartProductionWithEnv(ctx, site, command, nil)
+		} else {
+			_, err = StartProduction(ctx, site, command)
+		}
+		if err == nil {
 			t.Fatal("invalid command started")
+		}
+		if mode == "surreal-no-credential" && command.Process != nil {
+			t.Fatal("credential-free engine launched in an admitted lifetime")
 		}
 		if err := lifetime.Close(ctx); err == nil {
 			t.Fatal("failed producer closed successfully")
@@ -257,7 +272,7 @@ func productionHelperFinish(t *testing.T, ctx context.Context, lifetime *Product
 }
 
 func TestProductionBootstrapInheritedBoundary(t *testing.T) {
-	for _, mode := range []string{"healthy", "author", "semantic", "wrong-path", "wrong-argv0", "extra-files", "unknown-site", "compatibility", "check-refused", "zero-budget", "output-overflow"} {
+	for _, mode := range []string{"healthy", "author", "semantic", "wrong-path", "wrong-argv0", "extra-files", "unknown-site", "compatibility", "surreal-no-credential", "check-refused", "zero-budget", "output-overflow"} {
 		t.Run(mode, func(t *testing.T) {
 			ctx, cancel := context.WithTimeout(t.Context(), 15*time.Second)
 			defer cancel()

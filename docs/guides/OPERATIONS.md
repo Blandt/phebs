@@ -1370,18 +1370,27 @@ For a cold restore, place the copied `db/` and its matching
 applies.
 
 The password file is not optional. A restore without it, or with another
-database's file, fails authentication at startup and the database stays
-closed: the failed open modifies neither the database nor any persisted
-credential, and no replacement password is minted or accepted. If the
+database's file, fails authentication before phebs opens its store. No root
+credential is created or rotated, no persisted credential is replaced, and
+no phebs schema or application write runs before successful sign-in. Starting
+the engine can still update its storage housekeeping files; this is not a
+byte-for-byte read-only inspection. If the
 original directory is gone and its password file was not preserved, that
 database cannot be opened again — do not delete the file and do not generate
 a replacement password expecting it to work. Recover from the online backup
 instead, or re-enroll into a fresh data directory. An empty `db/` directory
 is the one exception: with no initialized database inside, the next start
-treats it as a fresh database and persists a new root credential for it. A
-legacy database
-(initialized with the old root/root credential) has no password file to
-lose; its restore still opens with the historical root password.
+treats it as a fresh database and persists a new root credential for it.
+A nonempty directory without a password file is ambiguous, even if its only
+entry is unrelated to SurrealDB. Ordinary startup probes with authentication
+enabled, no root-initialization credentials, and no automatic namespace or
+database defaults. This legacy probe ignores inherited `SURREAL_*` settings
+(including import files and authentication overrides). It persists the
+historical root password only after an actual successful sign-in to a legacy
+root/root database. A rootless or unknown-password database refuses startup
+without minting an inaccessible root or guessing a replacement password.
+Selected-owner execution refuses this legacy migration before the database
+child starts; perform any verified legacy migration in ordinary mode first.
 
 The online logical path is different and stays separate: `phebs restore`
 imports the exported SurrealQL into a fresh target database that receives its

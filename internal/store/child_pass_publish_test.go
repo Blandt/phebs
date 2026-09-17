@@ -33,7 +33,7 @@ func TestResolveChildPassVolatileEngineSkipsLock(t *testing.T) {
 
 func TestResolveChildPassRejectsNilContext(t *testing.T) {
 	t.Parallel()
-	if _, err := resolveChildPass(nil, t.TempDir()); err == nil {
+	if _, err := resolveChildPass(nil, t.TempDir()); err == nil { //nolint:staticcheck // Deliberate nil-context input verifies refusal.
 		t.Fatal("resolveChildPass with nil context succeeded")
 	}
 }
@@ -490,12 +490,12 @@ func (c *rawSurrealChildForTest) await() {
 	})
 }
 
-// waitResult joins the Wait goroutine and returns the child's exit result
-// plus its fully-copied captured output. Call only after the child has been
+// waitResult joins the Wait goroutine and returns its fully-copied captured
+// output plus the child's exit result. Call only after the child has been
 // asked to stop; otherwise it blocks until the registered cleanup stops it.
-func (c *rawSurrealChildForTest) waitResult() (waitErr error, output string) {
+func (c *rawSurrealChildForTest) waitResult() (output string, waitErr error) {
 	c.await()
-	return c.waitErr, c.output.String()
+	return c.output.String(), c.waitErr
 }
 
 // stop is the single unconditional cleanup owner: request shutdown, wait a
@@ -510,10 +510,9 @@ func (c *rawSurrealChildForTest) stop() {
 		case <-c.done:
 		case <-time.After(c.grace):
 			_ = c.cmd.Process.Kill()
-			select {
-			case <-c.done:
-			case <-time.After(c.grace):
-			}
+			// Cleanup cannot release the database directory before Wait has
+			// joined, even if shutdown outlives the grace period.
+			<-c.done
 		}
 	})
 }
@@ -577,7 +576,7 @@ func startRawSurrealForTest(t *testing.T, binary, dbPath, pass string) (stop fun
 		child.stop()
 		// Output is read only after the Wait goroutine is joined: exec's
 		// output-copying goroutines finish before Wait returns.
-		_, output := child.waitResult()
+		output, _ := child.waitResult()
 		t.Fatalf("raw surreal child never became healthy: %s", output)
 	}
 	return child.stop
@@ -749,9 +748,9 @@ func TestResolveChildPassDatabaseDirectoryEmptiness(t *testing.T) {
 // TestStartOwnedEngineEmptyDatabaseDirectoryInitializesFresh is the
 // real-engine regression for the discarded-throwaway defect: a precreated
 // but empty db/ directory opens cleanly with a persisted fresh credential
-// (not the legacy root password), and an interrupted initialization — the
-// child hard-killed mid-flight — converges on restart using the same
-// persisted credential instead of failing auth again.
+// (not the legacy root password), and a hard kill after healthy startup
+// converges on restart using the same persisted credential. It does not
+// inject an interruption before database initialization completes.
 func TestStartOwnedEngineEmptyDatabaseDirectoryInitializesFresh(t *testing.T) {
 	binary := surrealTestBinary(t)
 	t.Setenv("PHEBS_SURREAL", binary)
@@ -765,6 +764,9 @@ func TestStartOwnedEngineEmptyDatabaseDirectoryInitializesFresh(t *testing.T) {
 	}
 
 	runtime, engine, err := startOwnedEngine(ctx, "surrealkv:"+dbPath)
+	if engine != nil {
+		t.Cleanup(engine.stop)
+	}
 	if err != nil {
 		t.Fatalf("startOwnedEngine on empty database directory: %v", err)
 	}
@@ -778,18 +780,20 @@ func TestStartOwnedEngineEmptyDatabaseDirectoryInitializesFresh(t *testing.T) {
 	if persisted != runtime.Pass {
 		t.Fatal("empty-database startup did not persist the credential it used")
 	}
-	// Interrupt the initialization with a hard kill instead of a graceful
-	// stop: the restart must converge on the persisted credential.
+	// Hard-kill the healthy child instead of stopping it gracefully: the
+	// restart must converge on the persisted credential.
 	if err := engine.process.Kill(); err != nil {
 		t.Fatalf("kill child: %v", err)
 	}
 	engine.stop()
 
 	runtime, engine, err = startOwnedEngine(ctx, "surrealkv:"+dbPath)
-	if err != nil {
-		t.Fatalf("startOwnedEngine after interrupted initialization: %v", err)
+	if engine != nil {
+		t.Cleanup(engine.stop)
 	}
-	defer engine.stop()
+	if err != nil {
+		t.Fatalf("startOwnedEngine after healthy-start hard kill: %v", err)
+	}
 	if runtime.Pass != persisted {
 		t.Fatalf("restart password = %q, want the persisted credential %q", runtime.Pass, persisted)
 	}
@@ -820,7 +824,10 @@ func TestStartOwnedEngineRefusesLegacyVerifyInSelectedOwnerMode(t *testing.T) {
 	restore := setChildProcessOwner(func() (*storeCallOwner, error) { return &storeCallOwner{}, nil })
 	defer restore()
 
-	_, _, err := startOwnedEngine(ctx, "surrealkv:"+dbPath)
+	_, engine, err := startOwnedEngine(ctx, "surrealkv:"+dbPath)
+	if engine != nil {
+		t.Cleanup(engine.stop)
+	}
 	if !errors.Is(err, errLegacyVerifySelectedOwner) {
 		t.Fatalf("startOwnedEngine error = %v, want selected-owner legacy refusal", err)
 	}
