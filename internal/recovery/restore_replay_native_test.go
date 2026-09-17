@@ -51,7 +51,7 @@ func TestRestoreReplayNativeFreshScope(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		request.SetBasicAuth("root", "root")
+		request.SetBasicAuth("root", runtime.Pass)
 		request.Header.Set("Accept", "application/json")
 		if definition == "DATABASE" {
 			request.Header.Set("Surreal-NS", "phebs")
@@ -75,7 +75,7 @@ func TestRestoreReplayNativeFreshScope(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	request.SetBasicAuth("root", "root")
+	request.SetBasicAuth("root", runtime.Pass)
 	request.Header.Set("Surreal-NS", "phebs")
 	request.Header.Set("Surreal-DB", "phebs")
 	request.Header.Set("Accept", "application/json")
@@ -128,7 +128,7 @@ func TestRestoreReplayNativeOwnedExport(t *testing.T) {
 	if runtime.Surreal.Version != "3.2.0" {
 		t.Fatal("unproven native replay engine")
 	}
-	if err := executeRestoreReplay(ctx, prepared, target, runtime.Endpoint, DatabaseIdentity{Namespace: "phebs", Database: "phebs"}, nil); err != nil {
+	if err := executeRestoreReplay(ctx, prepared, target, runtime.Endpoint, runtime.Pass, DatabaseIdentity{Namespace: "phebs", Database: "phebs"}, nil); err != nil {
 		t.Fatal(err)
 	}
 	db, err := surrealdb.FromEndpointURLString(ctx, runtime.Endpoint)
@@ -136,7 +136,7 @@ func TestRestoreReplayNativeOwnedExport(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer func() { _ = db.Close(context.Background()) }()
-	if _, err := db.SignIn(ctx, surrealdb.Auth{Username: "root", Password: "root"}); err != nil {
+	if _, err := db.SignIn(ctx, surrealdb.Auth{Username: "root", Password: runtime.Pass}); err != nil {
 		t.Fatal(err)
 	}
 	if err := db.Use(ctx, "phebs", "phebs"); err != nil {
@@ -189,7 +189,7 @@ func TestRestoreReplayNativeImportTransactions(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer func() { _ = db.Close(context.Background()) }()
-	if _, err := db.SignIn(ctx, surrealdb.Auth{Username: "root", Password: "root"}); err != nil {
+	if _, err := db.SignIn(ctx, surrealdb.Auth{Username: "root", Password: runtime.Pass}); err != nil {
 		t.Fatal(err)
 	}
 	if err := db.Use(ctx, restoreReplayProbeScope, restoreReplayProbeScope); err != nil {
@@ -218,7 +218,7 @@ COMMIT;`, nil); err != nil {
 		if err != nil {
 			t.Fatal(err)
 		}
-		request.SetBasicAuth("root", "root")
+		request.SetBasicAuth("root", runtime.Pass)
 		request.Header.Set("Surreal-NS", restoreReplayProbeScope)
 		request.Header.Set("Surreal-DB", restoreReplayProbeScope)
 		request.Header.Set("Accept", "application/json")
@@ -250,7 +250,7 @@ COMMIT;`, nil); err != nil {
 		(*digitRows)[0].Result[0].Body != "original" {
 		t.Fatalf("native digit-leading string ID/value not preserved: %+v %v", digitRows, err)
 	}
-	before := restoreReplayProbeWrites(ctx, t, client, endpoint)
+	before := restoreReplayProbeWrites(ctx, t, client, endpoint, runtime.Pass)
 	for _, step := range []struct{ start, count int }{{0, 512}, {512, 1}} {
 		parts := make([]string, step.count)
 		for index := range parts {
@@ -264,7 +264,7 @@ COMMIT;`, nil); err != nil {
 		}
 		post("OPTION IMPORT; BEGIN; INSERT ["+literal[unit.Span.Start:unit.Span.End]+"]; COMMIT;", true, false)
 	}
-	after := restoreReplayProbeWrites(ctx, t, client, endpoint)
+	after := restoreReplayProbeWrites(ctx, t, client, endpoint, runtime.Pass)
 	if after < before || after-before != 2 {
 		t.Fatalf("two native explicit write transactions: before=%d after=%d", before, after)
 	}
@@ -285,14 +285,14 @@ COMMIT;`, nil); err != nil {
 	if _, err := surrealdb.Query[any](ctx, db, "INSERT {id: probe:ordinary, body: 'original'};", nil); err == nil || !strings.Contains(err.Error(), "neutral-restore-guard") {
 		t.Fatalf("ordinary write did not retain native guard behavior: %v", err)
 	}
-	beforeFailure := restoreReplayProbeWrites(ctx, t, client, endpoint)
+	beforeFailure := restoreReplayProbeWrites(ctx, t, client, endpoint, runtime.Pass)
 	parts := make([]string, 512)
 	for index := range parts {
 		parts[index] = fmt.Sprintf("{id: probe:`failed-%d`, body: 'original'}", index)
 	}
 	post("OPTION IMPORT; BEGIN; INSERT ["+strings.Join(parts, ", ")+"]; THROW 'neutral-restore-rollback'; COMMIT;", false, false)
 	assertRows()
-	afterFailure := restoreReplayProbeWrites(ctx, t, client, endpoint)
+	afterFailure := restoreReplayProbeWrites(ctx, t, client, endpoint, runtime.Pass)
 	if afterFailure < beforeFailure || afterFailure-beforeFailure != 1 {
 		t.Fatalf("failed native explicit write transaction: before=%d after=%d", beforeFailure, afterFailure)
 	}
@@ -302,7 +302,7 @@ COMMIT;`, nil); err != nil {
 	if err != nil {
 		t.Fatal(err)
 	}
-	request.SetBasicAuth("root", "root")
+	request.SetBasicAuth("root", runtime.Pass)
 	request.Header.Set("Surreal-NS", restoreReplayProbeScope)
 	request.Header.Set("Surreal-DB", restoreReplayProbeScope)
 	if response, err := client.Do(request); !errors.Is(err, context.Canceled) {
@@ -311,19 +311,19 @@ COMMIT;`, nil); err != nil {
 		}
 		t.Fatalf("canceled import request = %v", err)
 	}
-	if afterCanceled := restoreReplayProbeWrites(ctx, t, client, endpoint); afterCanceled != afterFailure {
+	if afterCanceled := restoreReplayProbeWrites(ctx, t, client, endpoint, runtime.Pass); afterCanceled != afterFailure {
 		t.Fatal("already-canceled import request added a native completed write")
 	}
 	t.Log("native completed write deltas=2 success,1 failed; recognized submitted data rows per unit=512/1/512; no native attempted-prefix or phase-wide max-row meter claimed")
 }
 
-func restoreReplayProbeWrites(ctx context.Context, t *testing.T, client *http.Client, endpoint string) uint64 {
+func restoreReplayProbeWrites(ctx context.Context, t *testing.T, client *http.Client, endpoint, pass string) uint64 {
 	t.Helper()
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint+"/metrics", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	request.SetBasicAuth("root", "root")
+	request.SetBasicAuth("root", pass)
 	response, err := client.Do(request)
 	if err != nil {
 		t.Fatal(err)

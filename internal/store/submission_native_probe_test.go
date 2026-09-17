@@ -65,13 +65,13 @@ func TestSubmissionNativeSignInUseProbe(t *testing.T) {
 		return db
 	}
 	signIn := func(db *surrealdb.DB) error {
-		_, err := db.SignIn(ctx, surrealdb.Auth{Username: "root", Password: "root"})
+		_, err := db.SignIn(ctx, surrealdb.Auth{Username: "root", Password: runtime.Pass})
 		return err
 	}
 	control := open()
 	// Retain this actual root token only in memory. Both prior BasicAuth and
 	// bearer probes observed one native read per scrape before any operation.
-	bearer, err := control.SignIn(ctx, surrealdb.Auth{Username: "root", Password: "root"})
+	bearer, err := control.SignIn(ctx, surrealdb.Auth{Username: "root", Password: runtime.Pass})
 	if err != nil || bearer == "" {
 		t.Fatalf("root control SignIn/token unavailable: %v", err)
 	}

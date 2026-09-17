@@ -42,7 +42,7 @@ func TestRestoreReplayCustodyCheckpoints(t *testing.T) {
 				}
 				return nil
 			})
-			err = executeRestoreReplay(ctx, prepared, target, strings.Replace(server.URL, "http://", "ws://", 1), DatabaseIdentity{Namespace: "phebs", Database: "phebs"}, nil)
+			err = executeRestoreReplay(ctx, prepared, target, strings.Replace(server.URL, "http://", "ws://", 1), "root", DatabaseIdentity{Namespace: "phebs", Database: "phebs"}, nil)
 			if failAt == 0 {
 				if err != nil || calls != 6 {
 					t.Fatalf("success calls=%d error=%v", calls, err)

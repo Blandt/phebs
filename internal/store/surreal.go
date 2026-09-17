@@ -111,7 +111,7 @@ func openLocal(ctx context.Context, dataDir, configSHA256 string, memory bool) (
 	}
 	stop := engine.stop
 	runtime.ConfigSHA256 = configSHA256
-	s, err := openLocalRoot(ctx, runtime.Endpoint)
+	s, err := openLocalRoot(ctx, runtime)
 	if err != nil {
 		stop()
 		return nil, err
@@ -151,12 +151,14 @@ func openWithOwner(ctx context.Context, endpoint, user, pass, namespace, databas
 
 // The selected backup path consumes only the already-validated local runtime.
 // It does not widen the generic remote Open API or create missing metadata.
+// The password is the supervised engine's database-bound root password from
+// the 0600 runtime descriptor; the engine itself verifies it at sign-in.
 func openExistingLocalWithOwner(ctx context.Context, endpoint, user, pass, namespace, database string, owner *storeCallOwner) (*Surreal, error) {
 	if err := owner.Check(ctx); err != nil {
 		return nil, err
 	}
 	u, err := url.ParseRequestURI(endpoint)
-	if err != nil || user != "root" || pass != "root" || namespace != "phebs" || database != "phebs" ||
+	if err != nil || user != "root" || pass == "" || namespace != "phebs" || database != "phebs" ||
 		u.Scheme != "ws" || u.User != nil || u.Opaque != "" || u.Path != "" || u.RawPath != "" ||
 		u.RawQuery != "" || u.ForceQuery || u.Fragment != "" || u.RawFragment != "" {
 		return nil, storeaccounting.ErrConfig
@@ -171,7 +173,7 @@ func openExistingLocalWithOwner(ctx context.Context, endpoint, user, pass, names
 	if err := config.Validate(); err != nil {
 		return nil, storeaccounting.ErrConfig
 	}
-	selected, err := storeaccounting.NewExistingLocalSDKConnection(ctx, owner.SDKOwner, config)
+	selected, err := storeaccounting.NewExistingLocalSDKConnection(ctx, owner.SDKOwner, config, pass)
 	if err != nil {
 		return nil, err
 	}
@@ -185,28 +187,29 @@ func openExistingLocalWithOwner(ctx context.Context, endpoint, user, pass, names
 // openLocalRoot retains the same concrete SDK connection used by DB so that
 // namespace-only selection sends a real null database. It is called only after
 // starting our own local engine; generic remote Open keeps its existing scope
-// selection and permissions requirements.
-func openLocalRoot(ctx context.Context, endpoint string) (*Surreal, error) {
+// selection and permissions requirements. pass is the engine's database-bound
+// root password from its 0600 runtime descriptor.
+func openLocalRoot(ctx context.Context, runtime LocalRuntime) (*Surreal, error) {
 	owner, err := processStoreCallOwner()
 	if err != nil {
 		return nil, err
 	}
-	return openLocalRootWithOwner(ctx, endpoint, owner)
+	return openLocalRootWithOwner(ctx, runtime, owner)
 }
 
-func openLocalRootWithOwner(ctx context.Context, endpoint string, owner *storeCallOwner) (*Surreal, error) {
+func openLocalRootWithOwner(ctx context.Context, runtime LocalRuntime, owner *storeCallOwner) (*Surreal, error) {
 	if owner != nil {
 		if err := owner.Check(ctx); err != nil {
 			return nil, err
 		}
 	}
-	u, err := url.ParseRequestURI(endpoint)
+	u, err := url.ParseRequestURI(runtime.Endpoint)
 	if err != nil {
-		return nil, fmt.Errorf("connect %s: %w", endpoint, err)
+		return nil, fmt.Errorf("connect %s: %w", runtime.Endpoint, err)
 	}
 	config := connection.NewConfig(u)
 	if err := config.Validate(); err != nil {
-		return nil, fmt.Errorf("connect %s: invalid connection config: %w", endpoint, err)
+		return nil, fmt.Errorf("connect %s: invalid connection config: %w", runtime.Endpoint, err)
 	}
 	if u.Scheme != "ws" {
 		return nil, errors.New("connect local store: expected supervised WebSocket endpoint")
@@ -215,7 +218,7 @@ func openLocalRootWithOwner(ctx context.Context, endpoint string, owner *storeCa
 	var selected *storeaccounting.SDKConnection
 	var sdk connection.Connection
 	if owner != nil {
-		selected, err = storeaccounting.NewLocalSDKConnection(ctx, owner.SDKOwner, config)
+		selected, err = storeaccounting.NewLocalSDKConnection(ctx, owner.SDKOwner, config, runtime.Pass)
 		if err != nil {
 			return nil, err
 		}
@@ -229,9 +232,9 @@ func openLocalRootWithOwner(ctx context.Context, endpoint string, owner *storeCa
 		if selected != nil {
 			return nil, err
 		}
-		return nil, fmt.Errorf("connect %s: %w", endpoint, err)
+		return nil, fmt.Errorf("connect %s: %w", runtime.Endpoint, err)
 	}
-	return openStoreConnection(ctx, db, conn, selected, owner, false, "root", "root", "phebs", "phebs")
+	return openStoreConnection(ctx, db, conn, selected, owner, false, "root", runtime.Pass, "phebs", "phebs")
 }
 
 func openConnected(

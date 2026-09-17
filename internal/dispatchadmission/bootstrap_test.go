@@ -194,11 +194,46 @@ func TestProductionBootstrapHelper(t *testing.T) {
 	if err != nil || string(output) != "native-version\n" {
 		t.Fatalf("combined output: %q, %v", output, err)
 	}
-	recovery := exec.CommandContext(ctx, ProductionTool("surreal"), "-c", `test "$SURREAL_USER" = root && test "$SURREAL_PASS" = root`)
-	if err := RunProduction(ctx, SiteRecoverySurreal, recovery); err != nil {
+	recovery := exec.CommandContext(ctx, ProductionTool("surreal"), "-c", `test "$SURREAL_USER" = root && test "$SURREAL_PASS" = caller-supplied-test-pass`)
+	if err := RunProductionWithEnv(ctx, SiteRecoverySurreal, recovery, []string{SurrealPassEnvKey + "=caller-supplied-test-pass"}); err != nil {
 		t.Fatal(err)
 	}
 	productionHelperFinish(t, ctx, lifetime)
+}
+
+// TestAdmitSurrealPassEnv exercises the closed extra-environment channel for
+// the SurrealDB child sites without poisoning a live production lifetime: no
+// hardcoded credential may reach a child, and only the exact single
+// "SURREAL_PASS=<value>" entry is admitted.
+func TestAdmitSurrealPassEnv(t *testing.T) {
+	t.Parallel()
+	for _, site := range []uint32{SiteSurrealEngine, SiteRecoverySurreal} {
+		entry, err := admitSurrealPassEnv(site, []string{SurrealPassEnvKey + "=caller-supplied-test-pass"})
+		if err != nil || entry != SurrealPassEnvKey+"=caller-supplied-test-pass" {
+			t.Fatalf("site %d admit valid entry: %q, %v", site, entry, err)
+		}
+		for name, extra := range map[string][]string{
+			"missing":     nil,
+			"empty":       {},
+			"two entries": {SurrealPassEnvKey + "=a", SurrealPassEnvKey + "=b"},
+			"wrong key":   {"SURREAL_USER=root"},
+			"no value":    {SurrealPassEnvKey + "="},
+			"no equals":   {SurrealPassEnvKey},
+			"newline":     {SurrealPassEnvKey + "=a\nb"},
+			"nul":         {SurrealPassEnvKey + "=a\x00b"},
+		} {
+			if admitted, err := admitSurrealPassEnv(site, extra); err == nil {
+				t.Fatalf("site %d admitted %s entry: %q", site, name, admitted)
+			}
+		}
+	}
+	// Non-SurrealDB sites refuse any extra environment entry.
+	if _, err := admitSurrealPassEnv(SiteSyncGit, []string{SurrealPassEnvKey + "=caller-supplied-test-pass"}); err == nil {
+		t.Fatal("non-surreal site admitted SURREAL_PASS entry")
+	}
+	if admitted, err := admitSurrealPassEnv(SiteSyncGit, nil); err != nil || admitted != "" {
+		t.Fatalf("non-surreal site empty entry: %q, %v", admitted, err)
+	}
 }
 
 func productionHelperFinish(t *testing.T, ctx context.Context, lifetime *ProductionLifetime) {

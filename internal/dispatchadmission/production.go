@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os/exec"
 	"slices"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -40,6 +41,18 @@ const (
 )
 
 var ErrProductionBootstrap = errors.New("production dispatch bootstrap unavailable or invalid")
+
+// SurrealPassEnvKey is the only caller-supplied environment key the
+// production bootstrap admits for SurrealDB child sites. Each supervised
+// engine start generates its own random root password; the closed tool
+// record never carries credentials, and the password never appears on argv.
+const SurrealPassEnvKey = "SURREAL_PASS"
+
+// surrealPassSites are the dispatch sites that must receive a caller-supplied
+// SurrealDB root password through the closed extra-environment channel.
+func surrealPassSites(site uint32) bool {
+	return site == SiteSurrealEngine || site == SiteRecoverySurreal
+}
 
 var productionRuntime atomic.Pointer[ProductionLifetime]
 var productionBootstrapStarted atomic.Bool
@@ -349,6 +362,31 @@ func StartAuthor(ctx context.Context, command *exec.Cmd) (Handle, error) {
 }
 
 func startProductionCommand(ctx context.Context, runtime *ProductionLifetime, site uint32, role string, command *exec.Cmd) (Handle, error) {
+	return startProductionCommandWithEnv(ctx, runtime, site, role, command, nil)
+}
+
+// admitSurrealPassEnv validates the caller-supplied SurrealDB password entry.
+// SurrealDB child sites fail closed without exactly one exact
+// "SURREAL_PASS=<value>" pair; every other site refuses any extra entry.
+func admitSurrealPassEnv(site uint32, extraEnv []string) (string, error) {
+	if !surrealPassSites(site) {
+		if len(extraEnv) != 0 {
+			return "", ErrProductionBootstrap
+		}
+		return "", nil
+	}
+	if len(extraEnv) != 1 {
+		return "", ErrProductionBootstrap
+	}
+	key, value, found := strings.Cut(extraEnv[0], "=")
+	if !found || key != SurrealPassEnvKey || value == "" ||
+		strings.ContainsAny(value, "\x00\n") {
+		return "", ErrProductionBootstrap
+	}
+	return extraEnv[0], nil
+}
+
+func startProductionCommandWithEnv(ctx context.Context, runtime *ProductionLifetime, site uint32, role string, command *exec.Cmd, extraEnv []string) (Handle, error) {
 	tool, known := runtime.tools[role]
 	if !known || command == nil || command.Err != nil || command.Path != tool.Path ||
 		len(command.Args) == 0 || command.Args[0] != tool.Path || len(command.ExtraFiles) != 0 {
@@ -358,10 +396,33 @@ func startProductionCommand(ctx context.Context, runtime *ProductionLifetime, si
 	if runtime.semanticMode == ProductionSemanticV3 && role == "zoekt-git-index" && !hasProductionIndexMode(command.Env) {
 		return Handle{}, runtime.client.fail(ErrProductionBootstrap)
 	}
-	if site == SiteRecoverySurreal {
-		command.Env = append(command.Env, "SURREAL_USER=root", "SURREAL_PASS=root")
+	passEntry, err := admitSurrealPassEnv(site, extraEnv)
+	if err != nil {
+		return Handle{}, runtime.client.fail(err)
+	}
+	switch site {
+	case SiteRecoverySurreal:
+		// The caller supplies the per-start password; the bootstrap still
+		// pins the non-secret root username from the closed record.
+		command.Env = append(command.Env, "SURREAL_USER=root", passEntry)
+	case SiteSurrealEngine:
+		// The engine start supplies both user (as an argv flag) and the
+		// per-start password through the admitted environment entry.
+		command.Env = append(command.Env, passEntry)
 	}
 	return runtime.client.Start(ctx, site, command)
+}
+
+// StartProductionWithEnv is StartProduction with a caller-supplied extra
+// environment list. Only the exact "SURREAL_PASS=<value>" entry is admitted,
+// and only for the SurrealDB child sites that need a per-start root password.
+// The caller retains custody of the value until the child is admitted.
+func StartProductionWithEnv(ctx context.Context, site uint32, command *exec.Cmd, extraEnv []string) (Handle, error) {
+	runtime := productionRuntime.Load()
+	if runtime == nil {
+		return (*Client)(nil).Start(ctx, site, command)
+	}
+	return startProductionCommandWithEnv(ctx, runtime, site, productionRole(site), command, extraEnv)
 }
 
 func RunProduction(ctx context.Context, site uint32, command *exec.Cmd) error {
@@ -369,6 +430,20 @@ func RunProduction(ctx context.Context, site uint32, command *exec.Cmd) error {
 		return (*Client)(nil).Run(ctx, site, command)
 	}
 	handle, err := StartProduction(ctx, site, command)
+	if err != nil {
+		return err
+	}
+	return handle.Wait()
+}
+
+// RunProductionWithEnv is RunProduction with a caller-supplied extra
+// environment list. It exists for the SurrealDB export/import CLI, which must
+// authenticate with the live child's per-start root password.
+func RunProductionWithEnv(ctx context.Context, site uint32, command *exec.Cmd, extraEnv []string) error {
+	if productionRuntime.Load() == nil {
+		return (*Client)(nil).Run(ctx, site, command)
+	}
+	handle, err := StartProductionWithEnv(ctx, site, command, extraEnv)
 	if err != nil {
 		return err
 	}

@@ -383,7 +383,7 @@ func Create(ctx context.Context, opts BackupOptions) (_ Manifest, retErr error) 
 	}
 	defer releaseBackup()
 	validationStore, err := store.Open(
-		ctx, runtime.Endpoint, "root", "root", "phebs", "phebs",
+		ctx, runtime.Endpoint, "root", runtime.Pass, "phebs", "phebs",
 	)
 	if err != nil {
 		return Manifest{}, fmt.Errorf("open live store for catalog v3 validation: %w", err)
@@ -413,7 +413,7 @@ func Create(ctx context.Context, opts BackupOptions) (_ Manifest, retErr error) 
 		"--namespace", "phebs", "--database", "phebs", "--log", "none",
 		artifactPath,
 	}
-	if err := runSurreal(ctx, actualSurreal.Path, args); err != nil {
+	if err := runSurreal(ctx, actualSurreal.Path, args, runtime.Pass); err != nil {
 		return Manifest{}, fmt.Errorf("export SurrealDB: %w", err)
 	}
 	if err := os.Chmod(artifactPath, 0o600); err != nil {
@@ -796,14 +796,14 @@ func Restore(ctx context.Context, opts RestoreOptions) (_ Manifest, retErr error
 		return Manifest{}, errors.New("restore SurrealDB identity differs from verified manifest")
 	}
 	if replay != nil {
-		err = executeRestoreReplay(importCtx, replay, target, runtime.Endpoint, manifest.Database, owner)
+		err = executeRestoreReplay(importCtx, replay, target, runtime.Endpoint, runtime.Pass, manifest.Database, owner)
 	} else {
 		args := []string{
 			"import", "--endpoint", cliEndpoint(runtime.Endpoint),
 			"--namespace", manifest.Database.Namespace, "--database", manifest.Database.Database,
 			"--log", "none", filepath.Join(backup, DatabaseName),
 		}
-		err = runSurreal(ctx, runtime.Surreal.Path, args)
+		err = runSurreal(ctx, runtime.Surreal.Path, args, runtime.Pass)
 	}
 	if err != nil {
 		return Manifest{}, fmt.Errorf("import SurrealDB: %w", err)
@@ -1368,12 +1368,15 @@ func inspectPhebs(
 	return ToolIdentity{Version: version, SHA256: digest}, nil
 }
 
-func runSurreal(ctx context.Context, binary string, args []string) error {
+func runSurreal(ctx context.Context, binary string, args []string, pass string) error {
 	cmd := exec.CommandContext(ctx, binary, args...)
-	cmd.Env = append(os.Environ(), "SURREAL_USER=root", "SURREAL_PASS=root")
+	passEntry := dispatchadmission.SurrealPassEnvKey + "=" + pass
+	cmd.Env = append(os.Environ(), "SURREAL_USER=root", passEntry)
 	output := &boundedOutput{limit: maxCommandOutput}
 	cmd.Stdout, cmd.Stderr = output, output
-	if err := dispatchadmission.RunProduction(ctx, dispatchadmission.SiteRecoverySurreal, cmd); err != nil {
+	if err := dispatchadmission.RunProductionWithEnv(
+		ctx, dispatchadmission.SiteRecoverySurreal, cmd, []string{passEntry},
+	); err != nil {
 		message := strings.TrimSpace(output.String())
 		if message == "" {
 			return err

@@ -143,7 +143,7 @@ func storeLocalAccountingFixture(t *testing.T) (context.Context, *SDKOwner, *Con
 	t.Helper()
 	ctx, owner, controller := storeAccountingFixture(t, 40, 2)
 	native := &storeSDKTestConnection{Connection: gorillaws.New(connection.NewConfig(&url.URL{Scheme: "ws", Host: "127.0.0.1:1"})), codec: surrealcbor.New()}
-	conn := &SDKConnection{sdkNative: native, owner: owner, localStep: storeLocalSignIn}
+	conn := &SDKConnection{sdkNative: native, owner: owner, localStep: storeLocalSignIn, localAuth: storeLocalRootAuth("root")}
 	db, err := surrealdb.FromConnection(ctx, conn)
 	if err != nil {
 		t.Fatal(err)
@@ -254,7 +254,7 @@ func TestStoreAccountingLocalControlsAreClosed(t *testing.T) {
 			wantWrites, wantCalls := uint64(0), 0
 			switch name {
 			case "direct_signin":
-				_, err = db.SignIn(ctx, storeLocalAuth())
+				_, err = db.SignIn(ctx, storeLocalRootAuth("root"))
 			case "direct_use":
 				err = db.Use(ctx, "phebs", "phebs")
 			case "wrong_auth", "wrong_use":
@@ -505,12 +505,13 @@ func TestStoreAccountingLocalFactoryActualSDKWire(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			constructor := NewLocalSDKConnection
+			var constructor func(context.Context, *SDKOwner, *connection.Config, string) (*SDKConnection, error)
+			constructor = NewLocalSDKConnection
 			initializer := InitializeLocalScope
 			if test.existing {
 				constructor, initializer = NewExistingLocalSDKConnection, InitializeExistingLocalScope
 			}
-			conn, err := constructor(ctx, owner, connection.NewConfig(u))
+			conn, err := constructor(ctx, owner, connection.NewConfig(u), "root")
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -590,7 +591,7 @@ type sdkLocalWireRequest struct {
 
 func checkSDKLocalWireRequest(request sdkLocalWireRequest, position int) error {
 	methods := [...]string{"signin", "query", "use", "query", "use"}
-	params := [...][]any{{storeLocalAuth()}, {storeLocalNamespaceSQL, nil}, {"phebs", nil}, {storeLocalDatabaseSQL, nil}, {"phebs", "phebs"}}
+	params := [...][]any{{storeLocalRootAuth("root")}, {storeLocalNamespaceSQL, nil}, {"phebs", nil}, {storeLocalDatabaseSQL, nil}, {"phebs", "phebs"}}
 	if position < 0 || position >= len(methods) || request.ID == nil || request.Method != methods[position] || len(request.Params) != len(params[position]) || len(request.Txn) != 0 || len(request.Session) != 0 {
 		return errors.New("local source method or native identity changed")
 	}
@@ -604,16 +605,19 @@ func checkSDKLocalWireRequest(request sdkLocalWireRequest, position int) error {
 	return nil
 }
 
-func TestSDKLocalConstructorRefusesAbsentOwnerAndConfig(t *testing.T) {
+func TestSDKLocalConstructorRefusesAbsentOwnerConfigAndPass(t *testing.T) {
 	ctx, owner, _ := storeAccountingFixture(t, 1, 1)
-	for _, constructor := range []func(context.Context, *SDKOwner, *connection.Config) (*SDKConnection, error){NewLocalSDKConnection, NewExistingLocalSDKConnection} {
+	for _, constructor := range []func(context.Context, *SDKOwner, *connection.Config, string) (*SDKConnection, error){NewLocalSDKConnection, NewExistingLocalSDKConnection} {
 		for _, candidate := range []*SDKOwner{nil, {}} {
-			if conn, err := constructor(ctx, candidate, nil); conn != nil || !errors.Is(err, ErrConfig) {
+			if conn, err := constructor(ctx, candidate, nil, "root"); conn != nil || !errors.Is(err, ErrConfig) {
 				t.Fatalf("invalid owner=%v %v", conn, err)
 			}
 		}
-		if conn, err := constructor(ctx, owner, nil); conn != nil || !errors.Is(err, ErrConfig) {
+		if conn, err := constructor(ctx, owner, nil, "root"); conn != nil || !errors.Is(err, ErrConfig) {
 			t.Fatalf("invalid config=%v %v", conn, err)
+		}
+		if conn, err := constructor(ctx, owner, connection.NewConfig(&url.URL{Scheme: "ws", Host: "127.0.0.1:1"}), ""); conn != nil || !errors.Is(err, ErrConfig) {
+			t.Fatalf("empty pass=%v %v", conn, err)
 		}
 	}
 }

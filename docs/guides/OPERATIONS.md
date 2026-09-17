@@ -55,6 +55,7 @@ preserve both parent and server logs when diagnosing a selected run.
 ```
 $DATA/                     # server.data_dir, default ~/.phebs
 ├── db/                    # SurrealDB — users, API keys, sessions, repo/jobs
+├── .surreal-child-pass    # mode-0600 root password bound to this db/; back up with db/
 ├── .surreal-runtime.json  # private, process-owned live-backup rendezvous
 ├── repos/<host>/<path>.git  # bare mirrors
 ├── candidates/            # derived candidate manifests and NDJSON members
@@ -68,8 +69,11 @@ $DATA/                     # server.data_dir, default ~/.phebs
 Mirrors, candidate publications, shards, repo rows, and jobs are rebuildable
 from config and upstream Git. **Authentication state is not derived:**
 `$DATA/db` now contains users,
-OIDC links, API-key hashes, and sessions (see *Backup & restore*). Deleting
-the whole data directory is an intentional auth reset as well as a reindex;
+OIDC links, API-key hashes, and sessions (see *Backup & restore*), and the
+database's root credential lives in `$DATA/.surreal-child-pass`, a mode-0600
+file bound to that `db/` directory's lifetime. A `db/` copy without its
+matching password file cannot be opened. Deleting the whole data directory
+is an intentional auth reset as well as a reindex;
 the next start requires first-user enrollment.
 
 ### Startup schema repair
@@ -114,10 +118,16 @@ The source-definition guard is not a database-row or memory limit.
 
 ### Backup & restore
 
-Precious state is `$DATA/db` plus the exact config file — the users, OIDC
+Precious state is `$DATA/db`, `$DATA/.surreal-child-pass`, and the exact
+config file — the users, OIDC
 links, API-key hashes, sessions, permission edges, audit/analytics history,
 evidence, extraction outcomes, and proof pins that cannot be rebuilt (repo
-rows and job state ride along but are derivable). Mirrors and
+rows and job state ride along but are derivable). The password file holds the
+random root credential recorded when that database was initialized; SurrealDB
+never rotates the stored root password, so a `db/` copy is openable only with
+its matching password file. A database initialized before this binding (the
+old root/root era) keeps that password instead and also persists the choice in
+its password file on first contact. Mirrors and
 whole-repository shards are derived.
 Focused shards are also derived semantically, but online backup preserves
 a validated marker-free physical publication byte-exactly without claiming
@@ -416,6 +426,10 @@ absent or completely empty configured `$DATA`:
 phebs restore -config /etc/phebs/phebs.yaml -backup /restricted/phebs-backup-20260722
 phebs serve   -config /etc/phebs/phebs.yaml
 ```
+
+The import target is a fresh database with its own new root credential, so
+the online path never needs the source's `.surreal-child-pass`; the manifest
+records the database identity but no password.
 
 Recovery config validation deliberately leaves `${SECRET}` references
 unexpanded, so verification/import can happen in an isolated environment
@@ -1340,13 +1354,39 @@ live — rotate them if the backup's custody was ever in doubt.
 The stop-first cold path remains available:
 
 1. Stop phebs and wait for exit, so SurrealKV is quiescent — a plain
-   filesystem copy of a live `db/` is not consistent.
-2. Copy the config file and `$DATA/db` to restricted storage; this is
-   credential-bearing state.
-3. Restart.
+   filesystem copy of a live `db/` is not consistent. Confirm the database
+   child process has exited before copying.
+2. Copy the config file, `$DATA/db`, and `$DATA/.surreal-child-pass` to
+   restricted storage as one matching set; this is credential-bearing state.
+   The password file is the root credential for exactly that `db/` copy —
+   never mix a `db/` copy with another directory's password file.
+3. Preserve restrictive permissions on the copied state: the password file
+   must be mode 0600.
+4. Restart.
 
-For a cold restore, place only the copied `db/` into a fresh `$DATA`, point
-phebs at the same config, and start; the same automatic backfill applies.
+For a cold restore, place the copied `db/` and its matching
+`.surreal-child-pass` into a fresh `$DATA`, restore the password file as mode
+0600, point phebs at the same config, and start; the same automatic backfill
+applies.
+
+The password file is not optional. A restore without it, or with another
+database's file, fails authentication at startup and the database stays
+closed: the failed open modifies neither the database nor any persisted
+credential, and no replacement password is minted or accepted. If the
+original directory is gone and its password file was not preserved, that
+database cannot be opened again — do not delete the file and do not generate
+a replacement password expecting it to work. Recover from the online backup
+instead, or re-enroll into a fresh data directory. An empty `db/` directory
+is the one exception: with no initialized database inside, the next start
+treats it as a fresh database and persists a new root credential for it. A
+legacy database
+(initialized with the old root/root credential) has no password file to
+lose; its restore still opens with the historical root password.
+
+The online logical path is different and stays separate: `phebs restore`
+imports the exported SurrealQL into a fresh target database that receives its
+own new root credential, so it does not need — and the online backup does not
+contain — the source's `.surreal-child-pass`.
 
 ### Security boundary
 

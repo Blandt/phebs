@@ -39,7 +39,7 @@ func TestServiceStateV3LogicalPhaseAccountingNative(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(stop)
-	seed, err := openLocalRoot(ctx, runtime.Endpoint)
+	seed, err := openLocalRoot(ctx, runtime)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -208,7 +208,7 @@ func TestServiceStateV3LogicalPhaseAccountingNative(t *testing.T) {
 	}
 	var state *Surreal
 	measure("selected_connection_initialization", func() error {
-		state, err = openExistingLocalWithOwner(ctx, runtime.Endpoint, "root", "root", "phebs", "phebs", owner)
+		state, err = openExistingLocalWithOwner(ctx, runtime.Endpoint, "root", runtime.Pass, "phebs", "phebs", owner)
 		return err
 	})
 	t.Cleanup(func() { _ = state.Close(context.Background()) })

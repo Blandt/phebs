@@ -1,11 +1,18 @@
 package store_test
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
+	"io"
+	"net"
+	"net/http"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"reflect"
+	"regexp"
 	"slices"
 	"strings"
 	"sync"
@@ -34,6 +41,165 @@ func newTestStore(t *testing.T) *store.Surreal {
 	return s
 }
 
+// rawTestChild is the native-test analogue of the production supervised
+// child: exactly one unconditional cleanup owner per child. The owner
+// requests shutdown (SIGINT), waits a bounded grace period, escalates to
+// SIGKILL when the child ignores the request, and then joins the Wait
+// goroutine. The owner is registered with t.Cleanup immediately after Start,
+// so every failure path — including a t.Fatalf before any explicit stop —
+// still reaps the child. Captured output may only be read after the Wait
+// goroutine is joined (waitResult): exec's output-copying goroutines finish
+// before Wait returns, and reading the buffer earlier races them.
+type rawTestChild struct {
+	cmd       *exec.Cmd
+	output    *bytes.Buffer
+	grace     time.Duration
+	waited    chan error
+	awaitOnce sync.Once
+	waitErr   error
+	done      chan struct{}
+	stopOnce  sync.Once
+}
+
+// startRawTestChild starts cmd and registers its single unconditional cleanup
+// owner. The caller must not start, wait on, signal, or kill the process
+// itself; every shutdown goes through child.stop (explicitly or via the
+// registered cleanup).
+func startRawTestChild(t *testing.T, cmd *exec.Cmd, grace time.Duration) *rawTestChild {
+	t.Helper()
+	var output bytes.Buffer
+	cmd.Stdout, cmd.Stderr = &output, &output
+	if err := cmd.Start(); err != nil {
+		t.Fatalf("start test child: %v", err)
+	}
+	child := &rawTestChild{
+		cmd: cmd, output: &output, grace: grace,
+		waited: make(chan error, 1), done: make(chan struct{}),
+	}
+	go func() { child.waited <- cmd.Wait() }()
+	t.Cleanup(child.stop)
+	return child
+}
+
+// await joins the Wait goroutine exactly once. The captured output is fully
+// copied when it returns.
+func (c *rawTestChild) await() {
+	c.awaitOnce.Do(func() {
+		c.waitErr = <-c.waited
+		close(c.done)
+	})
+}
+
+// stop is the single unconditional cleanup owner: request shutdown, wait a
+// bounded grace period, kill if necessary, then join the Wait goroutine.
+func (c *rawTestChild) stop() {
+	c.stopOnce.Do(func() {
+		go c.await()
+		if c.cmd.Process != nil {
+			_ = c.cmd.Process.Signal(os.Interrupt)
+		}
+		select {
+		case <-c.done:
+		case <-time.After(c.grace):
+			_ = c.cmd.Process.Kill()
+			select {
+			case <-c.done:
+			case <-time.After(c.grace):
+			}
+		}
+	})
+}
+
+// waitResult joins the Wait goroutine and returns the child's exit result
+// plus its fully-copied captured output. Call only after the child has been
+// asked to stop; otherwise it blocks until the registered cleanup stops it.
+func (c *rawTestChild) waitResult() (waitErr error, output string) {
+	c.await()
+	return c.waitErr, c.output.String()
+}
+
+// waitTestChildHealthy polls the loopback /health endpoint until timeout.
+// Each request carries its own client timeout: the overall deadline cannot
+// bound a blocked bare http.Get, so the loop never issues one.
+func waitTestChildHealthy(url string, timeout time.Duration) bool {
+	client := &http.Client{Timeout: 2 * time.Second}
+	for deadline := time.Now().Add(timeout); time.Now().Before(deadline); {
+		resp, err := client.Get(url) //nolint:gosec // loopback test child, constructed addr
+		if err == nil {
+			_, _ = io.Copy(io.Discard, resp.Body)
+			_ = resp.Body.Close()
+			if resp.StatusCode == http.StatusOK {
+				return true
+			}
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	return false
+}
+
+// pickLoopbackAddr reserves an ephemeral loopback port and returns its addr.
+// The close-then-reuse race is acceptable for a local test child.
+func pickLoopbackAddr(t *testing.T) string {
+	t.Helper()
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("pick port: %v", err)
+	}
+	addr := listener.Addr().String()
+	_ = listener.Close()
+	return addr
+}
+
+// legacyChildCmd builds the pre-credential-binding database bootstrap: the
+// historical root/root credential, transported via the environment rather
+// than argv (the command line is world-readable through ps).
+func legacyChildCmd(ctx context.Context, binary, addr, dir string) *exec.Cmd {
+	cmd := exec.CommandContext(ctx, binary, "start",
+		"--bind", addr, "--user", "root", "--log", "warn",
+		"surrealkv:"+filepath.Join(dir, "db"))
+	cmd.Env = append(os.Environ(), "SURREAL_PASS=root")
+	return cmd
+}
+
+// assertChildMatching fails unless a process carrying pattern in its command
+// line appears within the deadline.
+func assertChildMatching(t *testing.T, pattern string) {
+	t.Helper()
+	quoted := regexp.QuoteMeta(pattern)
+	for deadline := time.Now().Add(10 * time.Second); ; {
+		if err := exec.Command("pgrep", "-f", quoted).Run(); err == nil {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("no child matching %q appeared", pattern)
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+}
+
+// assertNoChildMatching fails if any process still carries pattern in its
+// command line. pgrep exits 1 when nothing matches; anything else is a hard
+// failure. The pattern is matched as a fixed string so data-directory paths
+// cannot act as regex.
+func assertNoChildMatching(t *testing.T, pattern string) {
+	t.Helper()
+	quoted := regexp.QuoteMeta(pattern)
+	for deadline := time.Now().Add(10 * time.Second); ; {
+		err := exec.Command("pgrep", "-f", quoted).Run()
+		if err != nil {
+			if exitErr, ok := err.(*exec.ExitError); ok && exitErr.ExitCode() == 1 {
+				return
+			}
+			t.Fatalf("pgrep -f %q: %v", pattern, err)
+		}
+		if time.Now().After(deadline) {
+			out, _ := exec.Command("pgrep", "-af", quoted).CombinedOutput()
+			t.Fatalf("child still alive matching %q: %s", pattern, out)
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+}
+
 func TestSchemaIdempotent(t *testing.T) {
 	if _, err := exec.LookPath("surreal"); err != nil {
 		t.Skip("surreal binary not installed")
@@ -49,6 +215,196 @@ func TestSchemaIdempotent(t *testing.T) {
 			t.Fatalf("close %d: %v", i, err)
 		}
 	}
+}
+
+// TestOpenLocalReopenReadsPersistedData is the engine-backed regression for
+// the child-password lifetime fix: the supervised engine's root password is
+// bound to the database directory, so closing and reopening the same
+// directory must sign in successfully and see previously written data.
+// (SurrealDB only initializes the root user when none exists; a fresh
+// password per start could never sign in to an existing database.)
+func TestOpenLocalReopenReadsPersistedData(t *testing.T) {
+	if _, err := exec.LookPath("surreal"); err != nil {
+		t.Skip("surreal binary not installed")
+	}
+	ctx := context.Background()
+	dir := t.TempDir()
+	s, err := store.OpenLocal(ctx, dir)
+	if err != nil {
+		t.Fatalf("first open: %v", err)
+	}
+	// Registered immediately: Close is idempotent, so any later failure —
+	// including a t.Fatalf before the explicit close below — still stops the
+	// supervised child instead of orphaning it.
+	t.Cleanup(func() { _ = s.Close(context.Background()) })
+	repo := store.Repo{Name: "example.com/reopen", CloneURL: "https://example.com/reopen.git", DefaultBranch: "main"}
+	if err := s.UpsertRepo(ctx, repo); err != nil {
+		t.Fatalf("upsert: %v", err)
+	}
+	if err := s.Close(ctx); err != nil {
+		t.Fatalf("close: %v", err)
+	}
+	reopened, err := store.OpenLocal(ctx, dir)
+	if err != nil {
+		t.Fatalf("reopen: %v", err)
+	}
+	t.Cleanup(func() { _ = reopened.Close(context.Background()) })
+	got, err := reopened.GetRepo(ctx, repo.Name)
+	if err != nil {
+		t.Fatalf("GetRepo after reopen: %v", err)
+	}
+	if got.CloneURL != repo.CloneURL {
+		t.Fatalf("GetRepo after reopen = %+v, want the persisted repo", got)
+	}
+}
+
+// TestOpenLocalUpgradesLegacyRootDatabase is the engine-backed upgrade
+// regression: a database initialized the historical way (root/root, no
+// persisted child password) must keep working when first opened under the
+// new credential binding, and stay consistent across later restarts.
+func TestOpenLocalUpgradesLegacyRootDatabase(t *testing.T) {
+	if _, err := exec.LookPath("surreal"); err != nil {
+		t.Skip("surreal binary not installed")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 180*time.Second)
+	defer cancel()
+	dir := t.TempDir()
+	identity, err := store.FindSurrealBinary()
+	if err != nil {
+		t.Fatalf("FindSurrealBinary: %v", err)
+	}
+	// Initialize the database the pre-fix way through the raw bootstrap.
+	// The raw child has exactly one unconditional cleanup owner, registered
+	// inside startRawTestChild before the health check runs: whatever fails
+	// below, the child is asked to stop, killed after a bounded grace if it
+	// ignores the request, and its Wait goroutine is joined before the test
+	// — and the temporary data directory — goes away.
+	addr := pickLoopbackAddr(t)
+	child := startRawTestChild(t, legacyChildCmd(ctx, identity.Path, addr, dir), 10*time.Second)
+	if !waitTestChildHealthy("http://"+addr+"/health", 30*time.Second) {
+		child.stop()
+		// Output is read only after the Wait goroutine is joined: exec's
+		// output-copying goroutines finish before Wait returns.
+		_, output := child.waitResult()
+		t.Fatalf("legacy child never became healthy: %s", output)
+	}
+	child.stop()
+	if waitErr, output := child.waitResult(); waitErr != nil {
+		t.Fatalf("legacy child exit: %v\n%s", waitErr, output)
+	}
+
+	s, err := store.OpenLocal(ctx, dir)
+	if err != nil {
+		t.Fatalf("open legacy database: %v", err)
+	}
+	// Registered immediately, like every other acquisition: the old code
+	// only closed on the success path, so a t.Fatalf before the explicit
+	// close below orphaned the supervised child.
+	t.Cleanup(func() { _ = s.Close(context.Background()) })
+	repo := store.Repo{Name: "example.com/legacy", CloneURL: "https://example.com/legacy.git"}
+	if err := s.UpsertRepo(ctx, repo); err != nil {
+		t.Fatalf("upsert on legacy database: %v", err)
+	}
+	if err := s.Close(ctx); err != nil {
+		t.Fatalf("close: %v", err)
+	}
+	reopened, err := store.OpenLocal(ctx, dir)
+	if err != nil {
+		t.Fatalf("reopen legacy database: %v", err)
+	}
+	t.Cleanup(func() { _ = reopened.Close(context.Background()) })
+	if _, err := reopened.GetRepo(ctx, repo.Name); err != nil {
+		t.Fatalf("GetRepo after legacy upgrade reopen: %v", err)
+	}
+}
+
+// TestOpenLocalEarlyFailureStillCleansUpChild covers the defect the cleanup
+// registration fixes: the upsert fails before any explicit close (the old
+// t.Fatalf site), and the subtest returns without closing the store. The
+// cleanup registered immediately after acquisition must still stop the
+// supervised child; no surreal child for the data directory may survive.
+func TestOpenLocalEarlyFailureStillCleansUpChild(t *testing.T) {
+	if _, err := exec.LookPath("surreal"); err != nil {
+		t.Skip("surreal binary not installed")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+	defer cancel()
+	dir := t.TempDir()
+	t.Run("early failure", func(t *testing.T) {
+		s, err := store.OpenLocal(ctx, dir)
+		if err != nil {
+			t.Fatalf("open: %v", err)
+		}
+		// Registered before any operation can fail: the old code closed the
+		// store only on the success path, so a fatal here orphaned the
+		// production child, which deliberately outlives caller-context
+		// cancellation.
+		t.Cleanup(func() { _ = s.Close(context.Background()) })
+		cancelled, stop := context.WithCancel(ctx)
+		stop()
+		if err := s.UpsertRepo(cancelled, store.Repo{Name: "example.com/early"}); err == nil {
+			t.Fatal("UpsertRepo with a cancelled context succeeded; want an error")
+		}
+		// No explicit close: this is the old t.Fatalf bypass. The registered
+		// cleanup owns the child from here.
+	})
+	assertNoChildMatching(t, "surrealkv:"+filepath.Join(dir, "db"))
+}
+
+// TestRawChildUnhealthyBootstrapStopsChild starts a real surreal child but
+// probes an address nothing listens on, so the bootstrap deems the child
+// unhealthy while the child itself stays alive and healthy on its real port.
+// The single cleanup owner must still shut it down; no child may survive.
+func TestRawChildUnhealthyBootstrapStopsChild(t *testing.T) {
+	if _, err := exec.LookPath("surreal"); err != nil {
+		t.Skip("surreal binary not installed")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+	defer cancel()
+	dir := t.TempDir()
+	identity, err := store.FindSurrealBinary()
+	if err != nil {
+		t.Fatalf("FindSurrealBinary: %v", err)
+	}
+	addr := pickLoopbackAddr(t)
+	engineArg := "surrealkv:" + filepath.Join(dir, "db")
+	child := startRawTestChild(t, legacyChildCmd(ctx, identity.Path, addr, dir), 10*time.Second)
+	// The child is genuinely alive (positive control); only the bootstrap's
+	// health view of it is broken.
+	assertChildMatching(t, engineArg)
+	if waitTestChildHealthy("http://127.0.0.1:1/health", 5*time.Second) {
+		t.Fatal("health probe against an unbound port succeeded; want failure")
+	}
+	child.stop()
+	if waitErr, output := child.waitResult(); waitErr != nil {
+		t.Fatalf("child exit: %v\n%s", waitErr, output)
+	}
+	assertNoChildMatching(t, engineArg)
+}
+
+// TestRawChildShutdownIgnoringChildIsKilled starts a child that traps and
+// ignores SIGINT, so the owner's shutdown request cannot work. The owner must
+// escalate to SIGKILL after its bounded grace period; no child may survive.
+func TestRawChildShutdownIgnoringChildIsKilled(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+	// The marker becomes the child's argv[0] via exec -a so pgrep can
+	// identify exactly this child; nothing else on the host carries it. The
+	// shell replaces itself with sleep (exec), so the child is a single
+	// process with no grandchildren that could outlive it holding pipes
+	// open. trap "" INT survives the exec, so the child ignores the owner's
+	// shutdown request and forces the SIGKILL escalation path.
+	const marker = "phebs-test-ignore-sigint-probe"
+	cmd := exec.CommandContext(ctx, "bash", "-c",
+		`trap "" INT; exec -a `+marker+` sleep 60`)
+	child := startRawTestChild(t, cmd, 2*time.Second)
+	assertChildMatching(t, marker)
+	child.stop()
+	waitErr, _ := child.waitResult()
+	if waitErr == nil {
+		t.Fatal("shutdown-ignoring child exited cleanly; want a kill")
+	}
+	assertNoChildMatching(t, marker)
 }
 
 func TestRepoCRUD(t *testing.T) {
