@@ -103,6 +103,20 @@ bootstrap's `uchg` flags. No matching process, worktree or mount remains;
 full race gate and fresh visible-terminal readiness matrix remain open; cleanup
 authorizes no retry, acceptance, seal or ceremony.
 
+**T42.2n APFS shrink-settlement correction, 2026-09-18:** exact clean
+`f7986acb` signed readiness passed through `pressure_90` and stopped in
+`pressure_75` only after its single shrink reached the exact
+30,281,199,616-byte logical/allocated target while matching APFS capacity
+remained stale beyond the five-second settlement bound. The retained volume
+later reported the exact 75-percent target. The correction extends only the
+existing strict read-only settlement window to thirty seconds at the unchanged
+50-millisecond cadence, with no repeated mutation or relaxed custody,
+authority, target, phase-deadline, admission or ordinary-runtime behavior. The
+failed mount remains retained and no process survives. Focused gates,
+independent review, outstanding complete acceptance and a fresh visible-terminal
+readiness run remain required; no retry, cleanup, acceptance, seal or ceremony
+is authorized.
+
 **T42.2n session-fixture review correction, 2026-09-17:** the isolated child
 fixture passed focused and complete package normal/race gates. Exact-commit
 review found one low future-rename hole in its child-selector evidence, so the

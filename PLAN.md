@@ -4020,3 +4020,27 @@ in [docs/ROADMAP.md](./docs/ROADMAP.md).
   custody statement above. The failed readiness result, incomplete full race
   gate and requirement for one fresh visible-terminal readiness matrix remain;
   no retry, acceptance, seal or ceremony follows from cleanup.
+
+- **2026-09-18 — T42.2n extends bounded APFS shrink settlement.** Exact clean
+  `f7986acb` signed readiness passed preflight through `pressure_90`, then its
+  single 90-to-75 ballast truncate reached the exact 30,281,199,616-byte
+  logical and allocated size but exhausted the five-second read-only settlement
+  window before `statfs` published the matching capacity. The retained volume
+  later reported the exact 75-percent target, bounding the stop to delayed APFS
+  capacity accounting rather than a failed mutation or authority drift. Extend
+  only the existing post-shrink observation window from five to thirty seconds
+  at the unchanged 50-millisecond cadence. The mutation remains single-shot;
+  every observation retains the same inode/path/owner/mode/link/FSID, logical
+  size, allocated-block, pressure-volume and epoch-four authority checks, and
+  cancellation, drift or expiry still fails closed with custody retained.
+
+  An already coherent shrink still adds no timer and only the existing
+  observation. A delayed shrink may now perform at most 600 read-only rechecks,
+  hence at most 1,200 across the two fixed shrink sites, under the existing
+  phase deadline. No mutation, request, source/content read, hash, child,
+  publication, schema, admission bound or ordinary-runtime work changes. The
+  failed operational custody remains mounted at
+  `/private/tmp/phebs-t422-3019370907/t422-pressure-3215086026/mount`; no
+  matching process survives and no retry or cleanup is authorized. Focused
+  gates, independent review, complete outstanding acceptance and a fresh
+  visible-terminal readiness run remain required.

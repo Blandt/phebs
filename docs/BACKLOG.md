@@ -13633,6 +13633,23 @@ This supersedes only the retained-custody statement above. The failed result,
 incomplete full race gate and fresh visible-terminal readiness matrix remain
 open; no retry, acceptance, seal or ceremony follows.
 
+**T42.2n APFS shrink-settlement correction, 2026-09-18:** exact clean
+`f7986acb` signed readiness passed through `pressure_90`, then stopped in
+`pressure_75` after the one 90-to-75 truncate reached exact
+30,281,199,616-byte logical/allocated size but the five-second read-only
+settlement window expired before matching filesystem capacity appeared. The
+retained volume later reported the exact 75-percent target. Extend only that
+existing strict observation window to thirty seconds at unchanged
+50-millisecond cadence; do not repeat the mutation or weaken any custody,
+authority, target or phase-deadline predicate. This raises the fixed maximum
+from 100 to 600 rechecks per shrink and from 200 to 1,200 across both shrink
+sites, with no new production mutation, request, child, schema or admission
+work. Operational custody remains mounted at
+`/private/tmp/phebs-t422-3019370907/t422-pressure-3215086026/mount`; no matching
+process survives. Focused gates, independent review, the outstanding complete
+acceptance gates and a fresh visible-terminal readiness run remain open; no
+retry, cleanup, acceptance, seal or ceremony is authorized.
+
 **T42.3 · Scale posture decision and neutral product closure** — independently
 review the T42.2 receipt, replay representative All code → service →
 relationship → Workbench → proof → MCP flows, and record one decision:

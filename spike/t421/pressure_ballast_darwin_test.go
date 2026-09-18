@@ -90,6 +90,9 @@ func TestExecutionPressureBallastContinuation(t *testing.T) {
 }
 
 func TestExecutionPressureBallastSettlement(t *testing.T) {
+	if pressureBallastSettleCadence != 50*time.Millisecond || pressureBallastSettleLimit != 30*time.Second {
+		t.Fatal("unexpected pressure ballast settlement bounds")
+	}
 	type observation struct {
 		value   executionPressureBallastSample
 		logical uint64

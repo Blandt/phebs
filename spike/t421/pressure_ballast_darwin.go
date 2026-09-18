@@ -15,7 +15,7 @@ import (
 
 const (
 	pressureBallastSettleCadence = 50 * time.Millisecond
-	pressureBallastSettleLimit   = 5 * time.Second
+	pressureBallastSettleLimit   = 30 * time.Second
 )
 
 // The volume's existing mutex and mutation lease serialize the four fixed
