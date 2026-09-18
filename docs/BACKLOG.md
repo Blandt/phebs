@@ -13650,6 +13650,19 @@ process survives. Focused gates, independent review, the outstanding complete
 acceptance gates and a fresh visible-terminal readiness run remain open; no
 retry, cleanup, acceptance, seal or ceremony is authorized.
 
+**T42.2n failed shrink custody disposition, 2026-09-18:** Ben authorized
+cleanup while reserving rehearsal execution for his terminal. The compact
+failure/healthy logs, authorization handoff and public signing records remain
+at `/private/tmp/t422-retained-failure-f7986acb.ei9oU4`; the verified 392-KiB
+directory contains no private key. `/dev/disk4` detached normally without
+force, and the exact failed operational root, detached checkout and disposable
+signer/bootstrap roots were removed after clearing only the known bootstrap
+`uchg` flags. No matching process, worktree, image or mount remains;
+206,050,272 KiB, approximately 196.5 GiB, is free. Review and complete
+normal/race package gates remain open. The next signed readiness run is
+user-terminal-only and must use the final exact candidate command; cleanup
+alone establishes no acceptance, seal or ceremony.
+
 **T42.3 · Scale posture decision and neutral product closure** — independently
 review the T42.2 receipt, replay representative All code → service →
 relationship → Workbench → proof → MCP flows, and record one decision:

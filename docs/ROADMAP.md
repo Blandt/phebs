@@ -117,6 +117,17 @@ independent review, outstanding complete acceptance and a fresh visible-terminal
 readiness run remain required; no retry, cleanup, acceptance, seal or ceremony
 is authorized.
 
+**T42.2n failed shrink custody disposition, 2026-09-18:** Ben authorized
+cleanup while reserving rehearsal execution for his terminal. Verified compact
+failure/healthy logs, authorization handoff and public signing records remain
+at `/private/tmp/t422-retained-failure-f7986acb.ei9oU4` with no private key.
+The image detached normally without force; the exact operational, checkout and
+signer/bootstrap roots were removed after clearing only known bootstrap
+`uchg` flags. No matching process, worktree, image or mount remains and
+206,050,272 KiB, approximately 196.5 GiB, is free. Review and complete
+normal/race package gates remain open; Ben must start the final exact-candidate
+signed readiness command in his terminal.
+
 **T42.2n session-fixture review correction, 2026-09-17:** the isolated child
 fixture passed focused and complete package normal/race gates. Exact-commit
 review found one low future-rename hole in its child-selector evidence, so the

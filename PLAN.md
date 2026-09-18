@@ -4044,3 +4044,17 @@ in [docs/ROADMAP.md](./docs/ROADMAP.md).
   matching process survives and no retry or cleanup is authorized. Focused
   gates, independent review, complete outstanding acceptance and a fresh
   visible-terminal readiness run remain required.
+
+- **2026-09-18 — T42.2n failed shrink custody disposition.** Ben authorized
+  cleanup while reserving rehearsal execution for his terminal. Preserve the
+  compact failure log, healthy-launch log, authorization handoff and public
+  signing records at
+  `/private/tmp/t422-retained-failure-f7986acb.ei9oU4`; the verified 392-KiB
+  directory contains no ephemeral private key. `/dev/disk4` detached normally
+  without force, then the exact failed operational root, detached checkout and
+  signer/bootstrap roots were removed after clearing only the known bootstrap
+  `uchg` flags. No matching process, worktree, image or mount remains;
+  206,050,272 KiB, approximately 196.5 GiB, is free. This supersedes only the
+  retained-custody statement above. Review and complete normal/race package
+  gates remain prerequisites; the next signed readiness run must be started by
+  Ben in his terminal from the final exact candidate command.
