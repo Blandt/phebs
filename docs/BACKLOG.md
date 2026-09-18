@@ -13619,6 +13619,20 @@ survives and no unchanged retry occurred. Immutable source, independent review,
 the longer-allowance package gates and a fresh visible-terminal readiness matrix
 remain open; no acceptance, seal or ceremony follows.
 
+**T42.2n pressure-failure custody disposition, 2026-09-17:** Ben explicitly
+authorized cleanup before the next rehearsal. Compact failure logs, the
+authorization handoff and public signing records remain at
+`/private/tmp/t422-retained-failure-03c26e90.Lh6Tct`; the retained 392-KiB
+directory contains no ephemeral private key. Borrower and operation-lock checks
+were quiet, `/dev/disk5s1` detached normally without force, and the exact failed
+operational image/root, clean detached checkout and disposable signer/bootstrap
+custody were removed. Cleanup cleared only `uchg` from the identity-checked
+bootstrap after its protected copies resisted deletion. No matching process,
+worktree or mount remains; 205,212,064 KiB, approximately 195.7 GiB, is free.
+This supersedes only the retained-custody statement above. The failed result,
+incomplete full race gate and fresh visible-terminal readiness matrix remain
+open; no retry, acceptance, seal or ceremony follows.
+
 **T42.3 · Scale posture decision and neutral product closure** — independently
 review the T42.2 receipt, replay representative All code → service →
 relationship → Workbench → proof → MCP flows, and record one decision:

@@ -91,6 +91,18 @@ process survives. A corrected immutable commit, complete review,
 longer-allowance package gates and a fresh visible-terminal readiness matrix
 remain before T42.2n acceptance; seal and ceremony stay gated.
 
+**T42.2n pressure-failure custody disposition, 2026-09-17:** Ben explicitly
+authorized cleanup before the next rehearsal. Compact failure logs,
+authorization handoff and public signing records remain at
+`/private/tmp/t422-retained-failure-03c26e90.Lh6Tct`; the 392-KiB directory
+contains no private key. The exact failed image detached normally without
+force, and its operational root, clean detached checkout and disposable
+signer/bootstrap custody were removed after clearing only the protected
+bootstrap's `uchg` flags. No matching process, worktree or mount remains;
+205,212,064 KiB, approximately 195.7 GiB, is free. The failed result, incomplete
+full race gate and fresh visible-terminal readiness matrix remain open; cleanup
+authorizes no retry, acceptance, seal or ceremony.
+
 **T42.2n session-fixture review correction, 2026-09-17:** the isolated child
 fixture passed focused and complete package normal/race gates. Exact-commit
 review found one low future-rename hole in its child-selector evidence, so the

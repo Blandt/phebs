@@ -4005,3 +4005,18 @@ in [docs/ROADMAP.md](./docs/ROADMAP.md).
   immutable commit, complete independent review, the longer-allowance package
   gates and a fresh visible-terminal readiness matrix remain required before
   T42.2n acceptance.
+
+- **2026-09-17 — T42.2n pressure-failure custody disposition.** Ben
+  explicitly authorized cleanup before the next rehearsal. Preserve the
+  compact failure logs, authorization handoff and public signing records at
+  `/private/tmp/t422-retained-failure-03c26e90.Lh6Tct`; the 392-KiB retained
+  directory contains no ephemeral private key. Exact borrower and operation-
+  lock checks were quiet, `/dev/disk5s1` detached normally without force, and
+  the failed operational image/root, clean detached checkout and disposable
+  signer/bootstrap custody were removed. Cleanup cleared only `uchg` from the
+  identity-checked bootstrap after its protected copies resisted deletion.
+  No matching process, worktree or mount remains; available host space is
+  205,212,064 KiB, approximately 195.7 GiB. This supersedes only the retained-
+  custody statement above. The failed readiness result, incomplete full race
+  gate and requirement for one fresh visible-terminal readiness matrix remain;
+  no retry, acceptance, seal or ceremony follows from cleanup.
