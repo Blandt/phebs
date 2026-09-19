@@ -366,6 +366,7 @@ func TestExecutionFailureDiagnosticPressurePrefix(t *testing.T) {
 			completed.Fence = time.Unix(1, 0)
 			archive.inspection.retainPressureBallast(0, completed, nil)
 			archive.inspection.retainPressureBallast(2, mutation, errPressureVolume)
+			archive.inspection.retainPressureQuiet(mutation.Settlement, nil)
 			want := archive.inspection.pressure.ballast
 			current, owner := archive, archive
 			if mode == "same owner" {
@@ -397,6 +398,7 @@ func TestExecutionFailureDiagnosticPressurePrefix(t *testing.T) {
 			}
 			if available {
 				for _, fragment := range []string{
+					"pressure_quiet_complete=true samples=2 used_changes=1 min_used=74 max_used=90 max_used_step=16 min_free_blocks=11 max_free_blocks=27",
 					"pressure_ballast_index=0 attempted=true complete=true fence_present=true",
 					"pressure_ballast_index=2 attempted=true complete=false fence_present=false before_used=90 before_available=10 before_allocated=60 after_used=74 after_available=26 after_allocated=45",
 					"pressure_ballast_index=3 attempted=false complete=false fence_present=false before_used=0 before_available=0 before_allocated=0 after_used=0 after_available=0 after_allocated=0",

@@ -16,11 +16,12 @@ func TestEpochArchiveExecutionBounds(t *testing.T) {
 		pairs    uint64
 		phases   []int
 	}{
-		{"backup", checkpointBackupEpochBounds, 9 * time.Hour, 28, []int{7, 8, 9, 10, 11}},
+		{"backup", checkpointBackupEpochBounds, 9*time.Hour + 5*time.Minute, 28, []int{7, 8, 9, 10, 11}},
 		{"restored", restoredExecutionBounds, 8*time.Hour + 20*time.Minute, 15, []int{11, 12, 13}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			plan := Plan{Schema: PlanV3Schema, PhaseDeadlines: frozenPhaseDeadlines(), SafetyEnvelope: frozenSafetyEnvelope()}
+			plan.PhaseDeadlines[8].DeadlineMS = pressure80V3DeadlineMS
 			bounds, err := tc.bounds(plan)
 			if err != nil || bounds.lifetime != tc.lifetime || bounds.controlPairs != tc.pairs || bounds.health != 15*time.Minute || bounds.outputBytes != 64<<20 {
 				t.Fatal(bounds, err)

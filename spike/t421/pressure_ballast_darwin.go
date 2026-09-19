@@ -16,6 +16,7 @@ import (
 const (
 	pressureBallastSettleCadence = 50 * time.Millisecond
 	pressureBallastSettleLimit   = 30 * time.Second
+	pressureBallastQuietWindow   = 150 * time.Second
 )
 
 // The volume's existing mutex and mutation lease serialize the four fixed
@@ -259,6 +260,77 @@ func (b *executionPressureBallast) settleShrink(
 		}
 		return value, logical, nil
 	}, accept)
+}
+
+// waitQuiet requires one sampled quiet suffix after the real pre-pressure
+// cleanup. A movement restarts the suffix; the owning phase deadline remains
+// the hard wall. It mutates nothing and retains the same custody and authority
+// checks as a shrink observation.
+func (b *executionPressureBallast) waitQuiet(ctx context.Context, run *ExecutionEpochOneRun, phase uint32) (executionPressureBallastSettlement, error) {
+	if b == nil || b.volume == nil || run == nil || phase != 9 {
+		return executionPressureBallastSettlement{}, errPressureVolume
+	}
+	return waitExecutionPressureBallastQuiet(ctx, pressureBallastQuietWindow, 4096, func(current context.Context) (executionPressureBallastSample, uint64, error) {
+		b.volume.mu.Lock()
+		defer b.volume.mu.Unlock()
+		if b.next != 0 || b.failed || b.removed {
+			return executionPressureBallastSample{}, 0, errPressureVolume
+		}
+		value, logical, err := b.observe()
+		run.mu.Lock()
+		authorizeErr := b.authorize(current, run, phase)
+		run.mu.Unlock()
+		if err != nil || authorizeErr != nil {
+			return value, logical, errPressureVolume
+		}
+		return value, logical, nil
+	})
+}
+
+// waitExecutionPressureBallastQuiet returns after one complete sampled suffix
+// whose non-ballast Used spread stays within tolerance. Earlier movement is
+// retained in the bounded aggregate and restarts, rather than widens, the
+// suffix. The caller's context is the only wall.
+func waitExecutionPressureBallastQuiet(
+	ctx context.Context,
+	quiet time.Duration,
+	tolerance uint64,
+	observe func(context.Context) (executionPressureBallastSample, uint64, error),
+) (executionPressureBallastSettlement, error) {
+	var observations executionPressureBallastSettlement
+	if ctx == nil || ctx.Err() != nil || quiet <= 0 || tolerance == 0 || observe == nil {
+		return observations, errPressureVolume
+	}
+	var quietSince time.Time
+	var allocated, minimum, maximum uint64
+	ticker := time.NewTicker(pressureBallastSettleCadence)
+	defer ticker.Stop()
+	for {
+		value, logical, err := observe(ctx)
+		if err != nil || value.Used < value.Allocated || logical != value.Allocated || value.Allocated > 80<<30 || value.Allocated%4096 != 0 {
+			return observations, errPressureVolume
+		}
+		other := value.Used - value.Allocated
+		if observations.Samples == 0 {
+			quietSince, allocated, minimum, maximum = time.Now(), value.Allocated, other, other
+		} else if value.Allocated != allocated {
+			return observations, errPressureVolume
+		} else {
+			minimum, maximum = min(minimum, other), max(maximum, other)
+			if maximum-minimum > tolerance {
+				quietSince, minimum, maximum = time.Now(), other, other
+			}
+		}
+		observations.observe(value)
+		if time.Since(quietSince) >= quiet {
+			return observations, nil
+		}
+		select {
+		case <-ctx.Done():
+			return observations, errPressureVolume
+		case <-ticker.C:
+		}
+	}
 }
 
 // settleExecutionPressureBallast never repeats a mutation or widens a target.

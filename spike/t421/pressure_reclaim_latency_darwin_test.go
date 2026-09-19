@@ -15,7 +15,7 @@ import (
 
 const (
 	executionReclaimSampleCadence = pressureBallastSettleCadence
-	executionReclaimDefaultQuiet  = 150 * time.Second
+	executionReclaimDefaultQuiet  = pressureBallastQuietWindow
 	executionReclaimMaximumQuiet  = 20 * time.Minute
 	executionReclaimAllowance     = 20 * time.Minute
 	executionReclaimReleaseLimit  = 3 * time.Minute

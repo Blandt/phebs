@@ -2,6 +2,7 @@ package t421
 
 import (
 	"errors"
+	"math"
 	"slices"
 	"strings"
 
@@ -18,6 +19,7 @@ const (
 	PhaseRuntimeBindingV3Schema = "t422-phase-runtime-binding-v3"
 	retainedPlanV2SHA256        = "sha256:2275b8cadca8f4e76a46db6d943380d1533a41da70a71c7009850e2c0229b422"
 	queryResultUnitsV3          = "Q-result-units-v3:authorization_decisions=distinct-consistent-logical-transport-verdicts-after-fresh-page-authorization;authority_snapshots=distinct-complete-F-authority-values-bracketing-all-pages;authorized_repositories=actual-query-admitted-repository-set-cardinality-not-returned-hit-count;not-native-authorization-or-snapshot-invocation-counts"
+	pressure80V3DeadlineMS      = uint64(25 * 60 * 1_000)
 )
 
 // ProcessAccountingContract distinguishes admitted dispatch permissions from
@@ -86,6 +88,14 @@ func applyProcessAccountingCorrection(plan *Plan) error {
 		return errors.New("V3 dispatch budget phase inventory differs")
 	}
 	plan.Schema = PlanV3Schema
+	pressureIndex := slices.IndexFunc(plan.PhaseDeadlines, func(value PhaseDeadline) bool { return value.Phase == "pressure_80" })
+	if pressureIndex < 0 || plan.PhaseDeadlines[pressureIndex].DeadlineMS != uint64(20*60*1_000) {
+		return errors.New("V3 pressure-80 deadline source differs")
+	}
+	plan.PhaseDeadlines[pressureIndex].DeadlineMS = pressure80V3DeadlineMS
+	if err := extendPressure80DispatchBudget(&budgets[pressureIndex], pressure80V3DeadlineMS); err != nil {
+		return err
+	}
 	// Linked-path allocation is an accounting ceiling, not physical capacity.
 	// The pressure volume stays 96 GiB; retained V1/V2 keep their 96-GiB ceiling.
 	plan.SafetyEnvelope.MaximumDataAllocatedBytes = 128 << 30
@@ -187,6 +197,37 @@ func applyProcessAccountingCorrection(plan *Plan) error {
 			plan.StopRules[index].Trigger += "_with_complete_dispatch_and_store_submission_prefix_and_available_native_measurement;otherwise_preserve_overshoot_and_reduce"
 		}
 	}
+	return nil
+}
+
+// The longer selected phase admits only the ordinary three-second watcher
+// ticks implied by its deadline. No other command allowance changes.
+func extendPressure80DispatchBudget(budget *PhaseDispatchBudget, deadlineMS uint64) error {
+	if budget == nil || budget.Phase != "pressure_80" {
+		return errors.New("pressure-80 dispatch budget is absent")
+	}
+	termIndex := slices.IndexFunc(budget.Terms, func(value DispatchBudgetTerm) bool { return value.Name == "ordinary_watcher" })
+	roleIndex := slices.IndexFunc(budget.Roles, func(value RoleBound) bool { return value.Name == "git" })
+	if termIndex < 0 || roleIndex < 0 {
+		return errors.New("pressure-80 watcher budget is absent")
+	}
+	prior := budget.Terms[termIndex]
+	const intervalMS = uint64(3_000)
+	units := deadlineMS / intervalMS
+	if deadlineMS%intervalMS != 0 {
+		units++
+	}
+	next, err := dispatchBudgetTerm(prior.Role, prior.Name, prior.Unit, units, prior.AttemptsPerUnit, prior.MaximumUnitAttempts)
+	if err != nil || next.MaximumAttempts < prior.MaximumAttempts {
+		return errors.New("pressure-80 watcher budget is invalid")
+	}
+	delta := next.MaximumAttempts - prior.MaximumAttempts
+	if budget.MaximumAttempts > math.MaxUint64-delta || budget.Roles[roleIndex].Maximum > math.MaxUint64-delta {
+		return errors.New("pressure-80 watcher budget overflows")
+	}
+	budget.Terms[termIndex] = next
+	budget.MaximumAttempts += delta
+	budget.Roles[roleIndex].Maximum += delta
 	return nil
 }
 

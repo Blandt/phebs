@@ -186,6 +186,18 @@ key; the prior DB/APFS state is no longer available for inspection. Approximatel
 remain untouched. Cleanup is not signed teardown/readiness; existing review,
 contract and candidate-gate blockers remain and no rehearsal or merge occurred.
 
+**T42.2n sampled quiet-suffix gate, 2026-09-19:** the isolated 96-GiB APFS
+selector passed four 150-second/3,001-sample windows with zero non-ballast or
+`Bfree` movement and passed the frozen 80/90/75 mutations. This rules out an
+untouched-volume lag in that sampled interval, not the real store layout. The
+retained failed run performed 33,769 owned lifecycle deletions before pressure;
+prospective V3 now requires a 150-second, 4,096-byte-tolerance quiet suffix
+after that cleanup and before the first ballast mutation, retaining exact
+receipt continuity and one-shot mutation predicates. Only pressure-80 moves to
+25 minutes and only its ordinary-watcher admission grows by 100 attempts;
+historical V1/V2 and ordinary runtime remain unchanged. Focused checks pass;
+static review and fresh signed readiness still block merge and T42.2o.
+
 **T42.2n session-fixture review correction, 2026-09-17:** the isolated child
 fixture passed focused and complete package normal/race gates. Exact-commit
 review found one low future-rename hole in its child-selector evidence, so the

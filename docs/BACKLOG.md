@@ -13751,6 +13751,25 @@ evidence were preserved. Further inspection of that DB/APFS state is no longer
 possible. This is authorized disposal, not successful signed teardown or
 readiness; the review, contract and candidate-gate blockers above remain.
 
+**T42.2n isolated reclaim result and quiet-suffix correction, 2026-09-19:** the
+real empty-volume 96-GiB APFS selector passed four 150-second windows with
+3,001 samples each and no movement in non-ballast `Used`, `Bfree`, spread or
+adjacent step; all frozen 80/90/75 production mutation predicates passed and
+the shrink settled immediately. Its 659.92-second log digest is
+`sha256:3192a72df33daa1e3a8874b53e58fc1fb7160217570d15d9063057f7fb60018f`.
+This narrows the retained failure to owned store/layout work without proving
+the real layout stable. The retained server log shows 33,769 owned deletions in
+pressure-80 normalization. Prospective V3 therefore keeps receipt continuity,
+targets, tolerance and one-shot mutation exact, but requires a 150-second
+sampled non-ballast quiet suffix after that cleanup and before the first
+ballast mutation; movement beyond 4,096 bytes restarts the suffix and all
+custody, allocation, authority and phase-deadline failures remain closed. Only
+the pressure-80 deadline moves from 20 to 25 minutes, with its ordinary-watcher
+allowance moving from 400 to 500 and its total dispatch bound from 401 to 501.
+V1/V2 bytes remain exact and ordinary runtime is unchanged. Focused normal and
+race checks pass; full static/review gates and a fresh signed readiness matrix
+still precede merge, acceptance and T42.2o.
+
 **T42.3 · Scale posture decision and neutral product closure** — independently
 review the T42.2 receipt, replay representative All code → service →
 relationship → Workbench → proof → MCP flows, and record one decision:

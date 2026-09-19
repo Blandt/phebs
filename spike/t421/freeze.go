@@ -592,8 +592,12 @@ func expectedExecutionPressureGeometry(
 		plan.SafetyEnvelope.MaximumDataAllocatedBytes-maximumTarget < plan.SafetyEnvelope.MinimumPressureMarginBytes {
 		return ExecutionPressureGeometry{}, errors.New("T42.2 pressure geometry is below its minimum ballast margin")
 	}
+	policy := "collect_noncurrent_no_padding_then_measure_capacity_and_allocated_bytes_before_each_target-v1"
+	if plan.Schema == PlanV3Schema {
+		policy = "collect_noncurrent_no_padding_then_require_150_second_sampled_nonballast_quiet_suffix_before_first_target-v2"
+	}
 	return ExecutionPressureGeometry{
-		Model: pressureGeometryModel, LivePrePressurePolicy: "collect_noncurrent_no_padding_then_measure_capacity_and_allocated_bytes_before_each_target-v1",
+		Model: pressureGeometryModel, LivePrePressurePolicy: policy,
 		MinimumPrePressureUsedBytes: plan.SafetyEnvelope.MinimumPrePressureUsedBytes,
 		MaximumPrePressureUsedBytes: plan.SafetyEnvelope.MaximumPrePressureUsedBytes,
 		MinimumPrePressureBytes:     plan.SafetyEnvelope.MinimumPrePressureBytes,

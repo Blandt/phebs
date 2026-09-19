@@ -161,6 +161,8 @@ func retainExecutionFailureDiagnostic(root productionRoot, stage string, recorde
 // Copy only joined scalar state; never resample the volume or repair a row.
 func (w *executionFailureSummary) pressureBallast(run *ExecutionEpochOneRun) {
 	var rows [4]executionPressureBallastObservation
+	var quiet executionPressureBallastSettlement
+	quietComplete := false
 	available := false
 	select {
 	case <-run.done:
@@ -170,6 +172,7 @@ func (w *executionFailureSummary) pressureBallast(run *ExecutionEpochOneRun) {
 		if joined && inspection != nil {
 			inspection.mu.Lock()
 			rows = inspection.pressure.ballast
+			quiet, quietComplete = inspection.pressure.quiet, inspection.pressure.quietComplete
 			inspection.mu.Unlock()
 			available = true
 		}
@@ -177,6 +180,8 @@ func (w *executionFailureSummary) pressureBallast(run *ExecutionEpochOneRun) {
 	}
 	_, _ = fmt.Fprintf(w, "pressure_ballast_available=%t\n", available)
 	if available {
+		_, _ = fmt.Fprintf(w, "pressure_quiet_complete=%t samples=%d used_changes=%d min_used=%d max_used=%d max_used_step=%d min_free_blocks=%d max_free_blocks=%d\n",
+			quietComplete, quiet.Samples, quiet.UsedChanges, quiet.MinUsed, quiet.MaxUsed, quiet.MaxUsedStep, quiet.MinFreeBlocks, quiet.MaxFreeBlocks)
 		for i, row := range rows {
 			before, after := row.Mutation.Before, row.Mutation.After
 			_, _ = fmt.Fprintf(w, "pressure_ballast_index=%d attempted=%t complete=%t fence_present=%t before_used=%d before_available=%d before_allocated=%d after_used=%d after_available=%d after_allocated=%d\n",

@@ -159,6 +159,42 @@ func TestExecutionPressureBallastSettlement(t *testing.T) {
 	}
 }
 
+func TestExecutionPressureBallastQuietSuffix(t *testing.T) {
+	ctx, cancel := context.WithTimeout(t.Context(), time.Second)
+	defer cancel()
+	started := time.Now()
+	var calls uint64
+	result, err := waitExecutionPressureBallastQuiet(ctx, 120*time.Millisecond, 4096,
+		func(context.Context) (executionPressureBallastSample, uint64, error) {
+			calls++
+			used := uint64(20 << 30)
+			if calls > 1 {
+				used -= 8 << 10
+			}
+			value := executionPressureBallastSample{Used: used, Available: 96<<30 - used, Allocated: 4 << 30}
+			return value, value.Allocated, nil
+		})
+	if err != nil || calls < 4 || result.Samples != calls || result.UsedChanges != 1 || time.Since(started) < 150*time.Millisecond {
+		t.Fatalf("quiet suffix did not restart: calls=%d result=%+v elapsed=%s error=%v", calls, result, time.Since(started), err)
+	}
+}
+
+func TestExecutionPressureBallastQuietSuffixRefusesAllocationDrift(t *testing.T) {
+	var calls uint64
+	_, err := waitExecutionPressureBallastQuiet(t.Context(), time.Second, 4096,
+		func(context.Context) (executionPressureBallastSample, uint64, error) {
+			calls++
+			allocated := uint64(4 << 30)
+			if calls > 1 {
+				allocated += 4096
+			}
+			return executionPressureBallastSample{Used: 20 << 30, Available: 76 << 30, Allocated: allocated}, allocated, nil
+		})
+	if err == nil || calls != 2 {
+		t.Fatalf("allocation drift was not refused: calls=%d error=%v", calls, err)
+	}
+}
+
 func TestExecutionPressureBallastSettlementSummary(t *testing.T) {
 	for _, test := range []struct {
 		name             string

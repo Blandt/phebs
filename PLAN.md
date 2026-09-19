@@ -4251,3 +4251,44 @@ in [docs/ROADMAP.md](./docs/ROADMAP.md).
   database/image prevents further DB/APFS inspection and is not successful
   signed teardown. Full OCR coverage, contract resolution and candidate gates
   remain open; no rehearsal, readiness pass, merge, seal or ceremony follows.
+
+- **2026-09-19 — T42.2n gates real pressure work on a sampled quiet suffix.**
+  The optional isolated 96-GiB APFS observation passed all four 150-second
+  windows at the production 50-ms cadence: 3,001 samples per window, zero
+  non-ballast `Used` changes, zero spread, zero largest step and unchanged
+  `Bfree`. The real 80/90/75 mutations and 90-to-75 settler all passed; the
+  shrink settled on its first sample. The run passed in 659.92 test seconds,
+  its log has
+  `sha256:3192a72df33daa1e3a8874b53e58fc1fb7160217570d15d9063057f7fb60018f`,
+  and exact cleanup returned the image. This rules out an untouched-volume
+  arrival lag in the sampled interval, but the single stand-in extent and
+  absent server/store do not exonerate the real many-file layout.
+
+  The retained `d4318be7` server log independently shows that pressure-80
+  normalization deleted 33,769 owned lifecycle units over 704 turns. Its last
+  reported deletion preceded the final drained owner cycle by about 127
+  seconds; the later 61,472,768-byte non-ballast decrease therefore belongs to
+  work outside the ballast mutation while the old contract assumed that term
+  stayed fixed. Preserve the frozen 80/90/75 geometry, 4,096-byte tolerance,
+  one-shot mutations, per-mutation delta checks and exact receipt continuity.
+  After the real pressure-80 cleanup is drained and requests are fenced, but
+  before the first ballast mutation, prospective V3 now requires one sampled
+  150-second suffix whose non-ballast `Used - Allocated` spread is at most
+  4,096 bytes. A larger movement restarts the suffix from that valid sample;
+  cancellation, phase expiry, custody/FSID/path/inode drift, ballast allocation
+  drift or authority drift refuses. Failure diagnostics retain only fixed
+  aggregate first/last/extrema/change scalars, not a sample history.
+
+  The measured pressure-80 phase used 1,040.987 seconds, leaving only about
+  nine seconds after a 150-second gate under the prior 20-minute wall.
+  Prospective V3 therefore gives only `pressure_80` a 25-minute deadline and
+  expands only its three-second ordinary-watcher dispatch term from 400 to 500
+  attempts (the phase total from 401 to 501). V1/V2 canonical bytes and
+  deadlines remain exact. The selected gate adds one ticker and at most 3,002
+  read-only custody/capacity/authority observations when already quiet; later
+  movement adds observations only until the existing phase wall. It adds no
+  mutation, request, store query, content read, hash, child, publication,
+  schema, cache or ordinary-runtime work. Focused normal and race regressions
+  pass. Static gates, exact review and the fresh signed readiness matrix remain
+  required before merge; this observation and correction are not readiness,
+  seal, freeze or ceremony evidence.

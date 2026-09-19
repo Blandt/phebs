@@ -7447,9 +7447,21 @@ restart and pressure-volume selectors, along with their existing predecessor
 selectors, before allocating custody. It prepares one empty ballast inode
 before AuthorA, then uses the owned 96-GiB volume for the fixed 80/90/75
 sequence after checkpoint recovery. Each pressure phase retains its original
-twenty-minute deadline; the test's total allowance adds one hour, without
-extending any phase deadline. Run only from a reviewed exact source and with
-the separately verified pinned environment and disk prerequisites.
+target and mutation predicates. Prospective V3 gives pressure-80 twenty-five
+minutes so its post-cleanup 150-second sampled quiet-suffix gate cannot consume
+the prior wall; pressure-90 and pressure-75 remain twenty minutes. The test's
+pressure allowance is therefore sixty-five minutes. Historical V1/V2 deadlines
+remain exact. Run only from a reviewed exact source and with the separately
+verified pinned environment and disk prerequisites.
+
+After pressure-80's real lifecycle cleanup is drained and requests are fenced,
+the V3 parent samples the pressure volume at the existing 50-ms cadence until
+one 150-second suffix keeps non-ballast `Used - Allocated` within the 4,096-byte
+allocation-unit tolerance. A larger movement restarts the suffix; custody,
+ballast allocation, authority, cancellation or phase-wall failure refuses.
+This gate precedes the first ballast mutation and does not relax receipt
+continuity or repeat a mutation. Its fixed aggregate appears in a retained
+failure summary; it is not a continuous-stability proof.
 
 Before each ballast mutation, the parent reuses the phase's required native
 workspace sample to project both logical and per-linked-path allocated bytes
