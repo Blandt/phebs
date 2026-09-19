@@ -4235,3 +4235,19 @@ in [docs/ROADMAP.md](./docs/ROADMAP.md).
   diff has `sha256:baf38a81c653d57874232457daf4f6ee8a0a51b8d9c90b5637802661839548e0`.
   The independent source reviewer found no actionable issue, but the loop's
   OCR coverage remains incomplete. No blind retry or merge approval follows.
+
+- **2026-09-19 — T42.2n failed readiness disk disposition.** Ben authorized
+  cleanup of the retained `d4318be7` run. Byte-verified logs, unsealed plan
+  input, authorization handoff and public signing records now remain privately
+  at `/private/tmp/t422-retained-failure-d4318be7.mcOMaH`, without its ephemeral
+  private key. After idle/holder checks and nonblocking custody locks,
+  `/dev/disk4` detached normally, without force. The exact failed operational
+  root, clean detached checkout and private signer/bootstrap roots were removed;
+  only the three verified bootstrap copy trees had `uchg` cleared. No matching
+  process, listener, image, mount or worktree registration remains. Host free
+  space increased approximately 90.73 GiB to 196.07 GiB; other worktrees,
+  unmerged validation lineages and prior evidence remain untouched. This
+  supersedes only the run's retained-custody statements above: deleting its
+  database/image prevents further DB/APFS inspection and is not successful
+  signed teardown. Full OCR coverage, contract resolution and candidate gates
+  remain open; no rehearsal, readiness pass, merge, seal or ceremony follows.

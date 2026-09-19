@@ -13739,6 +13739,18 @@ ambiguity is corrected and passed fresh one-file review; its settlement-loop
 review timed out, so full OCR coverage remains open (details in PLAN). No full
 package gate or native rehearsal was rerun and the branch remains unmergeable.
 
+**T42.2n failed readiness disk disposition, 2026-09-19:** Ben authorized
+cleanup of the failed `d4318be7` run. Verified compact logs, plan input, handoff
+and public signing records remain privately at
+`/private/tmp/t422-retained-failure-d4318be7.mcOMaH`, without a private key.
+After custody-lock/idle checks and ordinary detach, the exact image, operational
+root, clean detached worktree and signer/bootstrap copies were removed. No
+matching process, listener, mount or worktree registration remains. Available
+space increased approximately 90.73 GiB to 196.07 GiB; other worktrees and
+evidence were preserved. Further inspection of that DB/APFS state is no longer
+possible. This is authorized disposal, not successful signed teardown or
+readiness; the review, contract and candidate-gate blockers above remain.
+
 **T42.3 · Scale posture decision and neutral product closure** — independently
 review the T42.2 receipt, replay representative All code → service →
 relationship → Workbench → proof → MCP flows, and record one decision:

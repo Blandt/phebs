@@ -177,6 +177,15 @@ Focused normal/race and static/docs checks pass; one low output ambiguity is
 fixed and OCR re-reviewed. The settlement-loop OCR review timed out and is not
 approval. Full OCR coverage, contract resolution and readiness remain open.
 
+**T42.2n authorized disk disposition, 2026-09-19:** the failed `d4318be7`
+image detached normally and its exact operational, detached-checkout and
+signer/bootstrap roots were removed. Verified compact private evidence remains
+at `/private/tmp/t422-retained-failure-d4318be7.mcOMaH`, without the ephemeral
+key; the prior DB/APFS state is no longer available for inspection. Approximately
+90.73 GiB was recovered, leaving 196.07 GiB free. Other worktrees and evidence
+remain untouched. Cleanup is not signed teardown/readiness; existing review,
+contract and candidate-gate blockers remain and no rehearsal or merge occurred.
+
 **T42.2n session-fixture review correction, 2026-09-17:** the isolated child
 fixture passed focused and complete package normal/race gates. Exact-commit
 review found one low future-rename hole in its child-selector evidence, so the
