@@ -211,6 +211,16 @@ predicates, receipt continuity, deadlines, V1/V2 and ordinary runtime remain
 unchanged. The failed image stays in custody; focused, exact-tree,
 independent-review and fresh readiness gates remain open.
 
+**T42.2n `64f2f455` custody disposition, 2026-09-19:** authorized cleanup
+preserved a checksum-bound compact private record at
+`/private/tmp/t422-retained-failure-64f2f455.e8RZlS`, then detached the exact
+image normally and removed only its operational, signer, wrapper and clean
+worktree roots. No private key, matching process, listener, mount or device
+remains; 65.28 GiB was recovered and unrelated custody was untouched. The
+first ordinary detach had refused harmlessly while the audit source lock was
+still open; no force was used. Disposal is not readiness or signed teardown.
+The anchored exact-commit rehearsal and remaining merge gates stay open.
+
 **T42.2n session-fixture review correction, 2026-09-17:** the isolated child
 fixture passed focused and complete package normal/race gates. Exact-commit
 review found one low future-rename hole in its child-selector evidence, so the

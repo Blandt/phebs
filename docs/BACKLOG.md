@@ -13786,6 +13786,18 @@ phase expiry still fail closed; targets, one-shot mutations, native delta
 predicates, exact receipt continuity, deadlines and V1/V2 bytes remain
 unchanged. Focused, exact-tree, review and fresh readiness gates remain open.
 
+**T42.2n `64f2f455` failed-custody disposition, 2026-09-19:** Ben authorized
+cleanup after review and immutable correction commit `61aaf54b`. A checksum
+manifest binds the compact private record at
+`/private/tmp/t422-retained-failure-64f2f455.e8RZlS`, excluding the ephemeral
+private key and private bootstrap copies. The first non-forced detach safely
+refused because the audit source lock remained open; releasing that descriptor
+allowed the second ordinary `/dev/disk4` detach. The exact operational, signer,
+wrapper and clean worktree roots were removed, no similarly named custody was
+touched, all devices/processes/listeners are absent, and 65.28 GiB was
+recovered. This is authorized disposal, not readiness or signed teardown;
+exact-commit readiness and remaining merge gates stay open.
+
 **T42.3 · Scale posture decision and neutral product closure** — independently
 review the T42.2 receipt, replay representative All code → service →
 relationship → Workbench → proof → MCP flows, and record one decision:

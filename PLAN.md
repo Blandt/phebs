@@ -4340,3 +4340,28 @@ in [docs/ROADMAP.md](./docs/ROADMAP.md).
   displacement, an out-of-envelope excursion, cancellation at the accepting
   endpoint and allocation drift. Exact-tree gates, independent review and a
   later host-clean signed readiness rehearsal remain mandatory before merge.
+
+- **2026-09-19 — T42.2n `64f2f455` failed-custody disposition.** Ben
+  authorized cleanup after the pressure-80 failure was independently reviewed
+  and its anchored-stabilization correction became immutable commit
+  `61aaf54b75336457d3fe4ec5df7cbcaa3944b4d8`. Byte-identical readiness,
+  failure, server, unsealed-plan, handoff and public signing records now remain
+  privately at `/private/tmp/t422-retained-failure-64f2f455.e8RZlS`; its
+  `SHA256SUMS` verifies all retained evidence, and no ephemeral private key or
+  private bootstrap copy remains.
+
+  Fresh checks found no rehearsal, server, database, test or listener and only
+  the expected image helper. Both custody locks were acquired nonblocking. The
+  first ordinary detach refused without mutation because the audit still held
+  the source-lock descriptor; after that descriptor was released, the second
+  ordinary `/dev/disk4` detach succeeded without force. Only the three exact
+  verified bootstrap-copy trees had `uchg` cleared. The operational, signer and
+  wrapper roots and clean detached worktree registration were then removed;
+  similarly named and prior evidence roots were untouched. The mount, image
+  devices, helper and port-65499 listener are absent. Available host space rose
+  by 68,451,888 KiB (65.28 GiB) to about 197.16 GiB.
+
+  Disposal permanently removes the derived database/image and private key, so
+  they cannot be inspected again. It is neither readiness nor successful signed
+  teardown and authorizes no merge, seal, freeze or ceremony. The later
+  host-clean exact-commit readiness rehearsal remains mandatory.
