@@ -181,6 +181,16 @@ func (w *executionFailureSummary) pressureBallast(run *ExecutionEpochOneRun) {
 			before, after := row.Mutation.Before, row.Mutation.After
 			_, _ = fmt.Fprintf(w, "pressure_ballast_index=%d attempted=%t complete=%t fence_present=%t before_used=%d before_available=%d before_allocated=%d after_used=%d after_available=%d after_allocated=%d\n",
 				i, row.Attempted, row.Complete, !row.Mutation.Fence.IsZero(), before.Used, before.Available, before.Allocated, after.Used, after.Available, after.Allocated)
+			settlement := row.Mutation.Settlement
+			_, _ = fmt.Fprintf(w, "pressure_settlement_index=%d samples=%d used_changes=%d min_used=%d max_used=%d max_used_step=%d min_free_blocks=%d max_free_blocks=%d before_free_blocks=%d after_free_blocks=%d\n",
+				i, settlement.Samples, settlement.UsedChanges, settlement.MinUsed, settlement.MaxUsed, settlement.MaxUsedStep, settlement.MinFreeBlocks, settlement.MaxFreeBlocks, before.FreeBlocks, after.FreeBlocks)
+			if settlement.Samples == 0 {
+				continue
+			}
+			for j, sample := range []executionPressureBallastSample{settlement.First, settlement.Last} {
+				_, _ = fmt.Fprintf(w, "pressure_settlement_endpoint_index=%d endpoint=%s used=%d available=%d allocated=%d free_blocks=%d\n",
+					i, []string{"first", "last"}[j], sample.Used, sample.Available, sample.Allocated, sample.FreeBlocks)
+			}
 		}
 	}
 }

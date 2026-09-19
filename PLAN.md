@@ -4150,3 +4150,88 @@ in [docs/ROADMAP.md](./docs/ROADMAP.md).
   for this changed source; the previous source's package passes are not
   relabeled as current-candidate evidence. Resolve pressure reconciliation and
   receipt continuity before asking Ben for another full terminal rehearsal.
+
+- **2026-09-18 — T42.2n sampled pressure drift, not another timeout change.**
+  Ben's arithmetic audit identifies one shared non-ballast-stability assumption
+  in native mutation acceptance and receipt continuity; they are not separate
+  causes. The receipt requires exact interphase available/data continuity and
+  exact linked-data-versus-ballast deltas, while within-mutation volume deltas
+  retain 4,096-byte tolerance. These are sampled endpoint requirements, not
+  proof of continuous bit stability. Any relaxation must be a prospective
+  superseding contract, never a mutation of retained approval/freeze semantics.
+
+  The retained shrink size and 4,096-byte alignment pin the pre-shrink
+  non-ballast anchor to 46,518,472,704 bytes, with floor remainder 3,604.
+  Post-stop non-ballast is 46,456,999,936 bytes: a 61,472,768-byte decrease,
+  distinct from the 61,476,372-byte target shortfall recorded above. Both
+  native predicates reject that post-stop sample. They constrain the same
+  variable but are not identical: for non-ballast delta `d`, mutation requires
+  `abs(d) <= 4096` and target requires `abs(d - 3604) <= 4096`; the aligned
+  intersection is `d = 0` or `4096`. These facts do not reconstruct any lost
+  in-run sample or identify the releasing owner. The thirty-second window
+  cannot compensate for a persistent anchor change; it is not extended again.
+
+  The retained `receipt_composition` diagnostic, rather than the generic
+  returned-transport error alone, proves this run failed before package
+  construction/emission. That transport error also covers malformed headers,
+  lengths, truncated bodies and trailing bytes; it does not by itself prove
+  that no header arrived. The run produced no authenticated stopped package.
+
+  Retain fixed-size first/last, count, minimum/maximum Used, observed Used-change
+  count and largest adjacent Used difference from the existing settlement
+  observations. Include raw `Bfree` from the same existing `Fstatfs` result,
+  its sampled extrema and before/after values; admission continues to use the
+  existing `Bavail`-derived capacity. Only observations passing the unchanged
+  custody, logical-size and allocation-range checks enter the summary. A later
+  invalid observation remains separately visible in the raw mutation After;
+  it does not overwrite the summary's last valid sample. Neither extrema nor
+  adjacent sampled steps prove whether an underlying release was discrete:
+  gradual changes can cross the narrow band between 50-ms observations.
+  Stable sampled `Bfree` with changing `Bavail` isolates a difference between
+  those counters, not a unique cause. The non-atomic linked-file data gauge
+  cannot exclude unlinked-open files, deferred freeing or offsetting database
+  work; its after-ballast sample is not reached when native mutation fails.
+
+  Aggregation adds constant scalar work to each existing successful or failed
+  shrink observation and fixed-size state to the four retained mutation rows.
+  Only diagnostic serialization is failure-only. The volume lock remains held
+  as before; aggregation runs after the short authorization run lock is
+  released, with no new lock or lock nesting. The existing joined summary copy
+  and 64-KiB cap remain; no extra syscall, request, content read, hash, timer,
+  child, mutation, history buffer, cache or ordinary query/sync/startup/retry/
+  publication work is added. Public receipt fields, frozen targets, tolerance,
+  cadence, deadline and admission rules remain exact.
+
+  The reported deleted-cwd warning is not in the retained Go log and no shell
+  wrapper survives, so its emitting command is unknown. Future terminal
+  commands must first enter the surviving primary checkout before spawning a
+  bootstrap shell, explicitly enter the new detached worktree in a subshell,
+  and leave any worktree before authorized removal. No rehearsal, cleanup,
+  superseding contract or merge is performed by this diagnostic change.
+
+  Focused normal verification, including retained V1/V2 canonical bytes,
+  passed in 1.150 seconds; twenty race repetitions passed in 10.139 seconds.
+  Repository compile-only, vet, pinned golangci-lint 2.12.2 with zero issues,
+  docs, glossary, changed-file formatting and whitespace pass. The unchanged
+  baseline format exceptions above remain outside this patch. Independent
+  source/test/cost and documentation reads found no actionable issue. OCR
+  identified one low diagnostic ambiguity: unobserved first/last endpoints
+  looked like zero capacity. Zero-sample summaries now omit those endpoints,
+  and observed endpoints use a distinct key. Their exact final output diff
+  `sha256:46177c4dad68d81c6555a800a23972743ab044fa991f1fbb77999b18456a2740`
+  passed fresh one-file OCR review with zero findings in 127.692 seconds;
+  retained JSON `/private/tmp/t422-ocr-settlement-endpoints-4f049c18.json` has
+  `sha256:832c705407b8a8f589e7eef30beb259a176c720fcf70bf3f2e548e7c19e16f77`.
+  No full normal/race package or native readiness gate was rerun, and no
+  previous source's pass is relabeled for this candidate.
+
+  The initial three-file OCR run is only partial: two selected files completed,
+  while `pressure_ballast_darwin.go` reached its 1,200.138-second review limit.
+  Its initial comment filter also reported a provider error; the corrected
+  diagnostic output's separate complete review above is the usable re-review.
+  Retained partial JSON `/private/tmp/t422-ocr-settlement-stats-4f049c18.json`
+  has `sha256:aed7abd7484bee246de308494c6263fd36815fada94cff03a9437c9b5a1cd61c`.
+  Exit zero does not override its failed-item manifest. The unchanged type/loop
+  diff has `sha256:baf38a81c653d57874232457daf4f6ee8a0a51b8d9c90b5637802661839548e0`.
+  The independent source reviewer found no actionable issue, but the loop's
+  OCR coverage remains incomplete. No blind retry or merge approval follows.

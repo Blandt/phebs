@@ -7589,6 +7589,14 @@ The signed-readiness harness is now implemented. Its explicit
 source and private log retained. A timeout or signal termination cannot be
 reported as an intended ordinary refusal.
 
+Before spawning a rehearsal bootstrap shell, enter a surviving primary checkout
+in the current Terminal shell (`cd -P /Users/ben/phebs.com || exit 1` on the
+recorded host). After preparing the fresh detached worktree, run its existing
+exact-source command inside a subshell that first explicitly enters that
+worktree by absolute path and stops if `cd` fails. Leave a worktree before any
+authorized removal. This avoids inheriting a deleted cwd; it does not diagnose
+which command emitted a prior unretained warning or authorize another rehearsal.
+
 Plan-authoring and execution-source commits may differ along the required
 ancestry. Profile admission checks tool revisions and the Zoekt build recipe
 against the protected execution source, retaining the separate plan-source
@@ -7632,6 +7640,23 @@ owner's unavailable snapshot is marked; no volume is resampled for this diagnost
 A rounded 75-percent volume display does not prove agreement with the frozen
 byte target and its 4,096-byte tolerance. Post-stop filesystem observations
 must not be substituted for missing in-run values.
+
+For each shrink, `pressure_settlement_index` adds the count and first/last of
+samples that passed the existing custody/logical/allocation checks, Used
+minimum/maximum, Used-change count and largest adjacent Used difference. Raw
+`free_blocks` is `Fstatfs.Bfree` in the frozen 4,096-byte block units, copied
+from the same call that supplies `Bavail`; it is diagnostic only. Its extrema
+and before/after values are retained too. Zero samples means no valid settlement
+sample, not zero capacity, and emits no `pressure_settlement_endpoint_index`
+rows. An invalid terminal mutation After can differ from
+the last valid settlement sample. These summaries are updated in memory on
+successful and failed attempts but written only in the private failure summary.
+They add no sampling, request or mutation and do not enter the public receipt.
+Observed large steps cannot distinguish a discrete release from gradual changes
+between ticks. Changing `Bavail` with stable sampled `Bfree` distinguishes those
+counters, not the owner/cause; unchanged linked-file allocation also cannot rule
+out database work or delayed release. Do not relax frozen pressure rules on
+the strength of this diagnostic.
 
 The September 16 `2340ca7c` rehearsal published its archive and then failed
 in backup completion before restore. A published manifest does not prove

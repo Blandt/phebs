@@ -13719,6 +13719,26 @@ exceptions are recorded in PLAN. No full normal/race package or readiness run
 was repeated for this changed source. Pressure reconciliation and the separate
 receipt-contiguity constraint remain open before another full rehearsal.
 
+**T42.2n sampled-drift diagnostic continuation, 2026-09-18:** native acceptance
+and receipt continuity enforce the same non-ballast-stability assumption, not
+independent causes. Alignment pins the prior non-ballast anchor to
+46,518,472,704 bytes and the retained post-stop decrease to 61,472,768 bytes;
+both native predicates reject that sample, without recovering lost in-run
+observations. The existing loop now retains sample count, first/last, Used
+extrema/change count/largest adjacent difference and raw `Bfree` extrema from
+its existing `Fstatfs`, with no extra sampling or acceptance change. Invalid
+observations do not pollute the retained valid prefix. Sampled jumps do not
+prove discrete underlying releases, and linked-file totals cannot uniquely
+identify database versus filesystem accounting. Receipt relaxation requires a
+prospective supersede; no timeout increase, frozen-rule mutation or readiness
+pass follows. The next terminal wrapper must pin its cwd before bootstrap and
+before Go; no surviving wrapper/log identifies the earlier warning's emitter.
+Focused normal/twenty-repeat race, retained V1/V2 bytes and static/docs gates
+pass. Independent source/test/docs reads are clean. OCR's zero-sample output
+ambiguity is corrected and passed fresh one-file review; its settlement-loop
+review timed out, so full OCR coverage remains open (details in PLAN). No full
+package gate or native rehearsal was rerun and the branch remains unmergeable.
+
 **T42.3 · Scale posture decision and neutral product closure** — independently
 review the T42.2 receipt, replay representative All code → service →
 relationship → Workbench → proof → MCP flows, and record one decision:

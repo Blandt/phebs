@@ -357,9 +357,11 @@ func TestExecutionFailureDiagnosticPressurePrefix(t *testing.T) {
 			root := executionAuthorizationTestRoot(t)
 			archive := &ExecutionEpochOneRun{done: make(chan struct{}), result: ExecutionEpochOneResult{RootJoined: true}, inspection: &executionEpochInspection{}}
 			mutation := executionPressureBallastMutation{
-				Before: executionPressureBallastSample{Used: 90, Available: 10, Allocated: 60},
-				After:  executionPressureBallastSample{Used: 74, Available: 26, Allocated: 45},
+				Before: executionPressureBallastSample{Used: 90, Available: 10, Allocated: 60, FreeBlocks: 11},
+				After:  executionPressureBallastSample{Used: 74, Available: 26, Allocated: 45, FreeBlocks: 27},
 			}
+			mutation.Settlement.observe(mutation.Before)
+			mutation.Settlement.observe(mutation.After)
 			completed := mutation
 			completed.Fence = time.Unix(1, 0)
 			archive.inspection.retainPressureBallast(0, completed, nil)
@@ -398,6 +400,10 @@ func TestExecutionFailureDiagnosticPressurePrefix(t *testing.T) {
 					"pressure_ballast_index=0 attempted=true complete=true fence_present=true",
 					"pressure_ballast_index=2 attempted=true complete=false fence_present=false before_used=90 before_available=10 before_allocated=60 after_used=74 after_available=26 after_allocated=45",
 					"pressure_ballast_index=3 attempted=false complete=false fence_present=false before_used=0 before_available=0 before_allocated=0 after_used=0 after_available=0 after_allocated=0",
+					"pressure_settlement_index=2 samples=2 used_changes=1 min_used=74 max_used=90 max_used_step=16 min_free_blocks=11 max_free_blocks=27 before_free_blocks=11 after_free_blocks=27",
+					"pressure_settlement_endpoint_index=2 endpoint=first used=90 available=10 allocated=60 free_blocks=11",
+					"pressure_settlement_endpoint_index=2 endpoint=last used=74 available=26 allocated=45 free_blocks=27",
+					"pressure_settlement_index=3 samples=0 used_changes=0 min_used=0 max_used=0 max_used_step=0 min_free_blocks=0 max_free_blocks=0",
 				} {
 					if !bytes.Contains(raw, []byte(fragment)) {
 						t.Fatal("pressure prefix lost or repaired", fragment)
@@ -405,6 +411,9 @@ func TestExecutionFailureDiagnosticPressurePrefix(t *testing.T) {
 				}
 				if bytes.Count(raw, []byte("pressure_ballast_index=")) != 4 {
 					t.Fatal("pressure prefix is not the fixed four rows")
+				}
+				if bytes.Contains(raw, []byte("pressure_settlement_endpoint_index=1 ")) || bytes.Contains(raw, []byte("pressure_settlement_endpoint_index=3 ")) {
+					t.Fatal("missing settlement samples invented endpoints")
 				}
 			} else if bytes.Contains(raw, []byte("pressure_ballast_index=")) {
 				t.Fatal("unavailable pressure state was read")

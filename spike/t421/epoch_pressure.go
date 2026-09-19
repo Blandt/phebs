@@ -16,11 +16,21 @@ import (
 // existing fixed mutation, never capacity targets or workspace-byte estimates.
 type executionPressureBallastSample struct {
 	Used, Available, Allocated uint64
+	FreeBlocks                 uint64 // Raw Fstatfs Bfree; diagnostic only, never an admission input.
+}
+
+// Bounded private observations, not a history of changes between samples.
+type executionPressureBallastSettlement struct {
+	Samples, UsedChanges          uint64
+	First, Last                   executionPressureBallastSample
+	MinUsed, MaxUsed, MaxUsedStep uint64
+	MinFreeBlocks, MaxFreeBlocks  uint64
 }
 
 type executionPressureBallastMutation struct {
 	Before, After executionPressureBallastSample
 	Fence         time.Time
+	Settlement    executionPressureBallastSettlement
 }
 
 type executionPressureBallastObservation struct {

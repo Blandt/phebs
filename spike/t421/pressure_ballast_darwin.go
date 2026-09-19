@@ -120,7 +120,7 @@ func (b *executionPressureBallast) nextTarget(ctx context.Context, run *Executio
 		return out, nil
 	}
 	run.mu.Unlock()
-	out.After, err = b.settleShrink(ctx, run, phase, size, out.Before.Allocated, func(value executionPressureBallastSample) bool {
+	out.After, out.Settlement, err = b.settleShrink(ctx, run, phase, size, out.Before.Allocated, func(value executionPressureBallastSample) bool {
 		return value.Allocated == size && withinTolerance(value.Used, target.TargetUsedBytes, target.ToleranceBytes) &&
 			pressureBallastDeltaMatches(target.Action, out.Before, value)
 	})
@@ -156,7 +156,7 @@ func (b *executionPressureBallast) remove(ctx context.Context, run *ExecutionEpo
 		return out, errPressureVolume
 	}
 	run.mu.Unlock()
-	out.After, err = b.settleShrink(ctx, run, 11, 0, out.Before.Allocated, func(value executionPressureBallastSample) bool {
+	out.After, out.Settlement, err = b.settleShrink(ctx, run, 11, 0, out.Before.Allocated, func(value executionPressureBallastSample) bool {
 		return value.Allocated == 0 && usedPercentCeiling(value.Used, 96<<30) <= 74 &&
 			pressureBallastDeltaMatches("remove", out.Before, value)
 	})
@@ -248,7 +248,7 @@ func (b *executionPressureBallast) settleShrink(
 	phase uint32,
 	expectedLogical, priorAllocated uint64,
 	accept func(executionPressureBallastSample) bool,
-) (executionPressureBallastSample, error) {
+) (executionPressureBallastSample, executionPressureBallastSettlement, error) {
 	return settleExecutionPressureBallast(ctx, expectedLogical, priorAllocated, func(current context.Context) (executionPressureBallastSample, uint64, error) {
 		value, logical, err := b.observe()
 		run.mu.Lock()
@@ -270,10 +270,11 @@ func settleExecutionPressureBallast(
 	priorAllocated uint64,
 	observe func(context.Context) (executionPressureBallastSample, uint64, error),
 	accept func(executionPressureBallastSample) bool,
-) (executionPressureBallastSample, error) {
+) (executionPressureBallastSample, executionPressureBallastSettlement, error) {
+	var observations executionPressureBallastSettlement
 	if ctx == nil || ctx.Err() != nil || expectedLogical >= priorAllocated || priorAllocated > 80<<30 ||
 		expectedLogical%4096 != 0 || priorAllocated%4096 != 0 || observe == nil || accept == nil {
-		return executionPressureBallastSample{}, errPressureVolume
+		return executionPressureBallastSample{}, observations, errPressureVolume
 	}
 	check := func(current context.Context) (executionPressureBallastSample, bool, error) {
 		value, logical, err := observe(current)
@@ -281,11 +282,12 @@ func settleExecutionPressureBallast(
 			value.Allocated > priorAllocated || value.Allocated%4096 != 0 {
 			return value, false, errPressureVolume
 		}
+		observations.observe(value)
 		return value, accept(value), nil
 	}
 	value, settled, err := check(ctx)
 	if err != nil || settled {
-		return value, err
+		return value, observations, err
 	}
 	settlement, cancel := context.WithTimeout(ctx, pressureBallastSettleLimit)
 	defer cancel()
@@ -294,14 +296,31 @@ func settleExecutionPressureBallast(
 	for {
 		select {
 		case <-settlement.Done():
-			return value, errPressureVolume
+			return value, observations, errPressureVolume
 		case <-ticker.C:
 			value, settled, err = check(settlement)
 			if err != nil || settled {
-				return value, err
+				return value, observations, err
 			}
 		}
 	}
+}
+
+func (o *executionPressureBallastSettlement) observe(value executionPressureBallastSample) {
+	if o.Samples == 0 {
+		o.First = value
+		o.MinUsed, o.MaxUsed = value.Used, value.Used
+		o.MinFreeBlocks, o.MaxFreeBlocks = value.FreeBlocks, value.FreeBlocks
+	} else {
+		if value.Used != o.Last.Used {
+			o.UsedChanges++
+		}
+		o.MaxUsedStep = max(o.MaxUsedStep, max(value.Used, o.Last.Used)-min(value.Used, o.Last.Used))
+		o.MinUsed, o.MaxUsed = min(o.MinUsed, value.Used), max(o.MaxUsed, value.Used)
+		o.MinFreeBlocks, o.MaxFreeBlocks = min(o.MinFreeBlocks, value.FreeBlocks), max(o.MaxFreeBlocks, value.FreeBlocks)
+	}
+	o.Last = value
+	o.Samples++
 }
 
 func (b *executionPressureBallast) capacity() (executionPressureBallastSample, error) {
@@ -311,7 +330,7 @@ func (b *executionPressureBallast) capacity() (executionPressureBallastSample, e
 		return executionPressureBallastSample{}, errPressureVolume
 	}
 	available := stat.Bavail * 4096
-	return executionPressureBallastSample{Used: 96<<30 - available, Available: available}, nil
+	return executionPressureBallastSample{Used: 96<<30 - available, Available: available, FreeBlocks: stat.Bfree}, nil
 }
 
 func pressureBallastSize(before executionPressureBallastSample, target PressureTargetGeometry) (uint64, error) {

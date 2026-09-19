@@ -163,6 +163,20 @@ checks pass; full changed-source package/readiness gates have not been rerun.
 Resolve pressure reconciliation and receipt continuity before the next full
 terminal rehearsal.
 
+**T42.2n sampled-drift diagnostic continuation, 2026-09-18:** native pressure
+acceptance and receipt continuity share the same non-ballast-stability premise.
+The retained post-stop residual fell 61,472,768 bytes relative to the aligned
+anchor; both native predicates reject that sample, but in-run movement remains
+unrecovered. Existing samples now retain extrema, first/last, change count and
+largest observed step, plus raw `Bfree`, without another sample or relaxed rule.
+This narrows a later diagnostic but does not prove release granularity or owner.
+Any contract relaxation needs prospective supersession. Pin the terminal cwd
+before the next bootstrap; do not start another full run, cleanup or merge from
+these diagnostic changes alone.
+Focused normal/race and static/docs checks pass; one low output ambiguity is
+fixed and OCR re-reviewed. The settlement-loop OCR review timed out and is not
+approval. Full OCR coverage, contract resolution and readiness remain open.
+
 **T42.2n session-fixture review correction, 2026-09-17:** the isolated child
 fixture passed focused and complete package normal/race gates. Exact-commit
 review found one low future-rename hole in its child-selector evidence, so the
