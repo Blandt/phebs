@@ -18,6 +18,7 @@ const (
 	executionReclaimDefaultQuiet  = 150 * time.Second
 	executionReclaimMaximumQuiet  = 20 * time.Minute
 	executionReclaimAllowance     = 20 * time.Minute
+	executionReclaimReleaseLimit  = 3 * time.Minute
 )
 
 // This selector answers one question the retained d4318be7 evidence cannot:
@@ -46,7 +47,16 @@ func TestExecutionPressureReclaimLatencyOptionalNative(t *testing.T) {
 		t.Skip("requires explicitly selected empty-volume reclaim observation")
 	}
 	requireExternalToolFrozenHost(t)
+	if !testing.Verbose() {
+		t.Fatal("selected reclaim observation requires go test -v so successful rows are not discarded")
+	}
 	quiet := executionReclaimQuietWindow(t)
+	if deadline, ok := t.Deadline(); ok {
+		required := executionReclaimWall(quiet) + executionReclaimReleaseLimit + time.Minute
+		if remaining := time.Until(deadline); remaining < required {
+			t.Fatalf("go test timeout leaves %s; reclaim observation requires at least %s", remaining.Round(time.Second), required)
+		}
+	}
 	geometry, err := expectedExecutionPressureGeometry(Plan{SafetyEnvelope: frozenSafetyEnvelope()}, ExecutionHost{
 		PressureTotalDiskBytes: 96 << 30, PressureAllocationUnitBytes: 4096,
 	})
@@ -69,9 +79,6 @@ func TestExecutionPressureReclaimLatencyOptionalNative(t *testing.T) {
 	if v == nil {
 		t.Fatalf("retained pressure volume preparation %s: %v", parent, err)
 	}
-	// Cleanups run in reverse order, so evidence is written before release: a
-	// passing run leaves nothing behind and a failing one retains both.
-	t.Cleanup(func() { executionReclaimRelease(t, v, parent) })
 	var evidence []string
 	t.Cleanup(func() {
 		if !t.Failed() || len(evidence) == 0 {
@@ -81,6 +88,9 @@ func TestExecutionPressureReclaimLatencyOptionalNative(t *testing.T) {
 			t.Error("retain reclaim observation", err)
 		}
 	})
+	// Release runs first. A prior failure retains custody; a release failure
+	// marks the test failed. The evidence cleanup then records either case.
+	t.Cleanup(func() { executionReclaimRelease(t, v, parent) })
 	if err != nil {
 		t.Fatalf("retained pressure volume preparation %s: %v", parent, err)
 	}
@@ -123,11 +133,11 @@ func TestExecutionPressureReclaimLatencyOptionalNative(t *testing.T) {
 	if err != nil || before.Used < geometry.MinimumPrePressureUsedBytes || before.Used > geometry.MaximumPrePressureUsedBytes {
 		t.Fatalf("stand-in did not reach the pre-pressure envelope: sample=%+v error=%v", before, err)
 	}
-	evidence = append(evidence,
-		"private unsigned observation; not receipt evidence",
-		fmt.Sprintf("quiet_window_seconds=%d cadence_ms=%d standin_bytes=%d pre_pressure_used=%d pre_pressure_free_blocks=%d",
-			int(quiet/time.Second), int(executionReclaimSampleCadence/time.Millisecond),
-			standinSize, before.Used, before.FreeBlocks))
+	header := fmt.Sprintf("quiet_window_seconds=%d cadence_ms=%d standin_bytes=%d pre_pressure_used=%d pre_pressure_free_blocks=%d",
+		int(quiet/time.Second), int(executionReclaimSampleCadence/time.Millisecond),
+		standinSize, before.Used, before.FreeBlocks)
+	evidence = append(evidence, "private unsigned observation; not receipt evidence", header)
+	t.Log(header)
 	settled, settledErr := observeExecutionReclaimWindow(ctx, ballast, quiet)
 	evidence = append(evidence, executionReclaimRow("pre_pressure_quiet", settled))
 	t.Logf("%s", executionReclaimRow("pre_pressure_quiet", settled))
@@ -161,11 +171,13 @@ func TestExecutionPressureReclaimLatencyOptionalNative(t *testing.T) {
 			after, settlement, err = settleExecutionPressureBallast(ctx, size, before.Allocated,
 				func(context.Context) (executionPressureBallastSample, uint64, error) { return ballast.observe() }, accept)
 		}
-		evidence = append(evidence, fmt.Sprintf(
+		mutation := fmt.Sprintf(
 			"target_percent=%d action=%s size=%d before_used=%d before_allocated=%d after_used=%d after_allocated=%d after_free_blocks=%d accepted=%t settle_samples=%d settle_used_changes=%d settle_max_step=%d",
 			target.TargetUsedPercent, target.Action, size, before.Used, before.Allocated,
 			after.Used, after.Allocated, after.FreeBlocks, err == nil && accept(after),
-			settlement.Samples, settlement.UsedChanges, settlement.MaxUsedStep))
+			settlement.Samples, settlement.UsedChanges, settlement.MaxUsedStep)
+		evidence = append(evidence, mutation)
+		t.Log(mutation)
 		if err != nil || !accept(after) {
 			t.Fatalf("target %d%% (%s): the production predicates refuse an empty-volume mutation; target=%d after=%+v error=%v",
 				target.TargetUsedPercent, target.Action, target.TargetUsedBytes, after, err)
@@ -182,7 +194,11 @@ func TestExecutionPressureReclaimLatencyOptionalNative(t *testing.T) {
 			t.Fatalf("the untouched volume moved beyond tolerance after target %d%%: %s",
 				target.TargetUsedPercent, executionReclaimRow(name, window))
 		}
-		before = after
+		before, err = ballast.sample()
+		if err != nil || !pressureBallastAllocationUnchanged(after, before) {
+			t.Fatalf("post-quiet target %d%% baseline is unavailable or changed allocation: before=%+v after=%+v error=%v",
+				target.TargetUsedPercent, after, before, err)
+		}
 	}
 }
 
@@ -292,7 +308,7 @@ func executionReclaimRelease(t *testing.T, v *executionPressureVolume, parent st
 	}
 	// The test context is already canceled by the time cleanup runs; release
 	// owns its own bounded one and never inherits the observation deadline.
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
+	ctx, cancel := context.WithTimeout(context.Background(), executionReclaimReleaseLimit)
 	defer cancel()
 	for _, name := range []string{"pressure-ballast", "pressure-standin"} {
 		if err := os.Remove(filepath.Join(v.workspace.path, name)); err != nil {
