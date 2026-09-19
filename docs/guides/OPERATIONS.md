@@ -7448,20 +7448,23 @@ selectors, before allocating custody. It prepares one empty ballast inode
 before AuthorA, then uses the owned 96-GiB volume for the fixed 80/90/75
 sequence after checkpoint recovery. Each pressure phase retains its original
 target and mutation predicates. Prospective V3 gives pressure-80 twenty-five
-minutes so its post-cleanup 150-second sampled quiet-suffix gate cannot consume
-the prior wall; pressure-90 and pressure-75 remain twenty minutes. The test's
-pressure allowance is therefore sixty-five minutes. Historical V1/V2 deadlines
-remain exact. Run only from a reviewed exact source and with the separately
-verified pinned environment and disk prerequisites.
+minutes for its post-cleanup 150-second sampled stabilization gate;
+pressure-90 and pressure-75 remain twenty minutes. The test's pressure
+allowance is therefore sixty-five minutes. Historical V1/V2 deadlines remain
+exact. Run only from a reviewed exact source and with the separately verified
+pinned environment and disk prerequisites.
 
 After pressure-80's real lifecycle cleanup is drained and requests are fenced,
-the V3 parent samples the pressure volume at the existing 50-ms cadence until
-one 150-second suffix keeps non-ballast `Used - Allocated` within the 4,096-byte
-allocation-unit tolerance. A larger movement restarts the suffix; custody,
-ballast allocation, authority, cancellation or phase-wall failure refuses.
-This gate precedes the first ballast mutation and does not relax receipt
-continuity or repeat a mutation. Its fixed aggregate appears in a retained
-failure summary; it is not a continuous-stability proof.
+the V3 parent anchors the first valid non-ballast `Used - Allocated` sample,
+continues sampling at the existing 50-ms cadence for at least 150 seconds, and
+requires a later valid sample within the 4,096-byte allocation-unit tolerance.
+Intermediate movement within the frozen pre-pressure `Used` envelope remains
+in the fixed diagnostic aggregate but does not restart the interval. An
+out-of-envelope sample, persistent anchor shift, custody or ballast-allocation
+drift, authority loss, cancellation or phase-wall expiry refuses. This gate
+precedes the first ballast mutation and does not relax its delta check, receipt
+continuity or the one-shot rule. Endpoint stabilization is not proof of
+continuous stability.
 
 Before each ballast mutation, the parent reuses the phase's required native
 workspace sample to project both logical and per-linked-path allocated bytes

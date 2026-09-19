@@ -198,6 +198,19 @@ receipt continuity and one-shot mutation predicates. Only pressure-80 moves to
 historical V1/V2 and ordinary runtime remain unchanged. Focused checks pass;
 static review and fresh signed readiness still block merge and T42.2o.
 
+**T42.2n live-layout stabilization correction, 2026-09-19:** the exact
+`64f2f455` readiness attempt reached pressure-80 after passing phases zero
+through seven, but its live store/APFS accounting made 74 changes over 12,288
+bytes during 10,255 samples, returned to its initial value, and exhausted the
+25-minute phase before any ballast mutation. That stop gives no evidence for a
+longer deadline. Prospective V3 now uses a 150-second anchored
+endpoint-stability check with the same 4,096-byte tolerance; intermediate
+movement remains diagnostic, every sample stays inside the frozen pre-pressure
+envelope, and a persistent shift still refuses. Frozen geometry, mutation
+predicates, receipt continuity, deadlines, V1/V2 and ordinary runtime remain
+unchanged. The failed image stays in custody; focused, exact-tree,
+independent-review and fresh readiness gates remain open.
+
 **T42.2n session-fixture review correction, 2026-09-17:** the isolated child
 fixture passed focused and complete package normal/race gates. Exact-commit
 review found one low future-rename hole in its child-selector evidence, so the

@@ -594,7 +594,7 @@ func expectedExecutionPressureGeometry(
 	}
 	policy := "collect_noncurrent_no_padding_then_measure_capacity_and_allocated_bytes_before_each_target-v1"
 	if plan.Schema == PlanV3Schema {
-		policy = "collect_noncurrent_no_padding_then_require_150_second_sampled_nonballast_quiet_suffix_before_first_target-v2"
+		policy = "collect_noncurrent_no_padding_then_require_150_second_sampled_nonballast_anchor_stability_before_first_target-v3"
 	}
 	return ExecutionPressureGeometry{
 		Model: pressureGeometryModel, LivePrePressurePolicy: policy,

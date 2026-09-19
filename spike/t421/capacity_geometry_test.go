@@ -78,7 +78,7 @@ func TestCapacityVersionedGeometry(t *testing.T) {
 			wantPolicy := "collect_noncurrent_no_padding_then_measure_capacity_and_allocated_bytes_before_each_target-v1"
 			if schema == PlanV3Schema {
 				want = 45_183_055_954
-				wantPolicy = "collect_noncurrent_no_padding_then_require_150_second_sampled_nonballast_quiet_suffix_before_first_target-v2"
+				wantPolicy = "collect_noncurrent_no_padding_then_require_150_second_sampled_nonballast_anchor_stability_before_first_target-v3"
 			}
 			if geometry.CustodyMarginBytes != want || geometry.PressureVolumeBytes != 96<<30 ||
 				geometry.LivePrePressurePolicy != wantPolicy ||

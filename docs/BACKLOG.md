@@ -13770,6 +13770,22 @@ V1/V2 bytes remain exact and ordinary runtime is unchanged. Focused normal and
 race checks pass; full static/review gates and a fresh signed readiness matrix
 still precede merge, acceptance and T42.2o.
 
+**T42.2n live-layout stabilization correction, 2026-09-19:** exact source
+`64f2f455` passed readiness phases zero through seven, then pressure-80 spent
+about 984 seconds on 704 lifecycle-owner turns and exhausted its remaining
+about 513 seconds in the sampled range gate. Its 10,255 valid samples changed
+74 times across 12,288 bytes but returned exactly to the initial non-ballast
+`Used`; no ballast mutation ran. The failed image and private diagnostics
+remain retained, with no retry or cleanup. Prospective V3 supersedes only the
+over-strong range rule: it anchors the first valid post-cleanup sample, waits
+150 seconds, and requires a later valid sample within the unchanged 4,096-byte
+tolerance. Intermediate excursions remain diagnostic but every sample must stay
+inside the frozen pre-pressure `Used` envelope. Persistent displacement,
+out-of-envelope movement, allocation/custody/authority drift, cancellation and
+phase expiry still fail closed; targets, one-shot mutations, native delta
+predicates, exact receipt continuity, deadlines and V1/V2 bytes remain
+unchanged. Focused, exact-tree, review and fresh readiness gates remain open.
+
 **T42.3 · Scale posture decision and neutral product closure** — independently
 review the T42.2 receipt, replay representative All code → service →
 relationship → Workbench → proof → MCP flows, and record one decision:

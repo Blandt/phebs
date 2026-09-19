@@ -159,14 +159,36 @@ func TestExecutionPressureBallastSettlement(t *testing.T) {
 	}
 }
 
-func TestExecutionPressureBallastQuietSuffix(t *testing.T) {
+func TestExecutionPressureBallastAnchoredStability(t *testing.T) {
 	ctx, cancel := context.WithTimeout(t.Context(), time.Second)
 	defer cancel()
 	started := time.Now()
 	var calls uint64
-	result, err := waitExecutionPressureBallastQuiet(ctx, 120*time.Millisecond, 4096,
+	result, err := waitExecutionPressureBallastQuiet(ctx, 120*time.Millisecond, 4096, 8<<30, 68<<30,
 		func(context.Context) (executionPressureBallastSample, uint64, error) {
 			calls++
+			used := uint64(20 << 30)
+			if calls == 2 || calls == 3 {
+				used -= 12 << 10
+			}
+			value := executionPressureBallastSample{Used: used, Available: 96<<30 - used, Allocated: 4 << 30}
+			return value, value.Allocated, nil
+		})
+	if err != nil || calls < 4 || result.Samples != calls || result.UsedChanges != 2 || result.MaxUsedStep != 12<<10 || time.Since(started) < 120*time.Millisecond {
+		t.Fatalf("anchored stability rejected a reversible excursion: calls=%d result=%+v elapsed=%s error=%v", calls, result, time.Since(started), err)
+	}
+}
+
+func TestExecutionPressureBallastAnchoredStabilityRefusesPersistentShift(t *testing.T) {
+	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
+	defer cancel()
+	var calls uint64
+	result, err := waitExecutionPressureBallastQuiet(ctx, 120*time.Millisecond, 4096, 8<<30, 68<<30,
+		func(context.Context) (executionPressureBallastSample, uint64, error) {
+			calls++
+			if calls == 5 {
+				cancel()
+			}
 			used := uint64(20 << 30)
 			if calls > 1 {
 				used -= 8 << 10
@@ -174,14 +196,33 @@ func TestExecutionPressureBallastQuietSuffix(t *testing.T) {
 			value := executionPressureBallastSample{Used: used, Available: 96<<30 - used, Allocated: 4 << 30}
 			return value, value.Allocated, nil
 		})
-	if err != nil || calls < 4 || result.Samples != calls || result.UsedChanges != 1 || time.Since(started) < 150*time.Millisecond {
-		t.Fatalf("quiet suffix did not restart: calls=%d result=%+v elapsed=%s error=%v", calls, result, time.Since(started), err)
+	if err == nil || calls != 5 || result.Samples != calls-1 {
+		t.Fatalf("persistent anchor shift passed: calls=%d result=%+v error=%v", calls, result, err)
 	}
 }
 
-func TestExecutionPressureBallastQuietSuffixRefusesAllocationDrift(t *testing.T) {
+func TestExecutionPressureBallastAnchoredStabilityRefusesCanceledEndpoint(t *testing.T) {
+	ctx, cancel := context.WithTimeout(t.Context(), time.Second)
+	defer cancel()
 	var calls uint64
-	_, err := waitExecutionPressureBallastQuiet(t.Context(), time.Second, 4096,
+	result, err := waitExecutionPressureBallastQuiet(ctx, 120*time.Millisecond, 4096, 8<<30, 68<<30,
+		func(context.Context) (executionPressureBallastSample, uint64, error) {
+			calls++
+			if calls == 2 {
+				time.Sleep(130 * time.Millisecond)
+				cancel()
+			}
+			value := executionPressureBallastSample{Used: 20 << 30, Available: 76 << 30, Allocated: 4 << 30}
+			return value, value.Allocated, nil
+		})
+	if err == nil || calls != 2 || result.Samples != 1 {
+		t.Fatalf("canceled endpoint passed: calls=%d result=%+v error=%v", calls, result, err)
+	}
+}
+
+func TestExecutionPressureBallastAnchoredStabilityRefusesAllocationDrift(t *testing.T) {
+	var calls uint64
+	_, err := waitExecutionPressureBallastQuiet(t.Context(), time.Second, 4096, 8<<30, 68<<30,
 		func(context.Context) (executionPressureBallastSample, uint64, error) {
 			calls++
 			allocated := uint64(4 << 30)
@@ -192,6 +233,23 @@ func TestExecutionPressureBallastQuietSuffixRefusesAllocationDrift(t *testing.T)
 		})
 	if err == nil || calls != 2 {
 		t.Fatalf("allocation drift was not refused: calls=%d error=%v", calls, err)
+	}
+}
+
+func TestExecutionPressureBallastAnchoredStabilityRefusesEnvelopeExcursion(t *testing.T) {
+	var calls uint64
+	_, err := waitExecutionPressureBallastQuiet(t.Context(), time.Second, 4096, 8<<30, 68<<30,
+		func(context.Context) (executionPressureBallastSample, uint64, error) {
+			calls++
+			used := uint64(20 << 30)
+			if calls == 2 {
+				used = 80 << 30
+			}
+			value := executionPressureBallastSample{Used: used, Available: 96<<30 - used, Allocated: 4 << 30}
+			return value, value.Allocated, nil
+		})
+	if err == nil || calls != 2 {
+		t.Fatalf("out-of-envelope excursion was not refused: calls=%d error=%v", calls, err)
 	}
 }
 

@@ -262,67 +262,67 @@ func (b *executionPressureBallast) settleShrink(
 	}, accept)
 }
 
-// waitQuiet requires one sampled quiet suffix after the real pre-pressure
-// cleanup. A movement restarts the suffix; the owning phase deadline remains
-// the hard wall. It mutates nothing and retains the same custody and authority
-// checks as a shrink observation.
+// waitQuiet requires one sampled stabilization interval after the real
+// pre-pressure cleanup. The owning phase deadline remains the hard wall. It
+// mutates nothing and retains the same custody and authority checks as a
+// shrink observation.
 func (b *executionPressureBallast) waitQuiet(ctx context.Context, run *ExecutionEpochOneRun, phase uint32) (executionPressureBallastSettlement, error) {
-	if b == nil || b.volume == nil || run == nil || phase != 9 {
+	if b == nil || b.volume == nil || run == nil || run.flow == nil || phase != 9 {
 		return executionPressureBallastSettlement{}, errPressureVolume
 	}
-	return waitExecutionPressureBallastQuiet(ctx, pressureBallastQuietWindow, 4096, func(current context.Context) (executionPressureBallastSample, uint64, error) {
-		b.volume.mu.Lock()
-		defer b.volume.mu.Unlock()
-		if b.next != 0 || b.failed || b.removed {
-			return executionPressureBallastSample{}, 0, errPressureVolume
-		}
-		value, logical, err := b.observe()
-		run.mu.Lock()
-		authorizeErr := b.authorize(current, run, phase)
-		run.mu.Unlock()
-		if err != nil || authorizeErr != nil {
-			return value, logical, errPressureVolume
-		}
-		return value, logical, nil
-	})
+	limits := run.flow.plan.SafetyEnvelope
+	return waitExecutionPressureBallastQuiet(ctx, pressureBallastQuietWindow, 4096,
+		limits.MinimumPrePressureUsedBytes, limits.MaximumPrePressureUsedBytes,
+		func(current context.Context) (executionPressureBallastSample, uint64, error) {
+			b.volume.mu.Lock()
+			defer b.volume.mu.Unlock()
+			if b.next != 0 || b.failed || b.removed {
+				return executionPressureBallastSample{}, 0, errPressureVolume
+			}
+			value, logical, err := b.observe()
+			run.mu.Lock()
+			authorizeErr := b.authorize(current, run, phase)
+			run.mu.Unlock()
+			if err != nil || authorizeErr != nil {
+				return value, logical, errPressureVolume
+			}
+			return value, logical, nil
+		})
 }
 
-// waitExecutionPressureBallastQuiet returns after one complete sampled suffix
-// whose non-ballast Used spread stays within tolerance. Earlier movement is
-// retained in the bounded aggregate and restarts, rather than widens, the
-// suffix. The caller's context is the only wall.
+// waitExecutionPressureBallastQuiet anchors the first valid non-ballast Used
+// sample, then returns only after the stabilization interval and a valid sample
+// within tolerance of that anchor. Intermediate movement remains in the
+// bounded diagnostic aggregate. The caller's context is the only wall.
 func waitExecutionPressureBallastQuiet(
 	ctx context.Context,
 	quiet time.Duration,
 	tolerance uint64,
+	minimumUsed uint64,
+	maximumUsed uint64,
 	observe func(context.Context) (executionPressureBallastSample, uint64, error),
 ) (executionPressureBallastSettlement, error) {
 	var observations executionPressureBallastSettlement
-	if ctx == nil || ctx.Err() != nil || quiet <= 0 || tolerance == 0 || observe == nil {
+	if ctx == nil || ctx.Err() != nil || quiet <= 0 || tolerance == 0 || minimumUsed == 0 || minimumUsed >= maximumUsed || maximumUsed > 96<<30 || observe == nil {
 		return observations, errPressureVolume
 	}
-	var quietSince time.Time
-	var allocated, minimum, maximum uint64
+	var anchorAt time.Time
+	var allocated, anchor uint64
 	ticker := time.NewTicker(pressureBallastSettleCadence)
 	defer ticker.Stop()
 	for {
 		value, logical, err := observe(ctx)
-		if err != nil || value.Used < value.Allocated || logical != value.Allocated || value.Allocated > 80<<30 || value.Allocated%4096 != 0 {
+		if err != nil || ctx.Err() != nil || value.Used < minimumUsed || value.Used > maximumUsed || value.Used < value.Allocated || logical != value.Allocated || value.Allocated > 80<<30 || value.Allocated%4096 != 0 {
 			return observations, errPressureVolume
 		}
 		other := value.Used - value.Allocated
 		if observations.Samples == 0 {
-			quietSince, allocated, minimum, maximum = time.Now(), value.Allocated, other, other
+			anchorAt, allocated, anchor = time.Now(), value.Allocated, other
 		} else if value.Allocated != allocated {
 			return observations, errPressureVolume
-		} else {
-			minimum, maximum = min(minimum, other), max(maximum, other)
-			if maximum-minimum > tolerance {
-				quietSince, minimum, maximum = time.Now(), other, other
-			}
 		}
 		observations.observe(value)
-		if time.Since(quietSince) >= quiet {
+		if time.Since(anchorAt) >= quiet && withinTolerance(other, anchor, tolerance) {
 			return observations, nil
 		}
 		select {

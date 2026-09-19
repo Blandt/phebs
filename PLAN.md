@@ -4292,3 +4292,51 @@ in [docs/ROADMAP.md](./docs/ROADMAP.md).
   pass. Static gates, exact review and the fresh signed readiness matrix remain
   required before merge; this observation and correction are not readiness,
   seal, freeze or ceremony evidence.
+
+- **2026-09-19 — T42.2n supersedes the quiet-range gate with anchored
+  stabilization.** The exact `64f2f455` signed readiness rehearsal passed
+  phases zero through seven, then used about 984 seconds of pressure-80 for 704
+  lifecycle-owner turns and the remaining 513 seconds for 10,255 native
+  samples. With the runner parked and before any ballast mutation, the live
+  store/APFS capacity changed 74 times over 12,288 bytes, but the first and
+  last non-ballast `Used` values were identical. The full-range quiet suffix
+  therefore exhausted the 25-minute phase wall. Extending that wall would be
+  unmeasured, and the serverless single-extent selector does not represent this
+  live many-file layout. The readiness wrapper remains retained at
+  `/private/tmp/t422-readiness-64f2f455.udRmMdUK`; its mounted operational
+  custody remains at `/private/tmp/phebs-t422-2644565447`. No retry or cleanup
+  follows. The private failure summary has
+  `sha256:dfdfe270e2949923a6aa650ff7e52d90b04d19e63c6d644a352741c530ad39d2`;
+  its joined server log has
+  `sha256:5aa4b644fd4292ee7159b714f271b28d798e7d4efbb6b1aaf331e1227fd155a4`.
+
+  The range rule was stricter than the frozen native and receipt predicates,
+  which compare exact sampled endpoints rather than every intermediate
+  filesystem-accounting value. Prospective V3 now anchors the first valid
+  post-cleanup non-ballast sample, waits at least 150 seconds, and accepts only
+  a later valid sample within the unchanged 4,096-byte tolerance of that
+  anchor. Intermediate excursions remain in the bounded diagnostic aggregate
+  but do not restart the interval; every sample must remain inside the frozen
+  pre-pressure `Used` envelope. A persistent anchor shift, out-of-envelope
+  sample, ballast-allocation drift, invalid custody or authority, cancellation,
+  or the phase wall still refuses. The 80/90/75 geometry, one-shot mutations,
+  per-mutation delta checks, exact interphase receipt continuity and V1/V2 bytes
+  remain unchanged. The canonical prospective-V3 policy advances from
+  `quiet_suffix_before_first_target-v2` to
+  `anchor_stability_before_first_target-v3`.
+
+  The gate places no 4,096-byte spread bound on an intermediate
+  filesystem-accounting excursion that stays inside the pre-pressure envelope
+  and later reconciles; it proves endpoint stability only, not continuous
+  quiet. The failed quiet-suffix-policy run is diagnostic evidence and supplies
+  no anchored-stability readiness credit.
+
+  The correction changes no ordinary runtime. The selected ceremony path keeps
+  one ticker, one observation at the existing 50-ms cadence and O(1) retained
+  state; a stable interval still needs about 3,001 samples, while a displaced
+  anchor continues only to the existing phase wall. It adds no mutation,
+  request, store query, content read, hash, child, publication, schema or cache
+  work. Focused tests cover a reversible 12,288-byte excursion, a persistent
+  displacement, an out-of-envelope excursion, cancellation at the accepting
+  endpoint and allocation drift. Exact-tree gates, independent review and a
+  later host-clean signed readiness rehearsal remain mandatory before merge.
