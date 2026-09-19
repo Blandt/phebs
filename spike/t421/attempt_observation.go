@@ -126,18 +126,18 @@ func observeExecutionAttempts(raw []byte, plan Plan, producer uint32, input [32]
 		if readErr == nil && executionSetupTokenDiagnostic(line) {
 			continue
 		}
+		if observed, err := observeArchiveArtifactEvent(line, producer, wantInput, &out.ArchiveArtifacts); observed {
+			if err != nil || readErr != nil {
+				return out, errExecutionAttempts
+			}
+			continue
+		}
 		// Offline archive commands install context observers, not server job or
 		// lifecycle sinks. A server-only stream cannot fill their measured zero.
 		if producer >= 10 && (reservedCompactAttempt(line) || reservedLifecycleEvent(line) || reservedReuseEvent(line) || reservedUnsupportedSourceEvent(line)) {
 			return out, errExecutionAttempts
 		}
 		if observed, err := observeWorkspaceByteEvent(line, plan, producer, wantInput, &out.WorkspaceBytes); observed {
-			if err != nil || readErr != nil {
-				return out, errExecutionAttempts
-			}
-			continue
-		}
-		if observed, err := observeArchiveArtifactEvent(line, producer, wantInput, &out.ArchiveArtifacts); observed {
 			if err != nil || readErr != nil {
 				return out, errExecutionAttempts
 			}
