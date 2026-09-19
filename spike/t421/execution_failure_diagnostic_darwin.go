@@ -102,6 +102,7 @@ func retainExecutionFailureDiagnostic(root productionRoot, stage string, recorde
 		archiveRun = run
 	}
 	if archiveRun != nil {
+		summary.pressureBallast(archiveRun)
 		var rows [2]struct {
 			started, joined, empty, complete, digest bool
 			workComplete, scanComplete               bool
@@ -154,6 +155,34 @@ func retainExecutionFailureDiagnostic(root productionRoot, stage string, recorde
 		}
 	}
 	return nil
+}
+
+// The epoch-four owner retains the fixed pressure prefix even after restore.
+// Copy only joined scalar state; never resample the volume or repair a row.
+func (w *executionFailureSummary) pressureBallast(run *ExecutionEpochOneRun) {
+	var rows [4]executionPressureBallastObservation
+	available := false
+	select {
+	case <-run.done:
+		run.mu.Lock()
+		joined, inspection := run.result.RootJoined, run.inspection
+		run.mu.Unlock()
+		if joined && inspection != nil {
+			inspection.mu.Lock()
+			rows = inspection.pressure.ballast
+			inspection.mu.Unlock()
+			available = true
+		}
+	default:
+	}
+	_, _ = fmt.Fprintf(w, "pressure_ballast_available=%t\n", available)
+	if available {
+		for i, row := range rows {
+			before, after := row.Mutation.Before, row.Mutation.After
+			_, _ = fmt.Fprintf(w, "pressure_ballast_index=%d attempted=%t complete=%t fence_present=%t before_used=%d before_available=%d before_allocated=%d after_used=%d after_available=%d after_allocated=%d\n",
+				i, row.Attempted, row.Complete, !row.Mutation.Fence.IsZero(), before.Used, before.Available, before.Allocated, after.Used, after.Available, after.Allocated)
+		}
+	}
 }
 
 // Borrow only a joined buffer; all three process logs share one retention cap.

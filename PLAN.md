@@ -4088,3 +4088,65 @@ in [docs/ROADMAP.md](./docs/ROADMAP.md).
   complete signed readiness matrix is still mandatory and must be started by
   Ben in his terminal. Until it passes with exact clean teardown, T42.2n is
   not accepted or mergeable; no seal, freeze or ceremony follows.
+
+- **2026-09-18 — T42.2n retains the failed pressure prefix.** Ben's exact
+  `d4318be78e6e7d63916e2d54cee7c318ef3836a3` terminal readiness attempt failed
+  in 7,056.693 package seconds. Its private phase record identifies
+  `pressure_75` with 31,000 ms recorded and an unavailable pressure volume;
+  archive/restore were not started. Readiness log
+  `sha256:e9171c4447b87203b7d7ca2513fd9bbfdde0f60a871cac6b872d44e7f2003fc5`
+  remains at `/private/tmp/t422-readiness-d4318be7.nHVP4l/readiness.log`;
+  private failure summary
+  `sha256:869ea207a83e55bad4d5e8b92c5d8540c504395d6870eee9633dc2c1aa741579`
+  remains in `/private/tmp/phebs-t422-3582347931`. No matching rehearsal child
+  or port-65499 listener survives, but its APFS image is still mounted and the
+  signer/bootstrap root `/private/tmp/t422-signed-readiness-275094697` is
+  retained. No retry, detach or evidence cleanup was performed.
+
+  Post-stop inspection found ballast logical and allocated bytes both
+  30,275,538,944 and volume used bytes 76,732,538,880, which is 61,476,372 bytes
+  below the frozen 76,794,015,252-byte target. Rounding to 75 percent does not
+  satisfy the 4,096-byte target tolerance. This is a post-stop observation,
+  not a recovered in-run sample. The earlier claim that the retained rounded
+  75-percent reading proved exact settlement and diagnosed only delayed APFS
+  accounting is withdrawn; the precise failing in-run predicate is unknown.
+  The thirty-second extension has not established readiness. The separate
+  receipt validator also still requires between-phase capacity contiguity;
+  the native continuation's acceptance of refreshed capacity does not waive
+  that requirement or establish a valid receipt.
+
+  Reuse the existing four retained ballast observations in the bounded private
+  failure summary. Copy them from the actual epoch-four owner only after its
+  `done` and root join, including after restore changes the current owner.
+  Retain attempted/completed/fence-present flags and raw before/after used,
+  available and allocated scalars without repairing or certifying a partial
+  row. Failure-only work adds one short run-lock snapshot, one non-nested
+  inspection-lock copy, and at most four formatted rows under the existing
+  64-KiB summary cap. It adds no volume sampling, content read, hash, child,
+  timer, mutation, cache, query/request, sync, startup, retry/no-op or publication
+  work to ordinary runtime. Pressure predicates, the frozen receipt contract,
+  deadlines, admission bounds and successful cleanup remain unchanged. Review
+  and applicable candidate gates remain necessary; no merge, readiness pass,
+  seal, freeze or ceremony follows from this diagnostic correction.
+
+  Diagnostic verification passed: the focused normal suite in 1.009 seconds
+  and twenty race repetitions in 6.082 seconds; module verification,
+  whole-repository compile-only, vet, pinned golangci-lint 2.12.2 with zero
+  issues, docs, glossary, changed-file formatting, five tracked shell syntax
+  checks and whitespace also passed. A repository-wide format scan reports
+  three unchanged baseline differences (`internal/codenav/testdata/repo/lib/rocket.go`,
+  `internal/codenav/testdata/repo/use/use.go`, and
+  `internal/extract/t40r1_kafka_measurement_test.go`), reproduced from the
+  pre-change HEAD and left untouched; this is not an all-file formatting pass.
+  Direct-repository OCR completed its one selected production diagnostic file
+  with zero findings and no failed/waived items in 565.422 seconds. The
+  unchanged reviewed production diff has
+  `sha256:9bcb3a3225b4f5fb1c5df11ca4d1abe914d2cc3cdbef45b4dc8732d28d69d01c`;
+  retained review JSON at `/private/tmp/t422-ocr-pressure-prefix-d4318be7.json`
+  has `sha256:42396dd78157cf74da0b019142b78fac95058830a1a423b16f5365ca5dbb342d`.
+  OCR's default scope excluded tests/docs; a separate independent read-only
+  pass checked the tests, evidence hashes, docs and steady-state cost without
+  findings. No full normal/race package or native readiness matrix was rerun
+  for this changed source; the previous source's package passes are not
+  relabeled as current-candidate evidence. Resolve pressure reconciliation and
+  receipt continuity before asking Ben for another full terminal rehearsal.

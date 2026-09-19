@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestExecutionFailureDiagnosticRootAndLeaf(t *testing.T) {
@@ -347,5 +348,70 @@ func TestExecutionFailureDiagnosticRetainsPhaseOperationAndClosure(t *testing.T)
 		!bytes.Contains(raw, []byte("phase_failure_operation=\"<nil>\"")) ||
 		!bytes.Contains(raw, []byte("phase_failure_closure=\"phase begin refused\"")) || bytes.Contains(raw, []byte("later failure")) {
 		t.Fatal("private phase failure distinction lost", err)
+	}
+}
+
+func TestExecutionFailureDiagnosticPressurePrefix(t *testing.T) {
+	for _, mode := range []string{"same owner", "restored owner", "not done", "root unjoined", "no inspection"} {
+		t.Run(mode, func(t *testing.T) {
+			root := executionAuthorizationTestRoot(t)
+			archive := &ExecutionEpochOneRun{done: make(chan struct{}), result: ExecutionEpochOneResult{RootJoined: true}, inspection: &executionEpochInspection{}}
+			mutation := executionPressureBallastMutation{
+				Before: executionPressureBallastSample{Used: 90, Available: 10, Allocated: 60},
+				After:  executionPressureBallastSample{Used: 74, Available: 26, Allocated: 45},
+			}
+			completed := mutation
+			completed.Fence = time.Unix(1, 0)
+			archive.inspection.retainPressureBallast(0, completed, nil)
+			archive.inspection.retainPressureBallast(2, mutation, errPressureVolume)
+			want := archive.inspection.pressure.ballast
+			current, owner := archive, archive
+			if mode == "same owner" {
+				owner = nil // Exercise the fallback to the current owner.
+			}
+			if mode == "restored owner" {
+				current = &ExecutionEpochOneRun{done: make(chan struct{}), result: ExecutionEpochOneResult{RootJoined: true}, inspection: &executionEpochInspection{}}
+				close(current.done)
+			}
+			if mode != "not done" {
+				close(archive.done)
+			}
+			if mode == "root unjoined" {
+				archive.result.RootJoined = false
+			}
+			if mode == "no inspection" {
+				archive.inspection = nil
+			}
+			if err := retainExecutionFailureDiagnostic(root, "receipt_composition", nil, nil, ErrExecutionEpochOne, nil, "", current, owner); err != nil {
+				t.Fatal(err)
+			}
+			raw, err := os.ReadFile(filepath.Join(root.path, executionFailureSummaryName))
+			if err != nil {
+				t.Fatal(err)
+			}
+			available := mode == "same owner" || mode == "restored owner"
+			if !bytes.Contains(raw, []byte("pressure_ballast_available="+strconv.FormatBool(available))) {
+				t.Fatal("pressure snapshot availability is incorrect")
+			}
+			if available {
+				for _, fragment := range []string{
+					"pressure_ballast_index=0 attempted=true complete=true fence_present=true",
+					"pressure_ballast_index=2 attempted=true complete=false fence_present=false before_used=90 before_available=10 before_allocated=60 after_used=74 after_available=26 after_allocated=45",
+					"pressure_ballast_index=3 attempted=false complete=false fence_present=false before_used=0 before_available=0 before_allocated=0 after_used=0 after_available=0 after_allocated=0",
+				} {
+					if !bytes.Contains(raw, []byte(fragment)) {
+						t.Fatal("pressure prefix lost or repaired", fragment)
+					}
+				}
+				if bytes.Count(raw, []byte("pressure_ballast_index=")) != 4 {
+					t.Fatal("pressure prefix is not the fixed four rows")
+				}
+			} else if bytes.Contains(raw, []byte("pressure_ballast_index=")) {
+				t.Fatal("unavailable pressure state was read")
+			}
+			if archive.inspection != nil && archive.inspection.pressure.ballast != want {
+				t.Fatal("diagnostic retention mutated the pressure prefix")
+			}
+		})
 	}
 }

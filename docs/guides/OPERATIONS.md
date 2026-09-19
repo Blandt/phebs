@@ -7622,6 +7622,17 @@ not public evidence. Existing files are never overwritten. Missing, closed or
 replaced custody makes diagnostics unavailable; successful runs create none.
 An error after successful root removal cannot recreate that root to save logs.
 
+The summary also copies the actual epoch-four owner's four retained ballast
+records after its server joins, even if a restored server later becomes
+current. Indices 0–3 mean pressure 80, pressure 90, pressure 75, and removal.
+Each row preserves attempted/completed/fence-present flags and raw before/after
+used, available and allocated bytes. Incomplete or unattempted fields may be
+zero; these rows do not certify a sample, mutation or receipt. An existing
+owner's unavailable snapshot is marked; no volume is resampled for this diagnostic.
+A rounded 75-percent volume display does not prove agreement with the frozen
+byte target and its 4,096-byte tolerance. Post-stop filesystem observations
+must not be substituted for missing in-run values.
+
 The September 16 `2340ca7c` rehearsal published its archive and then failed
 in backup completion before restore. A published manifest does not prove
 the final measurement or command/accounting closure succeeded. Its backup

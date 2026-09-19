@@ -146,6 +146,23 @@ user-terminal-only and mandatory; until it passes with exact clean teardown,
 the branch is not mergeable and no acceptance, seal, freeze or ceremony is
 authorized.
 
+**T42.2n thirty-second readiness failure, 2026-09-18:** the user-terminal
+`d4318be7` readiness attempt failed in 7,056.693 package seconds at
+`pressure_75` with 31,000 ms recorded. No matching rehearsal process or
+port-65499 listener remains; the mounted image and private logs are retained.
+Post-stop volume use is 61,476,372 bytes below its frozen target, despite
+rounding to 75 percent. The previous exact-settlement/delayed-accounting-only
+diagnosis is withdrawn; the failed in-run samples were not saved. The private
+diagnostic now preserves the existing four ballast records, with failed and
+unattempted status, from the joined epoch-four owner. No pressure or receipt
+predicate is relaxed; receipt capacity contiguity remains a separate open
+constraint. Candidate gates, independent review and user-terminal readiness
+remain required. No merge, retry, cleanup, seal or ceremony has occurred.
+The diagnostic-only patch's focused normal/race, static/docs and one-file OCR
+checks pass; full changed-source package/readiness gates have not been rerun.
+Resolve pressure reconciliation and receipt continuity before the next full
+terminal rehearsal.
+
 **T42.2n session-fixture review correction, 2026-09-17:** the isolated child
 fixture passed focused and complete package normal/race gates. Exact-commit
 review found one low future-rename hole in its child-selector evidence, so the

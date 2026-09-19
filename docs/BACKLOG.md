@@ -13688,6 +13688,37 @@ The fresh complete signed readiness matrix remains mandatory and user-terminal-
 only. Until its exact-clean teardown passes, the branch is not mergeable and
 T42.2n acceptance, T42.2o seal/freeze and ceremony remain closed.
 
+**T42.2n thirty-second readiness failure, 2026-09-18:** Ben's exact
+`d4318be78e6e7d63916e2d54cee7c318ef3836a3` terminal run failed in 7,056.693
+package seconds at `pressure_75` (31,000 ms recorded); archive/restore did not
+start. Readiness log
+`sha256:e9171c4447b87203b7d7ca2513fd9bbfdde0f60a871cac6b872d44e7f2003fc5`
+is retained under `/private/tmp/t422-readiness-d4318be7.nHVP4l`; private summary
+`sha256:869ea207a83e55bad4d5e8b92c5d8540c504395d6870eee9633dc2c1aa741579`
+and the mounted image remain under `/private/tmp/phebs-t422-3582347931`.
+No matching rehearsal process or port-65499 listener survives. No evidence
+cleanup or retry occurred. Post-stop ballast logical/allocated bytes agree,
+but volume use is 61,476,372 bytes below the frozen target, outside its
+4,096-byte tolerance despite rounding to 75 percent. This does not recover
+the failed in-run samples. The earlier exact-settlement/delayed-accounting-only
+attribution is withdrawn. Native between-phase capacity refresh also does not
+waive the receipt validator's separate capacity-contiguity requirement.
+
+The diagnostic correction copies the existing four pressure observations from
+the joined epoch-four owner into the private bounded failure summary, retaining
+failed/unattempted flags and raw partial values even after restored startup.
+There is no resampling, target relaxation or ordinary-runtime work. Applicable
+candidate gates, independent review and a successful user-terminal signed
+readiness matrix remain required. The branch is not mergeable; acceptance,
+seal/freeze and ceremony remain closed.
+
+The diagnostic-only correction passed focused normal tests and twenty race
+repetitions, static/docs gates and direct-repository OCR of its one selected
+production file with zero findings; the exact scope and baseline formatting
+exceptions are recorded in PLAN. No full normal/race package or readiness run
+was repeated for this changed source. Pressure reconciliation and the separate
+receipt-contiguity constraint remain open before another full rehearsal.
+
 **T42.3 · Scale posture decision and neutral product closure** — independently
 review the T42.2 receipt, replay representative All code → service →
 relationship → Workbench → proof → MCP flows, and record one decision:
