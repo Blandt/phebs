@@ -352,7 +352,7 @@ func TestExecutionFailureDiagnosticRetainsPhaseOperationAndClosure(t *testing.T)
 }
 
 func TestExecutionFailureDiagnosticPressurePrefix(t *testing.T) {
-	for _, mode := range []string{"same owner", "restored owner", "not done", "root unjoined", "no inspection"} {
+	for _, mode := range []string{"same owner", "restored owner", "quiet empty", "not done", "root unjoined", "no inspection"} {
 		t.Run(mode, func(t *testing.T) {
 			root := executionAuthorizationTestRoot(t)
 			archive := &ExecutionEpochOneRun{done: make(chan struct{}), result: ExecutionEpochOneResult{RootJoined: true}, inspection: &executionEpochInspection{}}
@@ -367,6 +367,9 @@ func TestExecutionFailureDiagnosticPressurePrefix(t *testing.T) {
 			archive.inspection.retainPressureBallast(0, completed, nil)
 			archive.inspection.retainPressureBallast(2, mutation, errPressureVolume)
 			archive.inspection.retainPressureQuiet(mutation.Settlement, nil)
+			if mode == "quiet empty" {
+				archive.inspection.retainPressureQuiet(executionPressureBallastSettlement{}, nil)
+			}
 			want := archive.inspection.pressure.ballast
 			current, owner := archive, archive
 			if mode == "same owner" {
@@ -392,13 +395,17 @@ func TestExecutionFailureDiagnosticPressurePrefix(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			available := mode == "same owner" || mode == "restored owner"
+			available := mode == "same owner" || mode == "restored owner" || mode == "quiet empty"
 			if !bytes.Contains(raw, []byte("pressure_ballast_available="+strconv.FormatBool(available))) {
 				t.Fatal("pressure snapshot availability is incorrect")
 			}
 			if available {
+				quiet := "pressure_quiet_complete=true samples=2 used_changes=1 min_used=74 max_used=90 max_used_step=16 min_free_blocks=11 max_free_blocks=27"
+				if mode == "quiet empty" {
+					quiet = "pressure_quiet_complete=true samples=0 used_changes=0 min_used=0 max_used=0 max_used_step=0 min_free_blocks=0 max_free_blocks=0"
+				}
 				for _, fragment := range []string{
-					"pressure_quiet_complete=true samples=2 used_changes=1 min_used=74 max_used=90 max_used_step=16 min_free_blocks=11 max_free_blocks=27",
+					quiet,
 					"pressure_ballast_index=0 attempted=true complete=true fence_present=true",
 					"pressure_ballast_index=2 attempted=true complete=false fence_present=false before_used=90 before_available=10 before_allocated=60 after_used=74 after_available=26 after_allocated=45",
 					"pressure_ballast_index=3 attempted=false complete=false fence_present=false before_used=0 before_available=0 before_allocated=0 after_used=0 after_available=0 after_allocated=0",
@@ -413,6 +420,20 @@ func TestExecutionFailureDiagnosticPressurePrefix(t *testing.T) {
 				}
 				if bytes.Count(raw, []byte("pressure_ballast_index=")) != 4 {
 					t.Fatal("pressure prefix is not the fixed four rows")
+				}
+				if mode == "quiet empty" {
+					if bytes.Contains(raw, []byte("pressure_quiet_endpoint=")) {
+						t.Fatal("missing quiet samples invented endpoints")
+					}
+				} else {
+					for _, fragment := range []string{
+						"pressure_quiet_endpoint=first used=90 available=10 allocated=60 free_blocks=11",
+						"pressure_quiet_endpoint=last used=74 available=26 allocated=45 free_blocks=27",
+					} {
+						if !bytes.Contains(raw, []byte(fragment)) {
+							t.Fatal("quiet endpoints lost", fragment)
+						}
+					}
 				}
 				if bytes.Contains(raw, []byte("pressure_settlement_endpoint_index=1 ")) || bytes.Contains(raw, []byte("pressure_settlement_endpoint_index=3 ")) {
 					t.Fatal("missing settlement samples invented endpoints")

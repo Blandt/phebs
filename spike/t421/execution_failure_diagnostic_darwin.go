@@ -182,6 +182,12 @@ func (w *executionFailureSummary) pressureBallast(run *ExecutionEpochOneRun) {
 	if available {
 		_, _ = fmt.Fprintf(w, "pressure_quiet_complete=%t samples=%d used_changes=%d min_used=%d max_used=%d max_used_step=%d min_free_blocks=%d max_free_blocks=%d\n",
 			quietComplete, quiet.Samples, quiet.UsedChanges, quiet.MinUsed, quiet.MaxUsed, quiet.MaxUsedStep, quiet.MinFreeBlocks, quiet.MaxFreeBlocks)
+		if quiet.Samples != 0 {
+			for i, sample := range []executionPressureBallastSample{quiet.First, quiet.Last} {
+				_, _ = fmt.Fprintf(w, "pressure_quiet_endpoint=%s used=%d available=%d allocated=%d free_blocks=%d\n",
+					[]string{"first", "last"}[i], sample.Used, sample.Available, sample.Allocated, sample.FreeBlocks)
+			}
+		}
 		for i, row := range rows {
 			before, after := row.Mutation.Before, row.Mutation.After
 			_, _ = fmt.Fprintf(w, "pressure_ballast_index=%d attempted=%t complete=%t fence_present=%t before_used=%d before_available=%d before_allocated=%d after_used=%d after_available=%d after_allocated=%d\n",
