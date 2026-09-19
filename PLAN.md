@@ -4058,3 +4058,33 @@ in [docs/ROADMAP.md](./docs/ROADMAP.md).
   retained-custody statement above. Review and complete normal/race package
   gates remain prerequisites; the next signed readiness run must be started by
   Ben in his terminal from the final exact candidate command.
+
+- **2026-09-18 — T42.2n exact-candidate package and review closure.** Exact
+  clean candidate `d682aa58b56a7fa6aa031da2058548e63a494bd3` passed the
+  complete normal `spike/t421` package in 3,417.373 seconds; its retained log
+  has `sha256:748d88183448734ea34e26007bd225e9522a2ae3ef1485bfd36db6e63d5d5b6b`.
+  The first complete race attempt did not pass: it reached the 10,800.883-
+  second package alarm after one cancellation fixture could not read its child-
+  PID setup file. That exact selector then passed twenty race repetitions in
+  42.159 seconds on the unchanged candidate. One unchanged complete race rerun
+  with a six-hour package allowance passed in 17,466.461 seconds; its retained
+  log has `sha256:b94590d736e3287118d471c6999484829503071a47ba0ad37a05743dafca0d72`.
+  No matching Go test, `t421.test`, SurrealDB process or port-65499 listener
+  survives.
+
+  The initial direct-repository OCR attempt is not counted because its sole
+  production-file review timed out during context compaction. A bounded
+  recovery review instead bound the exact production patch
+  `sha256:fca64eaa1ecff1a2d5a9c64517f830b077d211a4299abf8365bc11164a1800e1`
+  into one focused Go excerpt containing the changed constant and complete
+  unchanged settlement loop. OCR completed that selected item with zero
+  findings in 88.838 seconds; its retained JSON has
+  `sha256:77ac3ac9d5f770e9793891cd63f055e894c51ce8120f4a8e10e3ea898478aa33`.
+  Module verification, whole-repository compile-only, vet, repository-pinned
+  golangci-lint 2.12.2 with zero issues, documentation, glossary, formatting,
+  all five tracked shell syntax checks and whitespace pass. The thirty-second
+  window remains ceremony-only, performs at most the recorded 600 read-only
+  observations per shrink, and changes no ordinary steady-state work. A fresh
+  complete signed readiness matrix is still mandatory and must be started by
+  Ben in his terminal. Until it passes with exact clean teardown, T42.2n is
+  not accepted or mergeable; no seal, freeze or ceremony follows.

@@ -13663,6 +13663,31 @@ normal/race package gates remain open. The next signed readiness run is
 user-terminal-only and must use the final exact candidate command; cleanup
 alone establishes no acceptance, seal or ceremony.
 
+**T42.2n exact-candidate package and review closure, 2026-09-18:** exact clean
+candidate `d682aa58b56a7fa6aa031da2058548e63a494bd3` passed the complete normal
+package in 3,417.373 seconds, log
+`sha256:748d88183448734ea34e26007bd225e9522a2ae3ef1485bfd36db6e63d5d5b6b`.
+Its first complete race attempt did not pass: the 10,800.883-second alarm
+followed one missing child-PID fixture file. That selector then passed twenty
+race repetitions in 42.159 seconds on unchanged source, and one unchanged full
+race rerun passed under a six-hour allowance in 17,466.461 seconds, log
+`sha256:b94590d736e3287118d471c6999484829503071a47ba0ad37a05743dafca0d72`.
+No matching Go test, `t421.test`, SurrealDB process or port-65499 listener
+survives.
+
+The direct-repository OCR attempt is not counted because its sole production
+file timed out during context compaction. Focused recovery bound the exact
+production patch
+`sha256:fca64eaa1ecff1a2d5a9c64517f830b077d211a4299abf8365bc11164a1800e1`
+with the complete unchanged settlement loop and returned zero findings in
+88.838 seconds; retained JSON
+`sha256:77ac3ac9d5f770e9793891cd63f055e894c51ce8120f4a8e10e3ea898478aa33`.
+Module verification, repository compile-only, vet, pinned golangci-lint 2.12.2,
+docs, glossary, formatting, all five shell syntax checks and whitespace pass.
+The fresh complete signed readiness matrix remains mandatory and user-terminal-
+only. Until its exact-clean teardown passes, the branch is not mergeable and
+T42.2n acceptance, T42.2o seal/freeze and ceremony remain closed.
+
 **T42.3 · Scale posture decision and neutral product closure** — independently
 review the T42.2 receipt, replay representative All code → service →
 relationship → Workbench → proof → MCP flows, and record one decision:

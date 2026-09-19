@@ -128,6 +128,24 @@ signer/bootstrap roots were removed after clearing only known bootstrap
 normal/race package gates remain open; Ben must start the final exact-candidate
 signed readiness command in his terminal.
 
+**T42.2n exact-candidate package and review closure, 2026-09-18:** exact clean
+`d682aa58b56a7fa6aa031da2058548e63a494bd3` passed the complete normal package
+in 3,417.373 seconds and, after one honestly retained 10,800.883-second failed
+race attempt, the unchanged complete race package in 17,466.461 seconds under
+the corrected allowance. The intervening failed cancellation selector passed
+twenty focused race repetitions. Normal/race log SHA-256 values are
+`748d88183448734ea34e26007bd225e9522a2ae3ef1485bfd36db6e63d5d5b6b` and
+`b94590d736e3287118d471c6999484829503071a47ba0ad37a05743dafca0d72`.
+No matching child or port-65499 listener survives. Focused OCR review bound the
+exact production patch after the direct repository attempt timed out, completed
+with zero findings, and retained JSON at
+`sha256:77ac3ac9d5f770e9793891cd63f055e894c51ce8120f4a8e10e3ea898478aa33`.
+Module, compile-only, vet, pinned lint, documentation, glossary, format, shell
+and whitespace gates pass. The final complete signed readiness matrix remains
+user-terminal-only and mandatory; until it passes with exact clean teardown,
+the branch is not mergeable and no acceptance, seal, freeze or ceremony is
+authorized.
+
 **T42.2n session-fixture review correction, 2026-09-17:** the isolated child
 fixture passed focused and complete package normal/race gates. Exact-commit
 review found one low future-rename hole in its child-selector evidence, so the
