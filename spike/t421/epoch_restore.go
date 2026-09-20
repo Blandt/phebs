@@ -13,7 +13,7 @@ import (
 // future archive R/F, lifecycle collection or product-query choreography.
 func restoredStartupBounds(plan Plan) (epochOneLimits, error) {
 	deadlines := frozenPhaseDeadlines()
-	if plan.Schema != PlanV3Schema || len(plan.PhaseDeadlines) != len(deadlines) || plan.PhaseDeadlines[11] != deadlines[11] ||
+	if !processAccountingPlanSemantics(plan.Schema) || len(plan.PhaseDeadlines) != len(deadlines) || plan.PhaseDeadlines[11] != deadlines[11] ||
 		plan.SafetyEnvelope.ServerHealthDeadlineMS != frozenSafetyEnvelope().ServerHealthDeadlineMS {
 		return epochOneLimits{}, ErrExecutionEpochOne
 	}

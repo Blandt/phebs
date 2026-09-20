@@ -2,6 +2,7 @@ package t421
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"slices"
 	"testing"
@@ -179,7 +180,7 @@ func TestByteReceiptLegacyUnavailable(t *testing.T) {
 }
 
 func TestByteReceiptPressureMaximum(t *testing.T) {
-	for _, schema := range []string{PlanSchema, PlanV2Schema, PlanV3Schema} {
+	for _, schema := range []string{PlanSchema, PlanV2Schema, PlanV3Schema, PlanV4Schema} {
 		for _, phase := range []string{"pressure_80", "pressure_90", "pressure_75"} {
 			value := PressureTransition{DataAllocatedBytesBefore: 20, DataAllocatedBytesAtTarget: 40, PrePressureAllocatedBytes: 10}
 			if phase == "pressure_75" {
@@ -190,13 +191,13 @@ func TestByteReceiptPressureMaximum(t *testing.T) {
 				t.Fatal("existing maximum control", schema, phase)
 			}
 			metrics.DataAllocatedBytes++
-			if pressurePhaseAllocationMatches(value, metrics, phase, schema) != (schema == PlanV3Schema) {
+			if pressurePhaseAllocationMatches(value, metrics, phase, schema) != processAccountingPlanSemantics(schema) {
 				t.Fatal("earlier completed maximum", schema, phase)
 			}
 			for _, field := range []*uint64{&value.DataAllocatedBytesBefore, &value.DataAllocatedBytesAtTarget, &value.PrePressureAllocatedBytes, &value.RecoveryDataAllocatedBytes} {
 				prior := *field
 				*field = 42
-				if schema == PlanV3Schema && pressurePhaseAllocationMatches(value, metrics, phase, schema) {
+				if processAccountingPlanSemantics(schema) && pressurePhaseAllocationMatches(value, metrics, phase, schema) {
 					t.Fatal("retained endpoint exceeds maximum", phase)
 				}
 				*field = prior
@@ -212,10 +213,15 @@ func TestByteReceiptPressureMaximum(t *testing.T) {
 }
 
 func TestByteReceiptPressureSequence(t *testing.T) {
-	for _, schema := range []string{PlanSchema, PlanV2Schema, PlanV3Schema} {
+	for _, schema := range []string{PlanSchema, PlanV2Schema, PlanV3Schema, PlanV4Schema} {
 		t.Run(schema, func(t *testing.T) {
 			plan := accountingTestPlan(t)
-			if schema != PlanV3Schema {
+			if schema == PlanV4Schema {
+				plan = pressureContinuityTestPlan(t)
+				if err := applyPressureContinuityCorrection(&plan); err != nil {
+					t.Fatal(err)
+				}
+			} else if schema != PlanV3Schema {
 				path := "plan.json"
 				if schema == PlanV2Schema {
 					path = "plan-v2.json"
@@ -256,15 +262,32 @@ func TestByteReceiptPressureSequence(t *testing.T) {
 			// Existing modeled transition fixture; no filesystem or native admission
 			// evidence is claimed. Its full pressure subvalidator remains in the path.
 			testPressureTransitions(t, plan, freeze, authority, measurements, transitions)
-			for _, mode := range []string{"existing", "earlier_maximum", "endpoint_above_maximum", "wrong_delta", "wrong_continuity", "outside_tolerance", "wrong_recovery"} {
-				t.Run(mode, func(t *testing.T) {
-					metrics := make(map[string]ReceiptMetrics)
-					mutated := slices.Clone(transitions)
-					for index, phase := range phases {
-						metrics[phase] = measurements[index].Metrics
-						v := *transitions[index+1].Pressure
-						mutated[index+1].Pressure = &v
+			cloneSequence := func() ([]TransitionResult, map[string]ReceiptMetrics) {
+				metrics := make(map[string]ReceiptMetrics, len(phases))
+				cloned := slices.Clone(transitions)
+				for index, phase := range phases {
+					metrics[phase] = measurements[index].Metrics
+					value := *transitions[index+1].Pressure
+					cloned[index+1].Pressure = &value
+				}
+				return cloned, metrics
+			}
+			resequence := func(values []TransitionResult) {
+				prior := SHA256([]byte("t422-pressure-sequence-start-v1"))
+				for index, phase := range phases {
+					value := values[index+1].Pressure
+					value.PriorGateSequenceSHA256 = prior
+					var err error
+					value.GateSequenceSHA256, err = pressureSequenceSHA256(phase, *value)
+					if err != nil {
+						t.Fatal(err)
 					}
+					prior = value.GateSequenceSHA256
+				}
+			}
+			for _, mode := range []string{"existing", "earlier_maximum", "endpoint_above_maximum", "wrong_delta", "one_byte_continuity", "outside_tolerance", "wrong_recovery", "wrong_pressure_schema"} {
+				t.Run(mode, func(t *testing.T) {
+					mutated, metrics := cloneSequence()
 					if mode != "existing" {
 						for _, phase := range phases {
 							value := metrics[phase]
@@ -279,7 +302,7 @@ func TestByteReceiptPressureSequence(t *testing.T) {
 						metrics[phases[0]] = value
 					case "wrong_delta":
 						mutated[1].Pressure.DataAllocatedBytesAtTarget++
-					case "wrong_continuity":
+					case "one_byte_continuity":
 						mutated[2].Pressure.DataAllocatedBytesBefore++
 						mutated[2].Pressure.DataAllocatedBytesAtTarget++
 					case "outside_tolerance":
@@ -287,23 +310,152 @@ func TestByteReceiptPressureSequence(t *testing.T) {
 						mutated[1].Pressure.VolumeAvailableBytesAfter -= freeze.Pressure.Targets[0].ToleranceBytes + 1
 					case "wrong_recovery":
 						mutated[3].Pressure.RecoveryBallastAllocatedBytes = 1
-					}
-					prior := SHA256([]byte("t422-pressure-sequence-start-v1"))
-					for index, phase := range phases {
-						value := mutated[index+1].Pressure
-						value.PriorGateSequenceSHA256 = prior
-						var err error
-						value.GateSequenceSHA256, err = pressureSequenceSHA256(phase, *value)
-						if err != nil {
-							t.Fatal(err)
+					case "wrong_pressure_schema":
+						mutated[1].Pressure.Schema = plan.ReceiptContract.TransitionSchema + "/pressure-v2"
+						if schema == PlanV4Schema {
+							mutated[1].Pressure.Schema = plan.ReceiptContract.TransitionSchema + "/pressure-v1"
 						}
-						prior = value.GateSequenceSHA256
 					}
+					resequence(mutated)
 					err := validatePressureTransitions(mutated, outcomes, authority, metrics, plan, freeze)
-					if (err == nil) != (mode == "existing" || mode == "earlier_maximum" && schema == PlanV3Schema) {
+					want := mode == "existing" || mode == "earlier_maximum" && processAccountingPlanSemantics(schema) ||
+						mode == "one_byte_continuity" && schema == PlanV4Schema
+					if (err == nil) != want {
 						t.Fatal(mode, err)
 					}
 				})
+			}
+
+			continuityCases := []struct {
+				name  string
+				drift uint64
+				want  bool
+			}{{"historical_exact", 1, false}}
+			if schema == PlanV4Schema {
+				continuityCases = []struct {
+					name  string
+					drift uint64
+					want  bool
+				}{
+					{"boundary", InterphaseDriftToleranceBytes, true},
+					{"boundary_plus_one", InterphaseDriftToleranceBytes + 1, false},
+					{"persistent_release", 61_472_768, false},
+				}
+			}
+			shift := func(value *uint64, amount uint64, increase bool) {
+				if increase {
+					*value += amount
+				} else {
+					*value -= amount
+				}
+			}
+			setPressureMetric := func(metrics map[string]ReceiptMetrics, phase string, value *PressureTransition) {
+				metric := metrics[phase]
+				if processAccountingPlanSemantics(schema) {
+					metric.DataAllocatedBytes = Bytes(max(uint64(metric.DataAllocatedBytes), value.DataAllocatedBytesBefore,
+						value.DataAllocatedBytesAtTarget, value.PrePressureAllocatedBytes, value.RecoveryDataAllocatedBytes))
+				} else if phase == "pressure_75" {
+					metric.DataAllocatedBytes = Bytes(value.DataAllocatedBytesBefore)
+				} else {
+					metric.DataAllocatedBytes = Bytes(value.DataAllocatedBytesAtTarget)
+				}
+				metrics[phase] = metric
+			}
+			for _, term := range []string{"available", "allocated"} {
+				for _, boundary := range []int{1, 2} {
+					for _, increase := range []bool{false, true} {
+						for _, test := range continuityCases {
+							name := fmt.Sprintf("continuity_%s_%d_%t_%s", term, boundary, increase, test.name)
+							t.Run(name, func(t *testing.T) {
+								mutated, metrics := cloneSequence()
+								value := mutated[boundary+1].Pressure
+								if term == "available" {
+									shift(&value.VolumeUsedBytesBefore, test.drift, increase)
+									shift(&value.VolumeAvailableBytesBefore, test.drift, !increase)
+									shift(&value.BallastAllocatedBytesAfter, test.drift, !increase)
+									shift(&value.DataAllocatedBytesAtTarget, test.drift, !increase)
+									setPressureMetric(metrics, phases[boundary], value)
+								} else if boundary == 1 {
+									shift(&value.DataAllocatedBytesBefore, test.drift, increase)
+									shift(&value.DataAllocatedBytesAtTarget, test.drift, increase)
+									setPressureMetric(metrics, phases[boundary], value)
+								} else {
+									precursor := uint64(0)
+									if schema == PlanV4Schema {
+										precursor = min(test.drift, InterphaseDriftToleranceBytes)
+										prior := mutated[2].Pressure
+										shift(&prior.DataAllocatedBytesBefore, precursor, !increase)
+										shift(&prior.DataAllocatedBytesAtTarget, precursor, !increase)
+										setPressureMetric(metrics, phases[1], prior)
+									}
+									residual := test.drift - precursor
+									shift(&value.DataAllocatedBytesBefore, residual, increase)
+									shift(&value.DataAllocatedBytesAtTarget, residual, increase)
+									shift(&value.RecoveryDataAllocatedBytes, residual, increase)
+									setPressureMetric(metrics, phases[boundary], value)
+								}
+								resequence(mutated)
+								caseOutcomes := map[string]string{
+									"pressure_80": "passed", "pressure_90": "passed", "pressure_75": "passed",
+								}
+								if boundary == 1 {
+									caseOutcomes["pressure_75"] = "not_run"
+								}
+								err := validatePressureTransitions(mutated, caseOutcomes, authority, metrics, plan, freeze)
+								if (err == nil) != test.want {
+									t.Fatalf("drift=%d: %v", test.drift, err)
+								}
+								if !test.want {
+									want := fmt.Sprintf("phase %q pressure capacity is not contiguous", phases[boundary])
+									if err == nil || err.Error() != want {
+										t.Fatalf("continuity refusal = %v, want %q", err, want)
+									}
+								}
+							})
+						}
+					}
+				}
+			}
+
+			recoveryCases := []struct {
+				name  string
+				drift uint64
+				want  bool
+			}{
+				{"boundary", freeze.Pressure.Targets[2].ToleranceBytes, true},
+				{"boundary_plus_one", freeze.Pressure.Targets[2].ToleranceBytes + 1, false},
+			}
+			if schema == PlanV4Schema {
+				recoveryCases = []struct {
+					name  string
+					drift uint64
+					want  bool
+				}{
+					{"boundary", InterphaseDriftToleranceBytes, true},
+					{"boundary_plus_one", InterphaseDriftToleranceBytes + 1, false},
+					{"persistent_release", 61_472_768, false},
+				}
+			}
+			for _, largerDelta := range []bool{false, true} {
+				for _, test := range recoveryCases {
+					t.Run(fmt.Sprintf("recovery_%t_%s", largerDelta, test.name), func(t *testing.T) {
+						mutated, metrics := cloneSequence()
+						value := mutated[3].Pressure
+						if largerDelta {
+							value.RecoveryUsedBytes -= test.drift
+							value.RecoveryAvailableBytes += test.drift
+						} else {
+							value.RecoveryUsedBytes += test.drift
+							value.RecoveryAvailableBytes -= test.drift
+						}
+						value.RecoveryUsedPercent = usedPercentCeiling(value.RecoveryUsedBytes, freeze.Pressure.PressureVolumeBytes)
+						resequence(mutated)
+						err := validatePressureTransitions(mutated, outcomes, authority, metrics, plan, freeze)
+						if (err == nil) != test.want {
+							t.Fatalf("drift=%d: %v", test.drift, err)
+						}
+					})
+				}
 			}
 		})
 	}

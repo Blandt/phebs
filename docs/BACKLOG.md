@@ -4457,6 +4457,20 @@ owns the design and dependency order. Execution remains excluded.
   admission and authenticated freeze. AC: independent signature/byte replay,
   retained V1/V2 unchanged, exact invocation and custody/expiry handoff; no
   ceremony execution, Epic closure, release or scale claim.
+- **T42.2p · Freeze-bound pressure interphase continuity** — add a separately
+  versioned prospective V4 receipt allowance of 65,536 bytes at the two sampled
+  pressure boundaries, with no carry-forward or cumulative credit. AC: the
+  tolerance is signed in the V4 freeze and applied in either direction to both
+  pre-boundary available bytes and linked-data allocated bytes; 80/90/75 target
+  and add/shrink checks retain 4,096 bytes, recovery removal uses the same signed
+  V4 bound, and anchor, authority and ordering predicates remain exact;
+  V1/V2/V3 canonical bytes replay unchanged; every explicit V3-only author,
+  freeze, profile, launcher, composer and validator route is audited; boundary,
+  persistent-release and retained-version tests pass normally and under race;
+  exact-commit review records no open finding. Although numbered after T42.2o,
+  this is a newly discovered prerequisite: T42.2p implementation/review precedes
+  renewed T42.2n acceptance, and T42.2o may then author/seal V4 rather than V3.
+  It authorizes no rehearsal, merge, seal, freeze or ceremony.
 
 **T42.2n completion implementation (2026-09-13).** The launcher now connects
 real phase execution, observed success/stopped receipt assembly, the sole-use
@@ -13797,6 +13811,41 @@ wrapper and clean worktree roots were removed, no similarly named custody was
 touched, all devices/processes/listeners are absent, and 65.28 GiB was
 recovered. This is authorized disposal, not readiness or signed teardown;
 exact-commit readiness and remaining merge gates stay open.
+
+**T42.2p prospective V4 pressure-continuity amendment, 2026-09-19:** Ben
+accepted 65,536 bytes as a signed, per-boundary policy margin for a new V4
+contract. The retained `64f2f455` summary establishes 10,255 valid samples,
+74 adjacent changes over a 12,288-byte `Used` range and equal first/last
+values; its three-block `Bfree` range does not prove lockstep or a causal
+owner. Retained `e8d2cd35` establishes one exact 80-to-90 boundary, +8,192
+`Used`/-8,192 `Available` at 90-to-75, the opposite movement before removal,
+and exact linked-data allocation at those boundaries. Its ballast/data deltas
+were exact, but final removal retained the already-admitted 4,096-byte volume
+residual. The 61,472,768-byte persistent `d4318be7` release remains a refusal.
+The 65,536-byte choice is therefore a conservative 16-block policy margin,
+not a measured physical upper bound or proof of SurrealKV, APFS, server or host
+causation; it is exactly 938 times smaller than that persistent release.
+
+V4 applies the allowance independently in both directions to the receipt's
+pre-boundary `VolumeAvailableBytes` and `DataAllocatedBytes` comparisons. The
+allocation allowance is an accepted conservative symmetry despite no observed
+allocation-boundary drift. No prior endpoint is substituted for a fresh sample,
+and drift receives no cumulative credit. Target geometry and one-shot add/shrink
+checks keep their 4,096-byte tolerance, while V4 recovery removal uses the same
+signed 65,536-byte volume-delta bound; its ballast/data allocation equality
+remains exact. The anchored 150-second gate and pre-pressure envelope,
+cancellation, authority and sequence rules remain unchanged. Plan V4, execution-freeze V4,
+receipt V4 and pressure-transition V2 are new canonical domains; V1/V2/V3
+bytes and validation remain exact, including omission of the new freeze field.
+The implementation must audit every explicit V3-only route rather than treating
+this as only a two-line validator edit.
+
+T42.2p implementation, focused/full normal and race gates, static/documentation
+checks and exact independent review now precede a renewed T42.2n acceptance.
+Only after both close may T42.2o perform its otherwise unchanged author/seal and
+exact-main duties against V4; its former V3 version target is superseded. This
+record changes no code, runs no rehearsal and authorizes no merge, freeze,
+ceremony, release or scale claim.
 
 **T42.3 · Scale posture decision and neutral product closure** — independently
 review the T42.2 receipt, replay representative All code → service →

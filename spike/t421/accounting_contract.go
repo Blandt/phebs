@@ -2,6 +2,7 @@ package t421
 
 import (
 	"errors"
+	"fmt"
 	"math"
 	"slices"
 	"strings"
@@ -10,16 +11,20 @@ import (
 )
 
 const (
-	MaxPlanV3AuthorBytes        = 192 << 10
-	ProcessAccountingSchema     = "t422-controlled-dispatch-accounting-v1"
-	WorkEnvelopeV3Schema        = "t422-phase-work-envelope-v3"
-	ReceiptV3Schema             = "t422-combined-convergence-receipt-v3"
-	ExecutionFreezeV3Schema     = "t422-combined-execution-freeze-v3"
-	ExecutionProfileV3Schema    = "t422-production-execution-profile-v3"
-	PhaseRuntimeBindingV3Schema = "t422-phase-runtime-binding-v3"
-	retainedPlanV2SHA256        = "sha256:2275b8cadca8f4e76a46db6d943380d1533a41da70a71c7009850e2c0229b422"
-	queryResultUnitsV3          = "Q-result-units-v3:authorization_decisions=distinct-consistent-logical-transport-verdicts-after-fresh-page-authorization;authority_snapshots=distinct-complete-F-authority-values-bracketing-all-pages;authorized_repositories=actual-query-admitted-repository-set-cardinality-not-returned-hit-count;not-native-authorization-or-snapshot-invocation-counts"
-	pressure80V3DeadlineMS      = uint64(25 * 60 * 1_000)
+	MaxPlanV3AuthorBytes          = 192 << 10
+	ProcessAccountingSchema       = "t422-controlled-dispatch-accounting-v1"
+	WorkEnvelopeV3Schema          = "t422-phase-work-envelope-v3"
+	ReceiptV3Schema               = "t422-combined-convergence-receipt-v3"
+	ReceiptV4Schema               = "t422-combined-convergence-receipt-v4"
+	ExecutionFreezeV3Schema       = "t422-combined-execution-freeze-v3"
+	ExecutionFreezeV4Schema       = "t422-combined-execution-freeze-v4"
+	ExecutionProfileV3Schema      = "t422-production-execution-profile-v3"
+	PhaseRuntimeBindingV3Schema   = "t422-phase-runtime-binding-v3"
+	InterphaseDriftToleranceBytes = uint64(65_536)
+	retainedPlanV2SHA256          = "sha256:2275b8cadca8f4e76a46db6d943380d1533a41da70a71c7009850e2c0229b422"
+	queryResultUnitsV3            = "Q-result-units-v3:authorization_decisions=distinct-consistent-logical-transport-verdicts-after-fresh-page-authorization;authority_snapshots=distinct-complete-F-authority-values-bracketing-all-pages;authorized_repositories=actual-query-admitted-repository-set-cardinality-not-returned-hit-count;not-native-authorization-or-snapshot-invocation-counts"
+	pressure80V3DeadlineMS        = uint64(25 * 60 * 1_000)
+	pressureContinuityPolicyV4    = "interphase_sampled_endpoint_drift_le_65536_v4"
 )
 
 // ProcessAccountingContract distinguishes admitted dispatch permissions from
@@ -57,9 +62,26 @@ func BuildPlanV3(sourceCommit string) (Plan, error) {
 	return plan, nil
 }
 
+// BuildPlanV4 preserves the complete V3 execution contract and changes only
+// the prospective pressure-continuity bindings. It neither seals nor admits an
+// execution.
+func BuildPlanV4(sourceCommit string) (Plan, error) {
+	plan, err := BuildPlanV3WithLogicalStoreWork(sourceCommit)
+	if err != nil {
+		return Plan{}, err
+	}
+	if err := applyPressureContinuityCorrection(&plan); err != nil {
+		return Plan{}, err
+	}
+	if err := validatePlan(plan, &plan.Revisions); err != nil {
+		return Plan{}, err
+	}
+	return plan, nil
+}
+
 func knownPlanSchema(schema string) bool {
 	switch schema {
-	case PlanSchema, PlanV2Schema, PlanV3Schema:
+	case PlanSchema, PlanV2Schema, PlanV3Schema, PlanV4Schema:
 		return true
 	default:
 		return false
@@ -67,9 +89,30 @@ func knownPlanSchema(schema string) bool {
 }
 
 // Callers validate the closed plan schema before interpreting its semantics.
-// V3 inherits V2's functional authority, never the superseded V1 behavior.
+// V3 and V4 inherit V2's functional authority, never the superseded V1 behavior.
 func correctedPlanSemantics(schema string) bool {
-	return schema == PlanV2Schema || schema == PlanV3Schema
+	return schema == PlanV2Schema || processAccountingPlanSemantics(schema)
+}
+
+func processAccountingPlanSemantics(schema string) bool {
+	return schema == PlanV3Schema || schema == PlanV4Schema
+}
+
+func applyPressureContinuityCorrection(plan *Plan) error {
+	if plan == nil || plan.Schema != PlanV3Schema || plan.ProcessAccounting == nil ||
+		plan.LogicalStoreWork == nil || plan.SelectorHandoffCleanup == nil ||
+		plan.ToolPolicy.ExecutionFreezeSchema != ExecutionFreezeV3Schema ||
+		plan.ReceiptContract.Schema != ReceiptV3Schema {
+		return errors.New("V4 pressure continuity requires the complete V3 execution contract")
+	}
+	if err := validatePlanExecutionContract(*plan); err != nil {
+		return fmt.Errorf("validate complete V3 pressure-continuity preimage: %w", err)
+	}
+	plan.Schema = PlanV4Schema
+	plan.ToolPolicy.ExecutionFreezeSchema = ExecutionFreezeV4Schema
+	plan.ReceiptContract.Schema = ReceiptV4Schema
+	plan.MeterPolicy.LifecycleSemantics += ";" + pressureContinuityPolicyV4
+	return nil
 }
 
 func applyProcessAccountingCorrection(plan *Plan) error {

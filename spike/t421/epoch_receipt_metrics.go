@@ -40,7 +40,7 @@ func composeExecutionReceiptMetrics(
 	processes []ExecutionServerProcessObservation,
 ) (executionReceiptMetrics, error) {
 	var out executionReceiptMetrics
-	if plan.Schema != PlanV3Schema || plan.ProcessAccounting == nil || validatePlan(plan, &plan.Revisions) != nil ||
+	if !processAccountingPlanSemantics(plan.Schema) || plan.ProcessAccounting == nil || validatePlan(plan, &plan.Revisions) != nil ||
 		len(plan.PhaseOrder) != len(out.Metrics) ||
 		len(plan.WorkEnvelope.Phases) != len(out.Metrics) || !slices.Equal(plan.PhaseOrder, frozenPhaseOrder()) {
 		return out, errExecutionReceiptMetrics

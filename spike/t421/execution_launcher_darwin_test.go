@@ -173,10 +173,30 @@ func TestMain(m *testing.M) {
 		if selected.CeremonyID == "t422-waitdelay-test" {
 			data, readErr := os.ReadFile(selected.RepositoryRoot)
 			pid, parseErr := strconv.Atoi(string(data))
-			if errors.Is(err, ErrExecutionLauncher) && readErr == nil && parseErr == nil && unix.Kill(pid, 0) == unix.ESRCH {
+			if !errors.Is(err, ErrExecutionLauncher) {
+				os.Exit(72)
+			}
+			if readErr != nil {
+				os.Exit(80)
+			}
+			if parseErr != nil {
+				os.Exit(81)
+			}
+			session, sessionErr := unix.Getsid(pid)
+			if errors.Is(sessionErr, unix.ESRCH) {
 				os.Exit(71)
 			}
-			os.Exit(72)
+			if sessionErr != nil {
+				os.Exit(82)
+			}
+			members, membersErr := t4013.PrivateProcessSessionMembers(session)
+			if membersErr != nil {
+				os.Exit(83)
+			}
+			if members != 0 {
+				os.Exit(84)
+			}
+			os.Exit(71)
 		}
 		if selected.CeremonyID == "t422-cancel-test" {
 			rows, observeErr := t4013.ObserveProcessTreeRecords(context.Background(), os.Getpid())

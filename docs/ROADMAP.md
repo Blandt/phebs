@@ -221,6 +221,24 @@ first ordinary detach had refused harmlessly while the audit source lock was
 still open; no force was used. Disposal is not readiness or signed teardown.
 The anchored exact-commit rehearsal and remaining merge gates stay open.
 
+**T42.2p prospective V4 pressure continuity, 2026-09-19:** Ben accepted a
+65,536-byte signed per-boundary allowance for both fresh available-capacity and
+linked-data-allocation endpoints at 80-to-90 and 90-to-75. It is a selected
+16-block policy margin informed by one retained 12,288-byte sampled range and
+one retained 8,192-byte boundary movement, not a measured physical bound or a
+causal attribution to Phebs, SurrealKV, APFS or another host actor. The separate
+61,472,768-byte persistent release remains a refusal. V4 keeps targets and
+one-shot add/shrink checks at 4,096 bytes, keeps ballast/data allocation equality
+exact, and applies the signed 65,536-byte bound to recovery removal's volume
+delta. The anchored quiet gate, envelope, authority, ordering and deadlines stay
+unchanged; no endpoint is carried forward and no drift credit accumulates.
+Plan/freeze/receipt/pressure-transition domains advance to V4/V4/V4/V2 only
+after a complete explicit-V3 routing audit, while V1/V2/V3 bytes remain exact.
+T42.2p implementation and review now precede renewed T42.2n exact-tree
+acceptance; T42.2o retains its seal/freeze duties but may target only V4. No
+further rehearsal, merge, seal, freeze or ceremony is authorized by this
+posture.
+
 **T42.2n session-fixture review correction, 2026-09-17:** the isolated child
 fixture passed focused and complete package normal/race gates. Exact-commit
 review found one low future-rename hole in its child-selector evidence, so the

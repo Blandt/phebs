@@ -11,7 +11,7 @@ import (
 // counts, but every supplied observation of those exact bytes must agree.
 func composeExecutionRelationshipEvidence(plan Plan, rows []ExecutionPhaseInspection, authorities []AuthorityPhaseResult, product ExecutionEpochOneResult) (RelationshipEvidence, error) {
 	refuse := func() (RelationshipEvidence, error) { return RelationshipEvidence{}, errExecutionReceiptMetrics }
-	if plan.Schema != PlanV3Schema || product.ProductFinals != 2 || product.ProductFirstFinalOrdinal == 0 ||
+	if !processAccountingPlanSemantics(plan.Schema) || product.ProductFinals != 2 || product.ProductFirstFinalOrdinal == 0 ||
 		product.QueryResults == nil || product.QueryResults.Phase != "product_queries" || product.QueryResults.Outcome != "passed" {
 		return refuse()
 	}

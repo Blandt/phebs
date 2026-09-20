@@ -4365,3 +4365,55 @@ in [docs/ROADMAP.md](./docs/ROADMAP.md).
   they cannot be inspected again. It is neither readiness nor successful signed
   teardown and authorizes no merge, seal, freeze or ceremony. The later
   host-clean exact-commit readiness rehearsal remains mandatory.
+
+- **2026-09-19 — T42.2p prospective V4 pressure-continuity amendment.** Ben
+  accepted a separately versioned, freeze-bound allowance for the two sampled
+  interphase pressure endpoints, not another rehearsal or deadline increase.
+  The retained `64f2f455` aggregate proves 10,255 valid samples, 74 adjacent
+  changes over a 12,288-byte observed `Used` range, and equal first and last
+  values; its `Bfree` range was three 4,096-byte blocks. It does not retain a
+  raw sample history, prove only two levels or identify the mover. The joined
+  log records no application request or lifecycle turn after final pressure-80
+  accounting and before shutdown, but that absence does not exonerate every
+  engine, host or filesystem background path. In retained `e8d2cd35`, the
+  80-to-90 endpoint was exact, the 90-to-75 `Used` endpoint moved +8,192 bytes
+  while `Available` moved -8,192 bytes, and the later 75-to-removal endpoint
+  moved in the opposite direction; the linked-data allocation endpoint stayed
+  exact. All four ballast/data allocation deltas were exact, while final removal
+  left the already-admitted 4,096-byte volume residual. The separately retained
+  `d4318be7` 61,472,768-byte persistent release remains a different must-refuse
+  magnitude; none of these observations establishes a causal owner.
+
+  Prospective V4 adds one signed
+  `InterphaseDriftToleranceBytes=65,536` scalar and applies it independently,
+  in either direction and without carry-forward or cumulative credit, to both
+  `VolumeAvailableBytesBefore` and `DataAllocatedBytesBefore` at the existing
+  80-to-90 and 90-to-75 receipt boundaries. Applying the same bound to the
+  allocation term is a conservative policy choice, not an observed allocation
+  failure. The value is a selected 16-block margin informed by the retained
+  runs: 5.33 times the observed sampled range, eight times the observed boundary
+  movement and exactly 938 times smaller than the persistent release. It is not
+  a measured physical upper bound. The frozen 80/90/75 targets and one-shot
+  add/shrink checks retain their 4,096-byte tolerance; exact ballast/data
+  allocation equality, the V3 anchor/envelope/cancellation rules, authority,
+  ordering and deadlines remain unchanged. V4 alone applies the same signed
+  65,536-byte bound to the recovery removal volume-delta check, whose retained
+  run passed with no margin at 4,096 bytes; historical V1/V2/V3 keep 4,096.
+  Carry-forward is forbidden because it would erase the sampled discontinuity.
+
+  The amendment is versioned as plan V4, execution-freeze V4, convergence-
+  receipt V4 and pressure transition V2. Historical V1, V2 and V3 canonical
+  bytes and validation remain exact; adding the optional freeze field must not
+  serialize a zero field into those versions. Because the executor contains
+  explicit V3 gates in addition to its schema registry, implementation requires
+  a complete plan/freeze/profile/author/launcher/composer/validator routing
+  audit and retained-version replay, not only two local comparison edits. The
+  selected receipt path adds fixed scalar subtraction/comparison and one frozen
+  scalar; it adds no sample, syscall, request, store query, lock, timer, child,
+  mutation or ordinary production work. T42.2p is a newly discovered
+  prerequisite despite its suffix: implement and independently review V4,
+  rerun T42.2n exact-tree acceptance on those bytes, and only then allow T42.2o
+  to author and seal V4. The earlier V3 target of T42.2o is superseded, while
+  all of its acceptance, integration, exact-main, signature and custody gates
+  remain. No code pass, rehearsal, merge, seal, freeze or ceremony is claimed
+  by this decision record.

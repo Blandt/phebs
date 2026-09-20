@@ -49,7 +49,7 @@ func (run *ExecutionEpochOneRun) sampleMidphaseParentLocked(ctx context.Context,
 	}
 	refuse := func() error { run.failMidphaseParent(); return ErrExecutionEpochOne }
 	if point > 2 || flow.workspaceBytes == nil || flow.epochs == nil || flow.epochs.author == nil ||
-		flow.controller == nil || flow.store == nil || flow.plan.Schema != PlanV3Schema {
+		flow.controller == nil || flow.store == nil || !processAccountingPlanSemantics(flow.plan.Schema) {
 		return refuse()
 	}
 	phase, predecessor := uint32(6), 2
@@ -120,7 +120,7 @@ func (reader *executionEpochInspection) sampleMidphaseWorkspace(ctx context.Cont
 			reader.midphaseSamples.Unavailable = true
 		}
 	}()
-	if ctx == nil || ctx.Err() != nil || reader.err != nil || point > 3 || reader.plan.Schema != PlanV3Schema ||
+	if ctx == nil || ctx.Err() != nil || reader.err != nil || point > 3 || !processAccountingPlanSemantics(reader.plan.Schema) ||
 		run.control == nil || reader.midphaseSamples.Points[point].Attempts != 0 {
 		return errEpochInspection
 	}

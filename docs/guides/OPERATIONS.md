@@ -7521,14 +7521,55 @@ Every report must be zero, every parsing phase needs one, and a sixth report in
 one phase refuses. This does not mean all source languages are supported, and
 the record is not a phase metric or freeze authorization by itself.
 
-### T42.2 canonical V3 plan authoring
+### T42.2p prospective V4 pressure continuity
 
-After complete implementation acceptance, select `-schema v3` on
+V4 will retain a fresh native sample at each pressure boundary and permit that
+sample to differ from the prior phase endpoint by at most the signed
+`InterphaseDriftToleranceBytes` value of 65,536. The bound applies separately,
+in either direction, to available filesystem bytes and linked-data allocated
+bytes at 80-to-90 and 90-to-75. It is not carry-forward: the receipt keeps both
+observed endpoints, checks each boundary independently and grants no cumulative
+credit. Exactly 65,536 is a selected 16-block policy margin, not a measured
+maximum for APFS, SurrealKV or the host.
+
+The retained evidence supports only the measured shape. `64f2f455` recorded
+10,255 valid samples and 74 adjacent changes across a 12,288-byte `Used` range,
+with equal first and last values and a three-block `Bfree` range; aggregates do
+not prove two levels, lockstep counters or a causal owner. `e8d2cd35` recorded
+8,192-byte opposite-direction `Used`/`Available` movement at an interphase
+boundary while linked-data allocation stayed exact. Its final ballast removal
+also used the full existing 4,096-byte mutation tolerance. The separately
+observed 61,472,768-byte persistent release is exactly 938 times the V4
+allowance and remains a refusal.
+
+V4 does not change the 80/90/75 targets, their 4,096-byte tolerance, the
+one-shot add/shrink checks, exact ballast/data allocation equality, the
+150-second anchored endpoint gate, pre-pressure envelope, cancellation,
+authority, event order or phase walls. V4 recovery removal instead uses the
+same signed 65,536-byte bound for its volume delta; V1/V2/V3 retain 4,096.
+Plan, freeze, receipt and pressure-transition schemas
+advance independently so retained V1, V2 and V3 artifacts continue to validate
+byte-for-byte; the new freeze scalar must be absent from those historical JSON
+encodings. A complete audit of every V3-only author, freeze, profile, launcher,
+composer and validator route is required before V4 is runnable.
+
+The implemented create-only author accepts `-schema v4` with the existing
+`-repository-root`, exact `-source-commit` and new `-out` arguments. That option
+does not grant readiness or retry authority. T42.2p implementation and
+independent review precede renewed T42.2n exact-tree acceptance, and T42.2o may
+author/seal only V4 after both close. Do not run another pressure or signed-
+readiness rehearsal under this ticket. A failure still retains exact custody
+for review and is never an automatic retry or disposal authorization.
+
+### T42.2 retained V3 plan authoring
+
+For retained V3 reproduction only, select `-schema v3` on
 `go run ./spike/t421/cmd/author` with the existing `-repository-root`, exact
 `-source-commit` and new `-out` path arguments. The command requires a clean
 checkout, builds the launcher's corrected V3 plan and creates a private file
-without replacing an existing artifact. Omitting `-schema`, or selecting
-`v2`, retains the historical V2 author; other values refuse.
+without replacing an existing artifact. It must not author the next freeze or
+execution candidate. Omitting `-schema`, or selecting `v2`, retains the
+historical V2 author; `v4` selects the separate prospective V4 author.
 
 This create-only plan seal is separate from the live execution freeze and its
 signature. Preserve retained V1/V2 artifacts. The author option alone supplies

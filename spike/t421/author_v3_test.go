@@ -41,6 +41,35 @@ func TestAuthorV3CanonicalRoundTrip(t *testing.T) {
 	}
 }
 
+func TestAuthorV4CanonicalRoundTrip(t *testing.T) {
+	repository, commit := authorRepositoryFixture(t)
+	destination := filepath.Join(t.TempDir(), "plan-v4.json")
+	identity, err := AuthorV4(t.Context(), destination, repository, commit)
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, err := os.ReadFile(destination)
+	if err != nil || identity.Bytes != uint64(len(raw)) || identity.SHA256 != SHA256(raw) || len(raw) > MaxPlanV3AuthorBytes || bytes.Count(raw, []byte{'\n'}) != 1 {
+		t.Fatal("authored canonical V4 identity or byte headroom differs", err)
+	}
+	plan, err := DecodePlan(raw)
+	if err != nil || plan.Schema != PlanV4Schema || plan.SourceCommit != commit || plan.LogicalStoreWork == nil || plan.SelectorHandoffCleanup == nil ||
+		plan.ToolPolicy.ExecutionFreezeSchema != ExecutionFreezeV4Schema || plan.ReceiptContract.Schema != ReceiptV4Schema {
+		t.Fatal("authored plan did not independently replay the pressure-continuity V4 contract", err)
+	}
+	again, err := MarshalCanonical(plan)
+	if err != nil || !bytes.Equal(raw, again) {
+		t.Fatal("authored V4 plan changed during canonical round trip", err)
+	}
+	info, err := os.Stat(destination)
+	if err != nil || !info.Mode().IsRegular() || info.Mode().Perm() != 0o600 {
+		t.Fatal("authored V4 plan is not a private regular artifact", err)
+	}
+	if status := authorFixtureGit(t, repository, "status", "--porcelain=v1", "--untracked-files=all"); status != "" {
+		t.Fatal("external artifact authoring changed the selected source checkout")
+	}
+}
+
 func TestAuthorPlanRefusesBeforeConstruction(t *testing.T) {
 	for _, test := range []string{"different_commit", "untracked", "unstaged", "staged", "hidden_tracked"} {
 		t.Run(test, func(t *testing.T) {

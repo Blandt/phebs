@@ -191,7 +191,7 @@ func (custody *ExecutionGoBuildCustody) verifyReferenceTool(ctx context.Context,
 	if modulePath != "" {
 		identity.Version, identity.Provenance, identity.BuildVCSRevision = moduleVersion, "go-module-build-v1", ""
 		identity.ModulePath, identity.ModuleVersion, identity.ModuleSum, identity.BuildRecipeSHA256 = modulePath, moduleVersion, moduleSum, recipe
-		if role == "zoekt-git-index" && schema == PlanV3Schema {
+		if role == "zoekt-git-index" && processAccountingPlanSemantics(schema) {
 			identity.Provenance = zoektOfferProvenance
 		}
 	}

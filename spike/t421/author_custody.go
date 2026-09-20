@@ -61,7 +61,7 @@ type ExecutionAuthorCustody struct {
 }
 
 // PrepareExecutionAuthor performs one complete existing Builds.Check, reads
-// and hashes the bounded protected V3 plan once, and creates only empty private
+// and hashes the bounded protected V3/V4 plan once, and creates only empty private
 // mutable roots. DecodePlan regenerates frozen identities synchronously; its
 // existing contextless work is checked before/after, not made interruptible by
 // the five-minute cooperative constructor context. It starts no author/Git.
@@ -86,7 +86,7 @@ func PrepareExecutionAuthor(ctx context.Context, parent string, request Executio
 		return nil, ErrExecutionAuthorCustody
 	}
 	plan, err := DecodePlan(raw)
-	if err != nil || plan.Schema != PlanV3Schema || !authorCustodyBuildBinding(request.Builds, plan.SourceCommit) || ctx.Err() != nil {
+	if err != nil || !processAccountingPlanSemantics(plan.Schema) || !authorCustodyBuildBinding(request.Builds, plan.SourceCommit) || ctx.Err() != nil {
 		return nil, ErrExecutionAuthorCustody
 	}
 	identity, authorPath, err := request.Author.Check(ctx, "t422-author")

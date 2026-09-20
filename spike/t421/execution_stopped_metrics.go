@@ -25,7 +25,7 @@ func (out *executionStoppedMetricPrefix) unavailable(index int, names ...string)
 func composeExecutionStoppedMetricPrefix(plan Plan, stoppedPhase string, work executionJoinedWork, dispatch dispatchadmission.Snapshot, store storeaccounting.WireSnapshot, inspection []ExecutionPhaseInspection) (executionStoppedMetricPrefix, error) {
 	var out executionStoppedMetricPrefix
 	stop := slices.Index(plan.PhaseOrder, stoppedPhase)
-	if plan.Schema != PlanV3Schema || stop < 0 || len(plan.PhaseOrder) != 15 || len(plan.WorkEnvelope.Phases) != 15 || len(inspection) > 14 {
+	if !processAccountingPlanSemantics(plan.Schema) || stop < 0 || len(plan.PhaseOrder) != 15 || len(plan.WorkEnvelope.Phases) != 15 || len(inspection) > 14 {
 		return out, errExecutionReceiptMetrics
 	}
 	var accepted [15]bool

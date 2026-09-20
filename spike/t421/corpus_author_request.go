@@ -168,7 +168,8 @@ func corpusAuthorCanonical(value any, maximum int) ([]byte, error) {
 
 // OpenExecutionCorpusAuthorRequest authenticates the bounded canonical request
 // BEFORE opening a named path. It adopts only a parent-created exact root and
-// a protected canonical V3 plan, then independently verifies prior continuity.
+// a protected canonical V3/V4 plan, then independently verifies prior
+// continuity.
 // It creates no directory and authorizes exactly the requested revision once.
 func OpenExecutionCorpusAuthorRequest(ctx context.Context, raw []byte) (*ExecutionCorpusAuthor, error) {
 	if ctx == nil || ctx.Err() != nil {
@@ -193,7 +194,7 @@ func OpenExecutionCorpusAuthorRequest(ctx context.Context, raw []byte) (*Executi
 		}
 	}()
 	plan, err := DecodePlan(planRaw)
-	if err != nil || plan.Schema != PlanV3Schema || ctx.Err() != nil {
+	if err != nil || !processAccountingPlanSemantics(plan.Schema) || ctx.Err() != nil {
 		return nil, ErrExecutionCorpusAuthor
 	}
 	source, err := newCorpusAuthorSource(ctx, plan)

@@ -68,7 +68,7 @@ func observeExecutionAttempts(raw []byte, plan Plan, producer uint32, input [32]
 			}
 		}
 	}()
-	if !joined || plan.Schema != PlanV3Schema || len(plan.PhaseOrder) != len(out.Phases) || len(plan.WorkEnvelope.Phases) != len(out.Phases) ||
+	if !joined || !processAccountingPlanSemantics(plan.Schema) || len(plan.PhaseOrder) != len(out.Phases) || len(plan.WorkEnvelope.Phases) != len(out.Phases) ||
 		executionWorkProducerByte(producer) == 0 || input == ([32]byte{}) || len(raw) > 64<<20 || plan.ProcessAccounting == nil ||
 		len(plan.ProcessAccounting.DispatchBudgets) != len(out.Phases) || !slices.Equal(plan.PhaseOrder, frozenPhaseOrder()) {
 		return out, errExecutionAttempts
