@@ -4417,3 +4417,38 @@ in [docs/ROADMAP.md](./docs/ROADMAP.md).
   all of its acceptance, integration, exact-main, signature and custody gates
   remain. No code pass, rehearsal, merge, seal, freeze or ceremony is claimed
   by this decision record.
+
+- **2026-09-20 — T42.2q source-free failure-calibration shadow.** Ben
+  authorized a separate, non-gating System One/Jev experiment to test whether
+  recurring closed ceremony failure signatures can be triaged without hiding
+  product or harness defects. It is stacked after the T42.2p checkpoint and is
+  not imported by the product, executor, launcher, verifier, evidence plane or
+  freeze path. Only packages named in a separately reviewed digest allowlist
+  are accepted through the existing authenticated returned-bundle extractor.
+  Projection removes package/source/progress digests, paths, timestamps, host
+  and tool identity, raw errors, response bodies, credentials, final decisions
+  and labels from the model request. Local episode facts and later resolution
+  remain available only for blinded human adjudication and evaluation.
+
+  The initial question contract pins exact model `jev-1.13.0` and asks two
+  independent Nouls: whether the observation itself establishes a terminal
+  condition, and whether the unchanged harness requires repair before safe
+  progress. This preserves the V31 extraction-progress shape as a possible
+  nonterminal observation plus real harness gap rather than collapsing it into
+  “benign.” Scores are advisory: both at or below 0.10 form a benign candidate,
+  either uncertain score routes to review, and a score at or above 0.90 forms
+  only a terminal or repair candidate. No answer changes a retry, deadline,
+  stop, receipt, teardown, seal, freeze, authorization or ceremony decision.
+
+  The offline tool accepts at most 128 reviewed packages and 4,096 projected
+  episodes, deletes its private extraction root on every return, performs
+  sequential 30-second-bounded API calls without retry or resampling, and
+  creates private outputs without replacement. `JEV_KEY` remains environment-
+  only. Human labels are separate from prompts. Receipt-equal scoring, an
+  untouched temporal test cohort, positive Brier skill over development
+  prevalence, at least five benign-candidate receipt groups and zero
+  false-benign groups are required even for a prospective no-action shadow GO.
+  The present 30-receipt inventory can screen usefulness but cannot establish
+  an automation-safe calibration bound; model output remains external metadata
+  under TM-10/TM-15. Ordinary request/query, sync, startup, retry, publication,
+  store/schema, lock, cache, child, memory/disk and ceremony costs are unchanged.

@@ -202,6 +202,27 @@ The following invariants are release-blocking:
 - Confirmed unauthorized disclosure, uncontrolled egress, partial publication,
   provenance failure, or reviewer-custody compromise stops the pilot.
 
+### T42.2q external classification boundary
+
+The T42.2q Jev experiment is offline operator tooling, not a Phebs principal or
+ceremony component. Its only permitted outbound payload is the fixed
+`phebs-ceremony-shadow-state-v1` object projected after a returned package has
+been authenticated against an independently reviewed digest. Package, plan,
+source and progress digests; repository/run identities; paths; timestamps;
+host/tool identity; response bodies; raw errors; credentials; final outcomes;
+decisions; episode IDs; receipt groups and human labels are forbidden from the
+request and pinned by a wire test. `JEV_KEY` is environment-only and never
+enters an argument, artifact or diagnostic.
+
+This call is approved external egress under TM-10 and its scores are external
+metadata under TM-15. A typed probability is not evidence truth. The tool has
+no import edge from production or ceremony execution and no write path into a
+receipt, package, retry, stop, teardown, seal, freeze or authorization record.
+Malformed, overloaded, rate-limited or transport-ambiguous responses fail the
+shadow attempt without retry. Predictions and blinded human labels remain
+separate private records until adjudication; disagreement and abstention stay
+visible and cannot be silently replaced by model output.
+
 ## 7. Open decisions before review
 
 The named owner and Security reviewer must close or explicitly block each item:

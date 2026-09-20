@@ -7561,6 +7561,68 @@ author/seal only V4 after both close. Do not run another pressure or signed-
 readiness rehearsal under this ticket. A failure still retains exact custody
 for review and is never an automatic retry or disposal authorization.
 
+### T42.2q source-free Jev shadow
+
+This operator-only spike is separate from the ceremony. It cannot start,
+resume, stop, retry, seal or classify a live run. Build its reviewed allowlist
+out of band; adjacent `.sha256` files and bundle-internal checksums are not an
+independent trust root. The strict input is one JSON object:
+
+```json
+{"schema":"t422q-reviewed-bundle-allowlist-v1","bundles":[{"package_path":"/absolute/reviewed/source-free.tgz","package_digest":"sha256:<reviewed-package-digest>"}]}
+```
+
+Project only authenticated returned bundles into a create-only private JSONL
+file:
+
+```sh
+go run ./spike/t422q/cmd/t422q-shadow project \
+  -allowlist /absolute/path/to/reviewed-allowlist.json \
+  -output /absolute/private/path/episodes.jsonl
+```
+
+The projector reuses the returned-package authenticator, decodes the canonical
+plan and receipt, collapses repeated closed diagnostics and deletes its private
+temporary extraction root before returning. It never discovers bundles or
+trusts an adjacent sidecar. Episode facts and final resolution remain local;
+only each episode's `model_input` object is eligible for egress.
+
+Load `JEV_KEY` into the command environment without placing it in a file,
+argument, log or artifact, then run the pinned shadow classifier:
+
+```sh
+go run ./spike/t422q/cmd/t422q-shadow classify \
+  -episodes /absolute/private/path/episodes.jsonl \
+  -output /absolute/private/path/predictions.jsonl
+```
+
+Classification is serial, gives each request 30 seconds, has a 30-minute
+command ceiling and never retries a 429, 529 or ambiguous transport result.
+The exact response model must be `jev-1.13.0`; malformed, oversized, partial,
+extra-field or out-of-range output fails the pilot attempt. Predictions are
+external advisory metadata under TM-10 and TM-15. They must not be copied into
+a ceremony package or used to suppress an existing stop/retry/review gate.
+Keep human labels separate and blinded to predictions until adjudication.
+Use `t422q-human-label-v1` JSONL keyed by `episode_id`; each row assigns the
+whole receipt to `development` or `test`, records both
+`observation_terminal` and `repair_required` booleans, and uses
+`basis=human_adjudication`. Set both answers to `null` to abstain. Keep every
+episode from one receipt in one split; for the initial corpus use the oldest 20
+receipts for development and newest 10 as the untouched temporal test.
+
+After adjudication, evaluate without another API call:
+
+```sh
+go run ./spike/t422q/cmd/t422q-shadow evaluate \
+  -episodes /absolute/private/path/episodes.jsonl \
+  -predictions /absolute/private/path/predictions.jsonl \
+  -labels /absolute/private/path/labels.jsonl \
+  -output /absolute/private/path/calibration-report.json
+```
+
+`shadow_go=true` means only that the frozen no-action pilot criteria passed.
+It is not permission to change a ceremony or automate classification.
+
 ### T42.2 retained V3 plan authoring
 
 For retained V3 reproduction only, select `-schema v3` on

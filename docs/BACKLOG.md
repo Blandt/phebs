@@ -4471,6 +4471,25 @@ owns the design and dependency order. Execution remains excluded.
   this is a newly discovered prerequisite: T42.2p implementation/review precedes
   renewed T42.2n acceptance, and T42.2o may then author/seal V4 rather than V3.
   It authorizes no rehearsal, merge, seal, freeze or ceremony.
+- **T42.2q · Source-free failure-calibration shadow** — test exact pinned Jev
+  classification against authenticated historical ceremony receipts without
+  connecting it to execution or evidence authority. AC: live on a separate
+  stacked branch; accept only an explicit independently reviewed bundle-digest
+  allowlist through the existing returned-package authenticator; deterministically
+  collapse repeated closed diagnostic rows while excluding paths, identities,
+  digests, raw errors/bodies, credentials, final decisions and labels from the
+  request; pin `jev-1.13.0` and two atomic terminal-observation/repair-required
+  Nouls; bound corpus, request, response, time and private temporary custody;
+  perform no automatic retry or favorable resample; keep predictions advisory
+  and human labels separate; report receipt-equal held-out Brier/log-loss,
+  coverage, false-benign groups and their one-sided 95% upper bound; require
+  both held-out classes, positive Brier skill, at least five benign-candidate
+  receipt groups and zero false-benign groups for a no-action shadow GO. Tests
+  pin the historical V31 409/pending collapse, V32 aggregate non-duplication,
+  exact wire/request redaction, threshold boundaries, strict artifact joins and
+  cleanup. Documentation records egress, custody, costs and the nonclaim. This
+  ticket authorizes no live-ceremony influence, retry suppression, merge of
+  T42.2p, exact-main freeze, execution, release, accuracy or scale claim.
 
 **T42.2n completion implementation (2026-09-13).** The launcher now connects
 real phase execution, observed success/stopped receipt assembly, the sole-use
