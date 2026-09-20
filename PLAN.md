@@ -4559,3 +4559,62 @@ in [docs/ROADMAP.md](./docs/ROADMAP.md).
   8 KiB of stderr. Repeated invocations repeat that offline work and may use the
   ordinary Go build cache; they add no product request, store/shard read,
   publication, lock, retry, ordinary-runtime child or persistent state.
+
+- **2026-09-20 — T42.2s source-hunk hazard-routing shadow.** The next
+  candidate population is executable-source diff hunks, not ceremony runs or
+  the nine T42.2r named 409 candidates. T42.2s tests only whether six
+  independent Jev probabilities add useful pre-flight hazard routes beyond a
+  deterministic path/symbol baseline: schedule-epoch state, job projection,
+  transition accounting, endpoint status surface, checkout custody, and oracle
+  classification. Hazards are multi-label, so this is six Nouls rather than a
+  forced single choice. Jev never chooses or executes a command. A human-owned
+  local mapping may union suggested routes with mandatory gates; it may not
+  suppress, waive, reorder, or declare any gate passed.
+
+  Offline projection starts from one exact clean base/HEAD pair and retains a
+  private source-attributed JSONL census. Binary, generated, mode-only,
+  oversized, and uncertain hunks stay local as explicit review rows. The live
+  classifier, if separately authorized, does not accept that projected file:
+  it recomputes the exact pair and accepts only a reviewed allowlist binding
+  both commits plus each hunk/content digest. Its complete prospective outbound
+  value is `phebs-t422s-hazard-state-v1`: language, coarse artifact role,
+  change kind, and bounded exact before/after excerpts. Those excerpts are
+  source, not redacted metadata. Repository, path, filename, commit, span,
+  author, time, ticket, incident, outcome, label, route, command, credential,
+  and local identity fields are forbidden. Each reviewed hunk gets one
+  30-second exact-model request containing all six frozen questions; there is
+  no retry or favorable resampling. Strict bounded decoding and private
+  create-only output preserve failures and partial-attempt sentinels.
+
+  Implementation and offline tests do not authorize source egress. A live call
+  requires independent review of the exact code, schema, question digest,
+  allowlist, and volume plus Ben's explicit TM-10/TM-15 acceptance. Scores are
+  advisory external metadata with no import edge into product, execution,
+  evidence, retry fences, receipts, identifiers, freeze, seal, or ceremony.
+  Evaluation counts independent change groups, never raw hunks: keep one
+  ticket/stack/incident lineage in one chronological split, blind human
+  multi-labels to scores, union hunk routes at group level, and compare against
+  the frozen deterministic baseline. A defect catch requires an existing
+  reproducer to fail before the fix and pass after it. Measure incremental
+  catches before identifier consumption and deduplicated rehearsal minutes;
+  ceremony pass rate remains too sparse for a direct success claim.
+
+  One projection performs bounded local Git identity, status, tree/blob and
+  diff reads over at most 4,096 changed source files and 4,096 hunks; each
+  eligible before/after pair is at most 16 KiB and 400 diff lines. Repeating it
+  repeats that offline work. The retained excerpt payload is at most 64 MiB
+  plus fixed record/string overhead; one Git stdout is at most 16 MiB, one
+  per-file diff or blob at most 4 MiB, and stderr is at most 8 KiB. Each
+  accepted file adds at most two blob reads and one diff child beyond the
+  bounded identity/tree commands. Exact-clean shell verification hashes every
+  tracked `.sh` or current executable on both identity passes; a changed
+  extensionless executable downgraded to regular adds one worktree hash to
+  each pass. The final post-classification fence repeats the bounded clean
+  identity/tree check and changed-source enumeration, including language blob
+  reads and downgraded-executable hashes. A separately authorized
+  classification is serial, one at-most-64-KiB request and one at-most-8-KiB
+  response per reviewed hunk. It adds no product request, store/shard read,
+  publication, runtime lock, cache invalidation, production child, or ordinary
+  startup/retry/no-op cost.
+  T42.2p review, renewed T42.2n acceptance, and T42.2o V4 seal/freeze sequencing
+  remain unchanged.

@@ -287,6 +287,21 @@ cannot edit `progressRetryConflictDetail` or influence a ceremony. T42.2p
 review, renewed T42.2n acceptance and T42.2o V4 seal/freeze sequencing remain
 unchanged.
 
+**T42.2s source-hunk hazard-routing shadow, 2026-09-20:** the next independent
+experiment moves to the high-volume pre-flight surface. One exact clean
+base/HEAD pair is projected into bounded Go/shell hunks; uncertain shapes stay
+local for review, and a separately reviewed commit-and-content allowlist is
+required before the dormant classifier can recompute any source. Its closed
+prospective payload contains only language, coarse artifact role, change kind,
+and exact bounded before/after source excerpts, evaluated by six independent
+hazard Nouls. Jev emits probabilities only and cannot select or execute gates.
+Any local routing remains additive to mandatory deterministic checks. Source
+egress is not authorized by implementation: an independently reviewed exact
+schema, question digest, volume, allowlist, and explicit TM-10/TM-15 acceptance
+must precede a live call. Evaluation is grouped by independent change lineage,
+not hunk count, and can claim only incremental pre-identifier catches and cost.
+The T42.2p/T42.2n/T42.2o integration and freeze sequence is unchanged.
+
 **T42.2n session-fixture review correction, 2026-09-17:** the isolated child
 fixture passed focused and complete package normal/race gates. Exact-commit
 review found one low future-rename hole in its child-selector evidence, so the

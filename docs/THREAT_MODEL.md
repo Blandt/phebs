@@ -242,6 +242,32 @@ egress decision requiring a separately reviewed closed outbound schema, volume
 gate and untouched holdout; T42.2q approval does not authorize source-site
 egress.
 
+### T42.2s source-hunk shadow boundary
+
+T42.2s implements offline advisory source classification but authorizes no
+live request. Whitespace normalization, separated before/after excerpts, and
+omitted paths do not make source source-free. A live call requires Ben's
+explicit TM-10/TM-15 acceptance after independent review of the exact code,
+volume, question digest, and allowlist.
+
+The only prospective payload is `phebs-t422s-hazard-state-v1`, rederived in
+the classifier process from an exact clean base/HEAD pair and an independently
+reviewed allowlist binding those commits plus every selected hunk/content
+digest. It contains one closed language, artifact-role and change-kind value
+plus bounded exact before/after source excerpts. Repository, path, filename,
+commit, span, author, timestamp, ticket, incident, outcome, label, route,
+command, credential, and local record identities are forbidden from the
+request. The private projected JSONL has no classifier input path. Source
+comments and literals are inert untrusted data, never instructions.
+
+Each reviewed hunk permits one 30-second request containing six frozen Noul
+questions, with no retry or resampling. Malformed, overloaded, rate-limited,
+timed-out, extra-field, non-finite, or wrong-model responses stop the attempt.
+Predictions are create-only private TM-15 external metadata. They have no path
+to command execution, product or ceremony code, evidence, receipts, retry
+fences, identifiers, freeze, seal, or authorization. A human-owned route table
+may only add reviewed gates to the mandatory deterministic baseline.
+
 ## 7. Open decisions before review
 
 The named owner and Security reviewer must close or explicitly block each item:

@@ -4542,6 +4542,36 @@ owns the design and dependency order. Execution remains excluded.
   pre-identifier defect catches and identifiers consumed per confirmed defect;
   make no ceremony-success, accuracy, release or scale claim.
 
+- **T42.2s · Source-hunk hazard-routing shadow** — test whether Jev can add
+  useful targeted pre-flight routes beyond deterministic path/symbol routing,
+  without becoming a readiness oracle. AC: from one exact clean reviewed
+  base/HEAD pair, deterministically enumerate tracked Go and shell hunks;
+  retain binary, generated, mode-only, oversized, or uncertain shapes as local
+  `review` rows without truncation; and require a separately reviewed allowlist
+  binding the exact commits, hunk identity, and content digest before any
+  classifier path. The only prospective outbound state is the fixed
+  `phebs-t422s-hazard-state-v1` object containing language, coarse artifact
+  role, change kind, and bounded exact before/after source excerpts. It omits
+  repository, path, filename, commit, span, author, ticket, incident, outcome,
+  label, route, command, credential, and local row identities. Ask six frozen
+  independent Nouls for schedule-epoch state, job projection, transition
+  accounting, endpoint status surface, checkout custody, and oracle
+  classification; pin the exact model and question digest; make at most one
+  30-second request per reviewed hunk with no retry or resampling; strictly
+  decode bounded responses; and write only create-only private predictions.
+  Source excerpts are source egress, not redaction: no live call is authorized
+  until the exact schema, volume, allowlist, and TM-10/TM-15 decision receive
+  independent review and Ben's explicit acceptance. The model emits no command
+  and executes nothing. Any later local route table may only add to mandatory
+  deterministic gates, with ambiguous or failed classification retained for
+  human review. Evaluation groups correlated hunks by ticket/stack/incident
+  lineage, uses a frozen chronological holdout and blinded multi-label review,
+  and compares incremental group-level recall and deduplicated rehearsal cost
+  against the deterministic baseline. Per-hunk volume is not independent
+  calibration evidence. Report confirmed pre-identifier reproducer catches,
+  added rehearsal minutes, and identifiers consumed per confirmed root cause;
+  make no ceremony-success, calibration, release, or scale claim.
+
 **T42.2n completion implementation (2026-09-13).** The launcher now connects
 real phase execution, observed success/stopped receipt assembly, the sole-use
 signed package builder, and independently verified framed delivery. The four

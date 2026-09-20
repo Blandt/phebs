@@ -7677,6 +7677,52 @@ load, unresolved overflow or changed census requires review rather than a paid
 fallback. No model invocation is authorized until a separate volume and egress
 contract is reviewed.
 
+### T42.2s source-hunk hazard shadow
+
+Project one exact clean base/HEAD pair into a private, source-bearing review
+file. The output must be outside the repository and must not already exist:
+
+```sh
+go run ./spike/t422s/cmd/t422s-shadow project \
+  -root "$PWD" \
+  -base <EXACT_40_HEX_ANCESTOR> \
+  -output /ABSOLUTE/PRIVATE/PATH/t422s-hunks.jsonl
+```
+
+Review every eligible source excerpt and every local `review_reason`. Create a
+separate allowlist using `phebs-t422s-reviewed-allowlist-v1`, the exact
+`base_commit` and `head_commit` from the header, and only reviewed
+`hunk_id`/`content_sha256` pairs. Do not treat projection as approval to send
+source. Binary, generated, mode-only, over-16-KiB, over-400-line, and uncertain
+hunks are deliberately ineligible rather than truncated.
+
+The following command documents the prospective classifier interface only. Do
+not run it until independent review has closed the exact implementation,
+schema, question digest, volume, and allowlist and Ben has explicitly accepted
+the new TM-10/TM-15 source egress:
+
+```sh
+go run ./spike/t422s/cmd/t422s-shadow classify \
+  -root "$PWD" \
+  -base <EXACT_40_HEX_ANCESTOR> \
+  -allowlist /ABSOLUTE/PRIVATE/PATH/t422s-reviewed-allowlist.json \
+  -output /ABSOLUTE/PRIVATE/PATH/t422s-predictions.jsonl
+```
+
+Classification recomputes the clean exact pair and matches the reviewed
+commit, hunk, and content identities; it never consumes the projected JSONL.
+`JEV_KEY` is environment-only. Each selected hunk makes one serial 30-second
+request containing all six hazard questions and no provenance. There is no
+retry. Predictions contain probabilities, not commands or gate decisions.
+Union any later human-approved routes with mandatory deterministic checks;
+never use a low score, ambiguity, or failed request to suppress a check.
+
+Both outputs are owner-only and create-only. A normal error removes the new
+file; hard process death can leave an empty or partial sentinel. Treat that
+path as a consumed ambiguous attempt: inspect it, never overwrite it, and do
+not automatically retry. No output is evidence, a receipt, readiness, freeze,
+or permission to consume a ceremony identifier.
+
 ### T42.2 retained V3 plan authoring
 
 For retained V3 reproduction only, select `-schema v3` on
