@@ -3778,8 +3778,8 @@ func validatePressure80Lifecycle(value PressureTransition, metrics ReceiptMetric
 	if err := validatePressureLifecycle(value, metrics, plan); err != nil {
 		return err
 	}
-	// Only prospective V3 shares recovery/fresh's truthful durable-job
-	// lower-bound backlog rule. All owner, total and freshness checks above stay.
+	// The V3/V4 family shares recovery/fresh's truthful durable-job lower-bound
+	// backlog rule. All owner, total and freshness checks above stay.
 	if processAccountingPlanSemantics(plan.Schema) || !correctedPlanSemantics(plan.Schema) {
 		return nil
 	}
