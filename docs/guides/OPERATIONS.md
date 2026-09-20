@@ -7602,6 +7602,10 @@ serial, gives each request 30 seconds, bounds the Jev phase to 30 seconds per
 projected episode plus one minute, and never retries a 429, 529 or ambiguous
 transport result. It opens the create-only output before extraction or paid
 calls, and deletes that output if the all-or-nothing attempt fails.
+An uncatchable process death or power loss can instead leave a zero-byte 0600
+output sentinel. Treat it as an ambiguous consumed attempt: retain it, do not
+overwrite it or automatically rerun, and use a new output path only after an
+explicit operator disposition.
 The exact response model must be `jev-1.13.0`; malformed, oversized, partial,
 extra-field or out-of-range output fails the pilot attempt. Every prediction
 also binds the exact `t422q-jev-questions-v1` contract. Predictions are
@@ -7615,8 +7619,12 @@ whole receipt to `development` or `test`, records both
 keeps abstention denominators, and any development or test abstention blocks
 `shadow_go`. Keep every episode from one receipt in one split; authenticated
 measurement dates must put every development receipt strictly before every test
-receipt. For the initial corpus use the oldest 20 receipts for development and
-newest 10 as the untouched temporal test.
+receipt. The realized live corpus has 25 episode-bearing groups, so the earlier
+oldest-20/newest-10 plan is impossible. No adjudication is required for its
+operational `shadow_no_go`. If a separately authorized diagnostic evaluation
+is still useful, freeze the oldest 15 groups through 2026-08-21 as development
+and the newest 10 groups from 2026-08-22 as test before revealing labels. That
+post-screen diagnostic cannot authorize a no-action GO.
 
 After adjudication, evaluate without another API call:
 

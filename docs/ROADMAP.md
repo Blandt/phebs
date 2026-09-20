@@ -248,15 +248,31 @@ outcomes, decisions and human labels stay local. The two scores distinguish an
 observation that itself establishes terminal failure from a transient signal
 that nevertheless exposes a harness repair requirement. Predictions are
 advisory and cannot alter ceremony control, evidence, custody or authority.
-The current 30 authenticated receipt packages are enough for a held-out
-usefulness screen, but their statistical independence is not established and
-they cannot support an automation-safe calibration claim. Review of initial
-exact commit `eff7f78d04618d86c4c415f7d903c8a6b863e2d0` blocked arbitrary-
+The retained inventory has 30 package candidates, while the live corpus may
+contain fewer decodable, episode-bearing receipt groups. It is enough for a
+held-out usefulness screen, but its statistical independence is not
+established and it cannot support an automation-safe calibration claim. Review
+of initial exact commit `eff7f78d04618d86c4c415f7d903c8a6b863e2d0` blocked arbitrary-
 episode egress, stale content joins, composite-axis
 scoring, hidden abstentions, unenforced temporal splits, overbroad V32 dedupe,
 late output preflight and a file-open race; the correction is implemented and
-fresh immutable-source review remains open. T42.2p review, renewed T42.2n
-acceptance and T42.2o V4 seal/freeze sequencing are unchanged.
+independent review of exact source commit `7a00e24f759136dbb664eccd6de899bc986beb00`
+found only the stale 20/10 split and undocumented hard-kill sentinel. Both are
+corrected, and documentation re-review reports all severity counts zero.
+T42.2p review, renewed T42.2n acceptance and T42.2o V4 seal/freeze sequencing
+are unchanged.
+
+The frozen live screen authenticated 29 bundles and projected 46 episodes from
+25 receipt groups. Exact `jev-1.13.0` scores classified every episode as
+`review` under the frozen local thresholds: zero benign, terminal, or repair
+candidates. All 22 HTTP-409 episodes were also review-only. The fixed no-action
+gate therefore has zero coverage and cannot reach its required five
+benign-candidate receipt groups for any human labels.
+The operational result is `shadow_no_go`; human calibration metrics were not
+performed because they cannot rescue that gate. Calibration, accuracy,
+false-benign safety, and a confidence bound remain unestablished. Any later
+threshold or question contract requires a separately frozen experiment and a
+fresh untouched holdout.
 
 **T42.2n session-fixture review correction, 2026-09-17:** the isolated child
 fixture passed focused and complete package normal/race gates. Exact-commit

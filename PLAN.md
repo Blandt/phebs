@@ -4448,10 +4448,12 @@ in [docs/ROADMAP.md](./docs/ROADMAP.md).
   untouched temporal test cohort, positive Brier skill over development
   prevalence, at least five benign-candidate receipt groups and zero
   false-benign groups are required even for a prospective no-action shadow GO.
-  The present 30-receipt inventory can screen usefulness but cannot establish
-  an automation-safe calibration bound; model output remains external metadata
-  under TM-10/TM-15. Ordinary request/query, sync, startup, retry, publication,
-  store/schema, lock, cache, child, memory/disk and ceremony costs are unchanged.
+  The retained inventory has 30 package candidates; a live allowlist may use
+  fewer decodable, episode-bearing receipt groups. It can screen usefulness but
+  cannot establish an automation-safe calibration bound; model output remains
+  external metadata under TM-10/TM-15. Ordinary request/query, sync, startup,
+  retry, publication, store/schema, lock, cache, child, memory/disk and ceremony
+  costs are unchanged.
 
   Exact-commit review of `eff7f78d04618d86c4c415f7d903c8a6b863e2d0`
   blocked the first candidate with critical/high/medium/low `0/2/6/2`; the
@@ -4481,3 +4483,39 @@ in [docs/ROADMAP.md](./docs/ROADMAP.md).
   classification makes at most 4,096 sequential requests, and evaluation is
   linear in those rows. There are no locks, stores, schemas, caches or child
   processes. Ordinary Phebs and ceremony costs remain zero.
+
+  The first frozen live screen authenticated an independently checked
+  29-bundle allowlist and projected 46 episodes from 25 receipt groups. Exact
+  `jev-1.13.0` scores classified as `review` under the frozen local thresholds
+  for all 46: zero benign, terminal, or repair candidates.
+  Observation-terminal scores ranged from 0.12 to 0.31 and
+  repair-required scores from 0.09 to 0.48. All 22 HTTP-409 episodes, including
+  the five closed `409_stale` aggregates, also remained review-only. The
+  artifact join, canonical episode identities, model/question bindings,
+  numeric bounds, classifications, and private-file custody passed independent
+  inspection.
+
+  **Decision: `shadow_no_go` for the frozen no-action policy.** Because the
+  benign rule requires both scores at or below 0.10, this prediction set has
+  zero benign-candidate receipt groups under every possible human label and
+  split; it cannot meet the prospective minimum of five. Stop before spending
+  a human adjudication round. Brier/log-loss, prevalence, ranking skill,
+  false-benign safety, and the conditional confidence bound are therefore not
+  measured, and calibration remains unestablished. Do not tune these thresholds
+  or questions on the consumed corpus. Any later contract must be separately
+  frozen and use a fresh untouched holdout. This result authorizes no retry
+  suppression, ceremony influence, integration, freeze, execution, release,
+  accuracy, or scale claim.
+
+  Independent review of exact source commit
+  `7a00e24f759136dbb664eccd6de899bc986beb00` reported
+  critical/high/medium/low `0/0/1/1`; both findings were documentation gaps:
+  the original 20/10 split exceeded the realized 25-group corpus, and the
+  create-only output's hard-kill sentinel was unstated. The corrected operator
+  contract records a diagnostic-only 15/10 temporal split and treats a
+  zero-byte sentinel as an ambiguous consumed attempt that must not be
+  overwritten or automatically retried. Documentation re-review reports all
+  severity counts zero. A separate OCR run reviewed six selected files but was
+  partial because one core file timed out and four filtering requests failed;
+  its remaining bounded performance, diagnostic-prefix, and style comments do
+  not change the trust boundary or decision. No code-review finding remains.

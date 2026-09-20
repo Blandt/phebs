@@ -4503,6 +4503,22 @@ owns the design and dependency order. Execution remains excluded.
   scales with the bounded episode count while retaining the no-retry/no-resample
   rule.
 
+  Frozen live-screen result: 46 episodes from 25 receipt groups produced 46
+  `review` classifications and no benign, terminal, or repair candidate. The
+  fixed benign threshold can therefore never satisfy the five-receipt coverage
+  gate for this prediction set, regardless of later labels. Record an
+  operational `shadow_no_go` and stop before adjudication; Brier/log-loss,
+  prevalence, false-benign safety, and the conditional confidence bound remain
+  unmeasured. Any later threshold/question experiment needs a new freeze and a
+  fresh untouched holdout. No ceremony control or evidence authority changes.
+
+  Exact-source review found no implementation defect; its one medium and one
+  low finding were the stale 20/10 operator split and undocumented create-only
+  hard-kill sentinel. The operator contract now uses the feasible 15/10 split
+  only for a separately authorized diagnostic evaluation and preserves an
+  empty sentinel as an ambiguous consumed attempt. Documentation re-review is
+  clean at every severity.
+
 **T42.2n completion implementation (2026-09-13).** The launcher now connects
 real phase execution, observed success/stopped receipt assembly, the sole-use
 signed package builder, and independently verified framed delivery. The four
