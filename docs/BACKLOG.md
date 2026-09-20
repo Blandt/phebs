@@ -4519,6 +4519,29 @@ owns the design and dependency order. Execution remains excluded.
   empty sentinel as an ambiguous consumed attempt. Documentation re-review is
   clean at every severity.
 
+- **T42.2r · Offline polled-error-site census** — replace filename-grep audits
+  with a deterministic typed reachability census before considering another
+  paid classifier. AC: from an exact clean source commit, enumerate every
+  statically resolved Phebs-owned 400–599 constructor reachable from repository-
+  status, observation-progress, extraction-progress and caller-progress polling
+  roots, and withhold completeness while any boundary remains unresolved;
+  traverse package siblings and wrappers; produce byte-stable source-attributed
+  rows and an explicit unresolved-boundary census; cap the run and fail closed
+  on incomplete type information or overflow; and retain a regression proving
+  that a reachable sibling-file 409 is included while an unrelated constructor
+  is excluded. The initial census finds 50 statically resolved sites plus 37
+  explicit unresolved boundaries; those gaps block completeness and
+  calibration, and the resolved set establishes no high-volume claim. Assign
+  statically provable `unnameable_inline` sites and policy-mandated `real_fault`
+  sites without Jev. Any later three-way Jev shadow over
+  `retry_shaped_benign`, `real_fault`, and
+  `unnameable_inline` requires a separately reviewed volume gate, contract and
+  untouched holdout. Output is only a human worklist for a separate proposed
+  `progressRetryConflictDetail` edit; this ticket never edits that fence or any
+  product, ceremony, evidence, custody or authorization state. Report confirmed
+  pre-identifier defect catches and identifiers consumed per confirmed defect;
+  make no ceremony-success, accuracy, release or scale claim.
+
 **T42.2n completion implementation (2026-09-13).** The launcher now connects
 real phase execution, observed success/stopped receipt assembly, the sole-use
 signed package builder, and independently verified framed delivery. The four

@@ -7652,6 +7652,31 @@ product request, sync, startup, retry/no-op,
 publication, store/schema operation, lock, cache, corpus/shard read or child
 process is added.
 
+### T42.2r offline error-site census
+
+Run the census only from the repository root and before any model call:
+
+```sh
+go run ./spike/t422r/cmd/t422r-sweep census -root "$PWD" > /private/tmp/t422r-error-sites.jsonl
+```
+
+The CLI checks clean `HEAD` before analysis and rechecks it before successful
+return. Its first JSONL row is a header that binds the source commit, analyzer
+build and resolved/unresolved counts. It then follows typed package-local calls
+across sibling files from the four repository-status and progress polling roots
+and writes deterministic rows for reachable Phebs-owned 400–599 constructors
+and unresolved boundaries. The initial census finds 50 statically resolved
+sites plus 37 explicit unresolved boundaries. Those gaps block completeness
+and calibration; the resolved set is not a high-volume corpus.
+
+Review static `unnameable_inline` rows and policy-fixed `real_fault` rows
+locally. Do not send them to Jev, copy the worklist into the T42.2q classifier,
+or edit `progressRetryConflictDetail` from generated output. A candidate fence
+change is a separate human-authored and reviewed ticket. Any incomplete type
+load, unresolved overflow or changed census requires review rather than a paid
+fallback. No model invocation is authorized until a separate volume and egress
+contract is reviewed.
+
 ### T42.2 retained V3 plan authoring
 
 For retained V3 reproduction only, select `-schema v3` on

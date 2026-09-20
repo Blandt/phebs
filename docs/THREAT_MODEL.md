@@ -226,6 +226,22 @@ shadow attempt without retry. Predictions and blinded human labels remain
 separate private records until adjudication; disagreement and abstention stay
 visible and cannot be silently replaced by model output.
 
+### T42.2r source-analysis boundary
+
+The initial T42.2r error-site census is offline static analysis of the exact
+local Phebs source commit. It performs no external request and exposes no source
+text, path, symbol, span, guard, detail or worklist row beyond local operator
+custody. Its output is untrusted advisory metadata: it cannot modify the
+hand-written `progressRetryConflictDetail` fence or any product, ceremony,
+evidence, retry, stop, seal, freeze or authorization record.
+
+The initial census finds 50 statically resolved sites plus 37 explicit
+unresolved boundaries. Those gaps block completeness and calibration and
+authorize no paid classification. A later Jev pass would be a new TM-10/TM-15
+egress decision requiring a separately reviewed closed outbound schema, volume
+gate and untouched holdout; T42.2q approval does not authorize source-site
+egress.
+
 ## 7. Open decisions before review
 
 The named owner and Security reviewer must close or explicitly block each item:

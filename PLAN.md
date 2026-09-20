@@ -4519,3 +4519,43 @@ in [docs/ROADMAP.md](./docs/ROADMAP.md).
   partial because one core file timed out and four filtering requests failed;
   its remaining bounded performance, diagnostic-prefix, and style comments do
   not change the trust boundary or decision. No code-review finding remains.
+
+- **2026-09-20 — T42.2r offline polled-error-site census.** The per-run
+  population across the whole ceremony program remains only dozens,
+  establishing the selection rule: there are too few independent outcomes to
+  calibrate a per-run decision. Any later learned classification must therefore
+  operate only in a cheap pre-flight or sub-run loop whose candidate population
+  is first measured deterministically.
+  The first T42.2r deliverable is an offline typed call-graph census of
+  Phebs-owned 400–599 constructors reachable from the repository-status,
+  observation-progress, extraction-progress and caller-progress polling roots.
+  It spans package files rather than relying on a filename grep and emits a
+  stable, source-attributed review worklist.
+
+  The initial census finds 50 statically resolved sites plus 37 explicit
+  unresolved boundaries. That result catches the missed-sibling-file audit
+  shape, but the unresolved gaps block completeness and calibration, and the
+  resolved set is not a high-volume corpus. `unnameable_inline` is a static
+  source fact, and statuses that existing policy requires to remain terminal
+  are `real_fault`; neither decision spends a model call. Only a separately
+  reviewed, materially larger population of remaining nameable candidates may
+  justify a later three-way Jev shadow over `retry_shaped_benign`,
+  `real_fault`, and `unnameable_inline`. Until then T42.2r performs no paid
+  classification and makes no calibration claim.
+
+  Every output is advisory. A human may use it to propose a separate reviewed
+  extension to the hand-written exhaustive `progressRetryConflictDetail`
+  fence, but the census and any later classifier have no write path to that
+  fence or to product, ceremony, evidence, custody, retry, stop, seal, freeze
+  or authorization state. Measure utility as confirmed defects caught before
+  identifier consumption and, longitudinally, ceremony identifiers consumed
+  per confirmed defect—not as a direct ceremony-success claim. The census is
+  offline source analysis only and adds no ordinary product or ceremony cost.
+  One invocation runs nine bounded local Git commands, four complete tracked
+  Go/module-input blob-verification passes, one additional compiled-package
+  blob pass, two at-most-100,000-entry worktree walks, one network-disabled
+  `go/packages` load/type-check and four root traversals. It retains at most
+  4,096 worklist records; each Git command retains at most 1 MiB of stdout and
+  8 KiB of stderr. Repeated invocations repeat that offline work and may use the
+  ordinary Go build cache; they add no product request, store/shard read,
+  publication, lock, retry, ordinary-runtime child or persistent state.

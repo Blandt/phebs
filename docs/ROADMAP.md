@@ -274,6 +274,19 @@ false-benign safety, and a confidence bound remain unestablished. Any later
 threshold or question contract requires a separately frozen experiment and a
 fresh untouched holdout.
 
+**T42.2r offline error-site census, 2026-09-20:** the per-run population across
+the whole ceremony program remains only dozens and is not calibratable.
+The next non-gating experiment moves to the cheap pre-flight boundary: a typed,
+offline census of Phebs-owned 4xx/5xx constructors reachable from the four
+polled status/progress roots. Its first census finds 50 statically resolved
+sites plus 37 explicit unresolved boundaries. Those gaps block completeness
+and calibration; the resolved set does not justify paid Jev classification or
+a volume claim. Static `unnameable_inline` and policy-fixed `real_fault` rows
+need no model. Any later model output remains an advisory human worklist and
+cannot edit `progressRetryConflictDetail` or influence a ceremony. T42.2p
+review, renewed T42.2n acceptance and T42.2o V4 seal/freeze sequencing remain
+unchanged.
+
 **T42.2n session-fixture review correction, 2026-09-17:** the isolated child
 fixture passed focused and complete package normal/race gates. Exact-commit
 review found one low future-rename hole in its child-selector evidence, so the
