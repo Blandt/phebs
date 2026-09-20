@@ -24,6 +24,7 @@ func TestProjectReceiptCollapsesV31AndV32RetryConflicts(t *testing.T) {
 		}
 		receipt := t4013.Receipt{
 			Schema:           t4013.ReceiptSchemaV31,
+			MeasuredOn:       "2026-08-20",
 			Outcome:          "stopped",
 			ConvergenceWaits: []t4013.ConvergenceWaitObservation{fixture.Wait},
 			Failures: []t4013.FailureObservation{{
@@ -79,18 +80,20 @@ func TestProjectReceiptCollapsesV31AndV32RetryConflicts(t *testing.T) {
 				{Stage: "extraction_publication", Class: "status", HTTPStatus: 409, HTTPReason: "409_stale", WallMS: 1_000},
 				{Stage: "extraction_publication", Class: "pending", WallMS: 2_000},
 				{Stage: "extraction_publication", Class: "status", HTTPStatus: 409, HTTPReason: "409_stale", WallMS: 3_000},
+				{Stage: "repository_index", Class: "status", HTTPStatus: 409, HTTPReason: "409_stale", WallMS: 3_500},
 				{Stage: "complete", Class: "complete", WallMS: 4_000},
 			},
 		}
 		episodes, err := ProjectReceipt("receipt_002", t4013.Receipt{
-			Schema: t4013.ReceiptSchemaV32, Outcome: "completed",
+			Schema: t4013.ReceiptSchemaV32, MeasuredOn: "2026-08-21", Outcome: "completed",
 			ConvergenceWaits: []t4013.ConvergenceWaitObservation{wait},
 		})
 		if err != nil {
 			t.Fatal(err)
 		}
-		if len(episodes) != 1 || episodes[0].Facts.Occurrences != 6 ||
-			episodes[0].ModelInput.Stage != "" || episodes[0].ModelInput.HTTPReason != "409_stale" {
+		if len(episodes) != 2 || episodes[0].Facts.Occurrences != 6 ||
+			episodes[0].ModelInput.Stage != "" || episodes[0].ModelInput.HTTPReason != "409_stale" ||
+			episodes[1].ModelInput.Stage != "repository_index" || episodes[1].ModelInput.HTTPReason != "409_stale" {
 			t.Fatalf("unexpected V32 projection: %#v", episodes)
 		}
 	})

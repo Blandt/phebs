@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/bmeddeb/phebs/spike/t422q"
+	"golang.org/x/sys/unix"
 )
 
 const maxAllowlistBytes = 1 << 20
@@ -53,34 +54,37 @@ func evaluate(arguments []string) error {
 	if err != nil {
 		return fmt.Errorf("open episodes: %w", err)
 	}
-	episodes, err := t422q.DecodeEpisodes(episodesFile)
-	if closeErr := episodesFile.Close(); err == nil {
-		err = closeErr
+	episodes, decodeErr := t422q.DecodeEpisodes(episodesFile)
+	closeErr := episodesFile.Close()
+	if decodeErr != nil {
+		return fmt.Errorf("decode episodes: %w", errors.Join(decodeErr, closeErr))
 	}
-	if err != nil {
-		return fmt.Errorf("decode episodes: %w", err)
+	if closeErr != nil {
+		return fmt.Errorf("close episodes: %w", closeErr)
 	}
 	predictionsFile, err := openRegular(*predictionsPath)
 	if err != nil {
 		return fmt.Errorf("open predictions: %w", err)
 	}
-	predictions, err := t422q.DecodePredictions(predictionsFile)
-	if closeErr := predictionsFile.Close(); err == nil {
-		err = closeErr
+	predictions, decodeErr := t422q.DecodePredictions(predictionsFile)
+	closeErr = predictionsFile.Close()
+	if decodeErr != nil {
+		return fmt.Errorf("decode predictions: %w", errors.Join(decodeErr, closeErr))
 	}
-	if err != nil {
-		return fmt.Errorf("decode predictions: %w", err)
+	if closeErr != nil {
+		return fmt.Errorf("close predictions: %w", closeErr)
 	}
 	labelsFile, err := openRegular(*labelsPath)
 	if err != nil {
 		return fmt.Errorf("open labels: %w", err)
 	}
-	labels, err := t422q.DecodeHumanLabels(labelsFile)
-	if closeErr := labelsFile.Close(); err == nil {
-		err = closeErr
+	labels, decodeErr := t422q.DecodeHumanLabels(labelsFile)
+	closeErr = labelsFile.Close()
+	if decodeErr != nil {
+		return fmt.Errorf("decode human labels: %w", errors.Join(decodeErr, closeErr))
 	}
-	if err != nil {
-		return fmt.Errorf("decode human labels: %w", err)
+	if closeErr != nil {
+		return fmt.Errorf("close human labels: %w", closeErr)
 	}
 	report, err := t422q.EvaluateCalibration(episodes, predictions, labels)
 	if err != nil {
@@ -121,55 +125,64 @@ func project(arguments []string) error {
 	if err != nil {
 		return fmt.Errorf("read reviewed allowlist: %w", err)
 	}
-	episodes, err := t422q.ProjectCorpus(raw)
-	if err != nil {
-		return err
-	}
+	projected := 0
 	if err := writePrivateCreateOnly(*outputPath, func(writer io.Writer) error {
+		episodes, err := t422q.ProjectCorpus(raw)
+		if err != nil {
+			return err
+		}
+		projected = len(episodes)
 		return t422q.EncodeEpisodes(writer, episodes)
 	}); err != nil {
 		return fmt.Errorf("write projected episodes: %w", err)
 	}
-	_, _ = fmt.Fprintf(os.Stdout, "projected %d source-free episodes\n", len(episodes))
+	_, _ = fmt.Fprintf(os.Stdout, "projected %d source-free episodes\n", projected)
 	return nil
 }
 
 func classify(arguments []string) error {
 	flags := flag.NewFlagSet("classify", flag.ContinueOnError)
 	flags.SetOutput(io.Discard)
-	episodesPath := flags.String("episodes", "", "absolute projected episode JSONL path")
+	allowlistPath := flags.String("allowlist", "", "absolute reviewed bundle allowlist path, or - for stdin")
 	outputPath := flags.String("output", "", "absolute create-only prediction JSONL path")
-	if err := flags.Parse(arguments); err != nil || flags.NArg() != 0 || *episodesPath == "" || *outputPath == "" {
-		return errors.New("classify requires -episodes and -output")
+	if err := flags.Parse(arguments); err != nil || flags.NArg() != 0 || *allowlistPath == "" || *outputPath == "" {
+		return errors.New("classify requires -allowlist and -output")
 	}
-	input, err := openRegular(*episodesPath)
+	var raw []byte
+	var err error
+	if *allowlistPath == "-" {
+		raw, err = readBounded(os.Stdin, maxAllowlistBytes)
+	} else {
+		raw, err = readRegularBounded(*allowlistPath, maxAllowlistBytes)
+	}
 	if err != nil {
-		return fmt.Errorf("open episodes: %w", err)
-	}
-	episodes, decodeErr := t422q.DecodeEpisodes(input)
-	closeErr := input.Close()
-	if decodeErr != nil {
-		return decodeErr
-	}
-	if closeErr != nil {
-		return fmt.Errorf("close episodes: %w", closeErr)
+		return fmt.Errorf("read reviewed allowlist: %w", err)
 	}
 	key := os.Getenv("JEV_KEY")
 	if key == "" {
 		return errors.New("JEV_KEY is not available to this process")
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
-	defer cancel()
-	predictions, err := t422q.ClassifyEpisodes(ctx, key, episodes)
-	if err != nil {
-		return err
-	}
+	classified := 0
 	if err := writePrivateCreateOnly(*outputPath, func(writer io.Writer) error {
+		episodes, err := t422q.ProjectCorpus(raw)
+		if err != nil {
+			return err
+		}
+		ctx, cancel := context.WithTimeout(
+			context.Background(),
+			time.Duration(len(episodes))*30*time.Second+time.Minute,
+		)
+		defer cancel()
+		predictions, err := t422q.ClassifyEpisodes(ctx, key, episodes)
+		if err != nil {
+			return err
+		}
+		classified = len(predictions)
 		return t422q.EncodePredictions(writer, predictions)
 	}); err != nil {
 		return fmt.Errorf("write predictions: %w", err)
 	}
-	_, _ = fmt.Fprintf(os.Stdout, "classified %d source-free episodes with %s\n", len(predictions), t422q.JevModel)
+	_, _ = fmt.Fprintf(os.Stdout, "classified %d source-free episodes with %s\n", classified, t422q.JevModel)
 	return nil
 }
 
@@ -204,14 +217,29 @@ func openRegular(path string) (*os.File, error) {
 	if !filepath.IsAbs(path) || filepath.Clean(path) != path {
 		return nil, errors.New("path must be canonical absolute")
 	}
-	info, err := os.Lstat(path)
+	before, err := os.Lstat(path)
 	if err != nil {
 		return nil, err
 	}
-	if !info.Mode().IsRegular() {
+	if !before.Mode().IsRegular() {
 		return nil, errors.New("path must name a regular file, not a symlink")
 	}
-	return os.Open(path)
+	fd, err := unix.Open(path, unix.O_RDONLY|unix.O_CLOEXEC|unix.O_NOFOLLOW|unix.O_NONBLOCK, 0)
+	if err != nil {
+		return nil, err
+	}
+	file := os.NewFile(uintptr(fd), path)
+	if file == nil {
+		_ = unix.Close(fd)
+		return nil, errors.New("open regular file returned an invalid descriptor")
+	}
+	opened, statErr := file.Stat()
+	current, pathErr := os.Lstat(path)
+	if statErr != nil || pathErr != nil || !opened.Mode().IsRegular() || !current.Mode().IsRegular() ||
+		!os.SameFile(before, opened) || !os.SameFile(opened, current) {
+		return nil, errors.Join(errors.New("regular file identity changed while opening"), statErr, pathErr, file.Close())
+	}
+	return file, nil
 }
 
 func writePrivateCreateOnly(path string, write func(io.Writer) error) (retErr error) {

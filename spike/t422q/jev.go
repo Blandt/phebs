@@ -86,17 +86,20 @@ func Evaluate(ctx context.Context, key string, state ShadowState) (Result, error
 
 func evaluate(ctx context.Context, client *http.Client, endpoint, key string, state ShadowState) (Result, error) {
 	if client == nil {
-		return Result{}, errors.New("Jev HTTP client is nil")
+		return Result{}, errors.New("jev HTTP client is nil")
 	}
 	if key == "" {
-		return Result{}, errors.New("Jev API key is empty")
+		return Result{}, errors.New("jev API key is empty")
+	}
+	if err := validateShadowState(state); err != nil {
+		return Result{}, fmt.Errorf("refuse Jev state: %w", err)
 	}
 	raw, err := json.Marshal(newJevRequest(state))
 	if err != nil {
 		return Result{}, fmt.Errorf("encode Jev request: %w", err)
 	}
 	if len(raw) > maxJevRequestBytes {
-		return Result{}, errors.New("Jev request exceeds byte limit")
+		return Result{}, errors.New("jev request exceeds byte limit")
 	}
 	request, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(raw))
 	if err != nil {
@@ -118,14 +121,14 @@ func evaluate(ctx context.Context, client *http.Client, endpoint, key string, st
 		return Result{}, fmt.Errorf("close Jev response: %w", closeErr)
 	}
 	if len(responseRaw) > maxJevResponseBytes {
-		return Result{}, errors.New("Jev response exceeds byte limit")
+		return Result{}, errors.New("jev response exceeds byte limit")
 	}
 	if response.StatusCode != http.StatusOK {
-		return Result{}, fmt.Errorf("Jev response status %d", response.StatusCode)
+		return Result{}, fmt.Errorf("jev response status %d", response.StatusCode)
 	}
 	mediaType, _, err := mime.ParseMediaType(response.Header.Get("Content-Type"))
 	if err != nil || mediaType != "application/json" {
-		return Result{}, errors.New("Jev response content type is not application/json")
+		return Result{}, errors.New("jev response content type is not application/json")
 	}
 
 	var decoded jevResponse
@@ -135,7 +138,7 @@ func evaluate(ctx context.Context, client *http.Client, endpoint, key string, st
 		return Result{}, fmt.Errorf("decode Jev response: %w", err)
 	}
 	if err := decoder.Decode(&struct{}{}); err != io.EOF {
-		return Result{}, errors.New("Jev response has trailing JSON")
+		return Result{}, errors.New("jev response has trailing JSON")
 	}
 	if err := validateJevResponse(decoded); err != nil {
 		return Result{}, err
@@ -180,10 +183,10 @@ func newJevRequest(state ShadowState) jevRequest {
 
 func validateJevResponse(response jevResponse) error {
 	if response.Model != JevModel {
-		return fmt.Errorf("Jev response model %q, want %q", response.Model, JevModel)
+		return fmt.Errorf("jev response model %q, want %q", response.Model, JevModel)
 	}
 	if response.Answers == nil || response.Answers.ObservationTerminal == nil || response.Answers.RepairRequired == nil {
-		return errors.New("Jev response does not contain both answers")
+		return errors.New("jev response does not contain both answers")
 	}
 	if err := validateJevAnswer("observation_terminal", response.Answers.ObservationTerminal); err != nil {
 		return err
@@ -192,14 +195,14 @@ func validateJevResponse(response jevResponse) error {
 		return err
 	}
 	if response.Usage == nil || response.Usage.InputTokens < 0 || response.Usage.OutputTokens < 0 {
-		return errors.New("Jev response usage is invalid")
+		return errors.New("jev response usage is invalid")
 	}
 	return nil
 }
 
 func validateJevAnswer(name string, answer *jevAnswer) error {
 	if answer.Type != "noul" || answer.Noul == nil || math.IsNaN(*answer.Noul) || math.IsInf(*answer.Noul, 0) || *answer.Noul < 0 || *answer.Noul > 1 {
-		return fmt.Errorf("Jev %s answer is invalid", name)
+		return fmt.Errorf("jev %s answer is invalid", name)
 	}
 	return nil
 }

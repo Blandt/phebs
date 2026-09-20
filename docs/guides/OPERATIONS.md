@@ -7592,23 +7592,31 @@ argument, log or artifact, then run the pinned shadow classifier:
 
 ```sh
 go run ./spike/t422q/cmd/t422q-shadow classify \
-  -episodes /absolute/private/path/episodes.jsonl \
+  -allowlist /absolute/path/to/reviewed-allowlist.json \
   -output /absolute/private/path/predictions.jsonl
 ```
 
-Classification is serial, gives each request 30 seconds, has a 30-minute
-command ceiling and never retries a 429, 529 or ambiguous transport result.
+The classifier deliberately re-authenticates and reprojects the allowlist; an
+operator-edited episode file can never reach the network. Classification is
+serial, gives each request 30 seconds, bounds the Jev phase to 30 seconds per
+projected episode plus one minute, and never retries a 429, 529 or ambiguous
+transport result. It opens the create-only output before extraction or paid
+calls, and deletes that output if the all-or-nothing attempt fails.
 The exact response model must be `jev-1.13.0`; malformed, oversized, partial,
-extra-field or out-of-range output fails the pilot attempt. Predictions are
+extra-field or out-of-range output fails the pilot attempt. Every prediction
+also binds the exact `t422q-jev-questions-v1` contract. Predictions are
 external advisory metadata under TM-10 and TM-15. They must not be copied into
 a ceremony package or used to suppress an existing stop/retry/review gate.
 Keep human labels separate and blinded to predictions until adjudication.
 Use `t422q-human-label-v1` JSONL keyed by `episode_id`; each row assigns the
 whole receipt to `development` or `test`, records both
 `observation_terminal` and `repair_required` booleans, and uses
-`basis=human_adjudication`. Set both answers to `null` to abstain. Keep every
-episode from one receipt in one split; for the initial corpus use the oldest 20
-receipts for development and newest 10 as the untouched temporal test.
+`basis=human_adjudication`. Set both answers to `null` to abstain. The report
+keeps abstention denominators, and any development or test abstention blocks
+`shadow_go`. Keep every episode from one receipt in one split; authenticated
+measurement dates must put every development receipt strictly before every test
+receipt. For the initial corpus use the oldest 20 receipts for development and
+newest 10 as the untouched temporal test.
 
 After adjudication, evaluate without another API call:
 
@@ -7620,8 +7628,21 @@ go run ./spike/t422q/cmd/t422q-shadow evaluate \
   -output /absolute/private/path/calibration-report.json
 ```
 
-`shadow_go=true` means only that the frozen no-action pilot criteria passed.
-It is not permission to change a ceremony or automate classification.
+The evaluator scores `observation_terminal` and `repair_required` separately;
+each test axis needs both classes and positive receipt-equal Brier skill. Its
+zero-error false-benign bound is conditional on independently justified receipt
+groups, which the retained inventory does not establish. `shadow_go=true`
+means only that the frozen no-action pilot criteria passed. It is not permission
+to change a ceremony or automate classification.
+
+Offline cost remains bounded: projection reads one at-most-4-MiB package and
+one at-most-1-MiB expanded receipt at a time, may retain up to 128 MiB of
+expanded temporary custody plus 4,096 projected episodes, and always attempts
+to remove that custody. JSONL rows are at most 16 KiB, classification makes at
+most 4,096 serial calls, and evaluation is linear in at most 4,096 rows. No
+product request, sync, startup, retry/no-op,
+publication, store/schema operation, lock, cache, corpus/shard read or child
+process is added.
 
 ### T42.2 retained V3 plan authoring
 

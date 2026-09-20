@@ -11,8 +11,9 @@ import (
 
 func TestEpisodeJSONLExcludesLocalResolutionFromModelInput(t *testing.T) {
 	episodes, err := ProjectReceipt("receipt_001", t4013.Receipt{
-		Schema:  t4013.ReceiptSchemaV31,
-		Outcome: "stopped",
+		Schema:     t4013.ReceiptSchemaV31,
+		MeasuredOn: "2026-08-20",
+		Outcome:    "stopped",
 		ConvergenceWaits: []t4013.ConvergenceWaitObservation{{
 			Profile: "semantic-262144-v1", Label: "stale-worker", Revision: "a",
 			Outcome: "diagnostic_limit", LastStage: "extraction_publication", DeadlineMS: 120_000,
@@ -47,6 +48,11 @@ func TestEpisodeJSONLExcludesLocalResolutionFromModelInput(t *testing.T) {
 		if strings.Contains(string(requestBytes), forbidden) {
 			t.Fatalf("Jev request contains local-only value %q: %s", forbidden, requestBytes)
 		}
+	}
+	tampered := decoded[0]
+	tampered.ModelInput.Profile = "private-profile"
+	if err := EncodeEpisodes(&bytes.Buffer{}, []Episode{tampered}); err == nil {
+		t.Fatal("content-tampered episode retained a valid identity")
 	}
 }
 

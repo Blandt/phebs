@@ -54,11 +54,17 @@ func projectCorpus(raw []byte, removeAll func(string) error) (episodes []Episode
 		return nil, fmt.Errorf("make corpus extraction root private: %w", err)
 	}
 
+	type receiptProjection struct {
+		digest, measuredOn string
+		episodes           []Episode
+	}
+	projections := make([]receiptProjection, 0, len(allowlist.Bundles))
+	projectedCount := 0
 	for index, bundle := range allowlist.Bundles {
-		receiptGroup := fmt.Sprintf("receipt_%03d", index+1)
-		extractionRoot := filepath.Join(root, receiptGroup)
+		bundleName := fmt.Sprintf("bundle_%03d", index+1)
+		extractionRoot := filepath.Join(root, bundleName)
 		if err := os.Mkdir(extractionRoot, 0o700); err != nil {
-			return nil, fmt.Errorf("create %s extraction root: %w", receiptGroup, err)
+			return nil, fmt.Errorf("create %s extraction root: %w", bundleName, err)
 		}
 		if err := t4013.ExtractReturnedBundle(
 			bundle.PackagePath,
@@ -66,32 +72,53 @@ func projectCorpus(raw []byte, removeAll func(string) error) (episodes []Episode
 			"",
 			bundle.PackageDigest,
 		); err != nil {
-			return nil, fmt.Errorf("authenticate %s: %w", receiptGroup, err)
+			return nil, fmt.Errorf("authenticate %s: %w", bundleName, err)
 		}
 		planRaw, err := os.ReadFile(filepath.Join(extractionRoot, "evidence", "plan.json"))
 		if err != nil {
-			return nil, fmt.Errorf("read %s plan: %w", receiptGroup, err)
+			return nil, fmt.Errorf("read %s plan: %w", bundleName, err)
 		}
 		plan, err := t4013.DecodePlan(planRaw)
 		if err != nil {
-			return nil, fmt.Errorf("decode %s plan: %w", receiptGroup, err)
+			return nil, fmt.Errorf("decode %s plan: %w", bundleName, err)
 		}
 		receiptRaw, err := os.ReadFile(filepath.Join(extractionRoot, "evidence", "results.json"))
 		if err != nil {
-			return nil, fmt.Errorf("read %s receipt: %w", receiptGroup, err)
+			return nil, fmt.Errorf("read %s receipt: %w", bundleName, err)
 		}
 		receipt, err := t4013.DecodeReceipt(receiptRaw, plan)
 		if err != nil {
-			return nil, fmt.Errorf("decode %s receipt: %w", receiptGroup, err)
+			return nil, fmt.Errorf("decode %s receipt: %w", bundleName, err)
 		}
-		projected, err := ProjectReceipt(receiptGroup, receipt)
+		projected, err := ProjectReceipt("receipt_001", receipt)
 		if err != nil {
-			return nil, fmt.Errorf("project %s: %w", receiptGroup, err)
+			return nil, fmt.Errorf("project %s: %w", bundleName, err)
 		}
-		if len(projected) > maxEpisodes-len(episodes) {
+		if len(projected) > maxEpisodes-projectedCount {
 			return nil, errors.New("projected corpus exceeds 4096-case bound")
 		}
-		episodes = append(episodes, projected...)
+		projectedCount += len(projected)
+		projections = append(projections, receiptProjection{
+			digest: bundle.PackageDigest, measuredOn: receipt.MeasuredOn, episodes: projected,
+		})
+	}
+	sort.Slice(projections, func(left, right int) bool {
+		if projections[left].measuredOn != projections[right].measuredOn {
+			return projections[left].measuredOn < projections[right].measuredOn
+		}
+		return projections[left].digest < projections[right].digest
+	})
+	for index, projection := range projections {
+		receiptGroup := fmt.Sprintf("receipt_%03d", index+1)
+		for episodeIndex := range projection.episodes {
+			projection.episodes[episodeIndex].Provenance.ReceiptGroup = receiptGroup
+			identity, err := canonicalEpisodeID(projection.episodes[episodeIndex])
+			if err != nil {
+				return nil, fmt.Errorf("bind %s episode identity: %w", receiptGroup, err)
+			}
+			projection.episodes[episodeIndex].EpisodeID = identity
+		}
+		episodes = append(episodes, projection.episodes...)
 	}
 	return episodes, nil
 }

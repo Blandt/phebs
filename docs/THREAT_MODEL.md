@@ -207,7 +207,10 @@ The following invariants are release-blocking:
 The T42.2q Jev experiment is offline operator tooling, not a Phebs principal or
 ceremony component. Its only permitted outbound payload is the fixed
 `phebs-ceremony-shadow-state-v1` object projected after a returned package has
-been authenticated against an independently reviewed digest. Package, plan,
+been authenticated against an independently reviewed digest. The classifier
+accepts that allowlist directly, repeats authentication and projection in the
+same process, and rejects values outside the closed outbound vocabulary; a
+projected or operator-edited episode artifact has no egress path. Package, plan,
 source and progress digests; repository/run identities; paths; timestamps;
 host/tool identity; response bodies; raw errors; credentials; final outcomes;
 decisions; episode IDs; receipt groups and human labels are forbidden from the

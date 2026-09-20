@@ -28,17 +28,33 @@ func TestCalibrationEvaluator(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	wantLogLoss := ((-math.Log(.95)-math.Log(.9))/2 + 5*-math.Log(.95)) / 6
-	wantBaselineLogLoss := -(float64(1)/6*math.Log(float64(1)/6) + float64(5)/6*math.Log(float64(5)/6))
+	wantLogLoss := ((-math.Log(.95)-math.Log(.9))/2 + 6*-math.Log(.95)) / 7
+	wantBaselineLogLoss := (6*-math.Log(float64(5)/6) + -math.Log(float64(1)/6)) / 7
+	wantBrier := .02125 / 7
+	wantBaselineBrier := float64(31) / 252
+	wantSkill := 1 - wantBrier/wantBaselineBrier
 	wantUpper := 1 - math.Pow(.05, .2)
-	if report.Schema != CalibrationReportSchema || report.Model != JevModel || report.DevelopmentReceiptGroups != 2 || report.DevelopmentAdjudicatedEpisodes != 4 ||
-		!calibrationNear(report.DevelopmentUnsafePrevalence, float64(1)/6) ||
-		report.TestReceiptGroups != 6 || report.TestAdjudicatedEpisodes != 7 || report.TestSafeLabels != 6 || report.TestUnsafeLabels != 1 ||
-		!report.TestHasBothClasses || !calibrationNear(report.TestBrierScore, .003125) ||
-		!calibrationNear(report.TestLogLoss, wantLogLoss) || !calibrationNear(report.BaselineBrierScore, float64(5)/36) ||
-		!calibrationNear(report.BaselineLogLoss, wantBaselineLogLoss) || !calibrationNear(report.BrierSkill, .9775) ||
+	if report.Schema != CalibrationReportSchema || report.Model != JevModel || report.QuestionContract != JevQuestionContract ||
+		report.DevelopmentReceiptGroups != 2 || report.DevelopmentEpisodes != 4 ||
+		report.DevelopmentAdjudicatedEpisodes != 4 || report.DevelopmentAbstainedEpisodes != 0 ||
+		!calibrationNear(report.DevelopmentObservationTerminalPrevalence, float64(1)/6) ||
+		!calibrationNear(report.DevelopmentRepairRequiredPrevalence, float64(1)/6) ||
+		report.TestReceiptGroups != 7 || report.TestEpisodes != 8 || report.TestAdjudicatedEpisodes != 8 ||
+		report.TestAbstainedEpisodes != 0 || report.TestSafeLabels != 6 || report.TestUnsafeLabels != 2 ||
+		report.TestObservationTerminalFalseLabels != 7 || report.TestObservationTerminalTrueLabels != 1 ||
+		report.TestRepairRequiredFalseLabels != 7 || report.TestRepairRequiredTrueLabels != 1 ||
+		!calibrationNear(report.TestObservationTerminalBrierScore, wantBrier) ||
+		!calibrationNear(report.TestRepairRequiredBrierScore, wantBrier) ||
+		!calibrationNear(report.TestObservationTerminalLogLoss, wantLogLoss) ||
+		!calibrationNear(report.TestRepairRequiredLogLoss, wantLogLoss) ||
+		!calibrationNear(report.BaselineObservationTerminalBrierScore, wantBaselineBrier) ||
+		!calibrationNear(report.BaselineRepairRequiredBrierScore, wantBaselineBrier) ||
+		!calibrationNear(report.BaselineObservationTerminalLogLoss, wantBaselineLogLoss) ||
+		!calibrationNear(report.BaselineRepairRequiredLogLoss, wantBaselineLogLoss) ||
+		!calibrationNear(report.ObservationTerminalBrierSkill, wantSkill) ||
+		!calibrationNear(report.RepairRequiredBrierSkill, wantSkill) ||
 		report.BenignCandidateReceiptGroups != 5 || report.FalseBenignReceiptGroups != 0 ||
-		report.ZeroErrorOneSided95UpperBound == nil || !calibrationNear(*report.ZeroErrorOneSided95UpperBound, wantUpper) ||
+		report.ConditionalZeroErrorOneSided95UpperBound == nil || !calibrationNear(*report.ConditionalZeroErrorOneSided95UpperBound, wantUpper) ||
 		!report.ShadowGO || len(report.Reasons) != 0 {
 		t.Fatalf("GO report differs: %+v", report)
 	}
@@ -105,28 +121,44 @@ func TestCalibrationEvaluator(t *testing.T) {
 			}
 			return e, p, l
 		}, false, "fewer_than_five_benign_candidate_receipt_groups"},
-		{"missing test class", func(e []Episode, p []Prediction, l []HumanLabel) ([]Episode, []Prediction, []HumanLabel) {
+		{"missing terminal class", func(e []Episode, p []Prediction, l []HumanLabel) ([]Episode, []Prediction, []HumanLabel) {
 			for index := range l {
 				if l[index].Split == CalibrationTestSplit && l[index].ObservationTerminal != nil {
-					*l[index].ObservationTerminal, *l[index].RepairRequired = false, false
+					*l[index].ObservationTerminal = false
 				}
 			}
 			return e, p, l
-		}, false, "test_missing_both_unsafe_classes"},
-		{"nonpositive skill", func(e []Episode, p []Prediction, l []HumanLabel) ([]Episode, []Prediction, []HumanLabel) {
+		}, false, "test_observation_terminal_missing_both_classes"},
+		{"nonpositive terminal skill", func(e []Episode, p []Prediction, l []HumanLabel) ([]Episode, []Prediction, []HumanLabel) {
 			for index := range p {
 				if l[index].Split != CalibrationTestSplit || l[index].ObservationTerminal == nil {
 					continue
 				}
-				if *l[index].ObservationTerminal || *l[index].RepairRequired {
-					p[index].ObservationTerminal, p[index].RepairRequired = .11, 0
+				if *l[index].ObservationTerminal {
+					p[index].ObservationTerminal = .1
 				} else {
-					p[index].ObservationTerminal, p[index].RepairRequired = .1, .1
+					p[index].ObservationTerminal = .2
 				}
 				p[index].Classification = classify(p[index].ObservationTerminal, p[index].RepairRequired)
 			}
 			return e, p, l
-		}, false, "nonpositive_brier_skill"},
+		}, false, "nonpositive_observation_terminal_brier_skill"},
+		{"swapped axes", func(e []Episode, p []Prediction, l []HumanLabel) ([]Episode, []Prediction, []HumanLabel) {
+			for index := range p {
+				p[index].ObservationTerminal, p[index].RepairRequired = p[index].RepairRequired, p[index].ObservationTerminal
+				p[index].Classification = classify(p[index].ObservationTerminal, p[index].RepairRequired)
+			}
+			return e, p, l
+		}, false, "nonpositive_observation_terminal_brier_skill"},
+		{"abstention coverage", func(e []Episode, p []Prediction, l []HumanLabel) ([]Episode, []Prediction, []HumanLabel) {
+			for index := range l {
+				if l[index].Split == CalibrationTestSplit && !*l[index].ObservationTerminal && !*l[index].RepairRequired {
+					l[index].ObservationTerminal, l[index].RepairRequired = nil, nil
+					break
+				}
+			}
+			return e, p, l
+		}, false, "test_abstentions_present"},
 		{"prediction set", func(e []Episode, p []Prediction, l []HumanLabel) ([]Episode, []Prediction, []HumanLabel) {
 			return e, p[:len(p)-1], l
 		}, true, ""},
@@ -143,12 +175,24 @@ func TestCalibrationEvaluator(t *testing.T) {
 			p[0].Model = "jev-other"
 			return e, p, l
 		}, true, ""},
+		{"wrong question contract", func(e []Episode, p []Prediction, l []HumanLabel) ([]Episode, []Prediction, []HumanLabel) {
+			p[0].QuestionContract = "other"
+			return e, p, l
+		}, true, ""},
 		{"invalid score", func(e []Episode, p []Prediction, l []HumanLabel) ([]Episode, []Prediction, []HumanLabel) {
 			p[0].ObservationTerminal = math.NaN()
 			return e, p, l
 		}, true, ""},
 		{"receipt split", func(e []Episode, p []Prediction, l []HumanLabel) ([]Episode, []Prediction, []HumanLabel) {
 			l[2].Split = CalibrationTestSplit
+			return e, p, l
+		}, true, ""},
+		{"non-temporal split", func(e []Episode, p []Prediction, l []HumanLabel) ([]Episode, []Prediction, []HumanLabel) {
+			for index := range l {
+				if p[index].ReceiptGroup == "receipt_009" {
+					l[index].Split = CalibrationDevelopmentSplit
+				}
+			}
 			return e, p, l
 		}, true, ""},
 	} {
@@ -181,7 +225,7 @@ func calibrationFixture() ([]Episode, []Prediction, []HumanLabel) {
 	rows := []row{
 		{"receipt_001", CalibrationDevelopmentSplit, .05, .05, &safe, &safe},
 		{"receipt_002", CalibrationDevelopmentSplit, .95, .05, &unsafe, &safe},
-		{"receipt_002", CalibrationDevelopmentSplit, .05, .05, &safe, &safe},
+		{"receipt_002", CalibrationDevelopmentSplit, .05, .95, &safe, &unsafe},
 		{"receipt_002", CalibrationDevelopmentSplit, .05, .05, &safe, &safe},
 		{"receipt_003", CalibrationTestSplit, .05, .05, &safe, &safe},
 		{"receipt_003", CalibrationTestSplit, .1, .1, &safe, &safe},
@@ -190,26 +234,30 @@ func calibrationFixture() ([]Episode, []Prediction, []HumanLabel) {
 		{"receipt_006", CalibrationTestSplit, .05, .05, &safe, &safe},
 		{"receipt_007", CalibrationTestSplit, .05, .05, &safe, &safe},
 		{"receipt_008", CalibrationTestSplit, .95, .05, &unsafe, &safe},
-		{"receipt_009", CalibrationTestSplit, .05, .05, nil, nil},
+		{"receipt_009", CalibrationTestSplit, .05, .95, &safe, &unsafe},
 	}
 	episodes := make([]Episode, 0, len(rows))
 	predictions := make([]Prediction, 0, len(rows))
 	labels := make([]HumanLabel, 0, len(rows))
 	for index, row := range rows {
-		id := "sha256:" + fmt.Sprintf("%064x", index+1)
-		episodes = append(episodes, Episode{
-			Schema: EpisodeSchema, EpisodeID: id,
-			Provenance: Provenance{ReceiptGroup: row.receipt, ReceiptSchema: "fixture-v1", WaitOrdinal: 0, EpisodeOrdinal: index},
-			ModelInput: ShadowState{Schema: StateSchema, Profile: "fixture", WaitLabel: "wait", Revision: "a", Class: "status", DeadlineMS: 1_000},
+		day := 1
+		_, _ = fmt.Sscanf(row.receipt, "receipt_%03d", &day)
+		episode := Episode{
+			Schema:     EpisodeSchema,
+			Provenance: Provenance{ReceiptGroup: row.receipt, ReceiptSchema: "fixture-v1", MeasuredOn: fmt.Sprintf("2026-08-%02d", day), WaitOrdinal: 0, EpisodeOrdinal: index},
+			ModelInput: ShadowState{Schema: StateSchema, Profile: "semantic-262144-v1", WaitLabel: "stale-worker", Revision: "a", Stage: "extraction_publication", Class: "status", HTTPStatus: 409, HTTPReason: "409_stale", DeadlineMS: 1_000},
 			Facts:      EpisodeFacts{Occurrences: 1, DurationBucket: "lt_1s", EndReason: "recovered"},
-		})
+		}
+		episode.EpisodeID, _ = canonicalEpisodeID(episode)
+		episodes = append(episodes, episode)
 		predictions = append(predictions, Prediction{
-			Schema: PredictionSchema, EpisodeID: id, ReceiptGroup: row.receipt, Model: JevModel,
+			Schema: PredictionSchema, EpisodeID: episode.EpisodeID, ReceiptGroup: row.receipt, Model: JevModel,
+			QuestionContract:    JevQuestionContract,
 			ObservationTerminal: row.terminalScore, RepairRequired: row.repairScore,
 			Classification: classify(row.terminalScore, row.repairScore),
 		})
 		labels = append(labels, HumanLabel{
-			Schema: HumanLabelSchema, EpisodeID: id, Split: row.split,
+			Schema: HumanLabelSchema, EpisodeID: episode.EpisodeID, Split: row.split,
 			ObservationTerminal: row.terminalLabel, RepairRequired: row.repairLabel, Basis: HumanLabelBasis,
 		})
 	}

@@ -13,8 +13,8 @@ import (
 
 func TestJevWireAndBoundaries(t *testing.T) {
 	state := ShadowState{
-		Schema: StateSchema, Profile: "neutral", WaitLabel: "phase-6", Revision: "v32",
-		Stage: "extraction", Class: "http", HTTPStatus: 409, HTTPReason: "409_stale",
+		Schema: StateSchema, Profile: "semantic-262144-v1", WaitLabel: "stale-worker", Revision: "a",
+		Stage: "extraction_publication", Class: "status", HTTPStatus: 409, HTTPReason: "409_stale",
 		ProgressChanges: 3, ElapsedMS: 65_000, DeadlineMS: 120_000,
 	}
 	tests := []struct {
@@ -86,5 +86,13 @@ func TestJevWireAndBoundaries(t *testing.T) {
 	}
 	if got := calls.Load(); got != int64(len(tests)) {
 		t.Fatalf("calls = %d, want %d", got, len(tests))
+	}
+	invalid := state
+	invalid.Profile = "private-profile"
+	if _, err := evaluate(context.Background(), server.Client(), server.URL+"/v1/systemone", "test-key", invalid); err == nil {
+		t.Fatal("unclosed state crossed the Jev boundary")
+	}
+	if got := calls.Load(); got != int64(len(tests)) {
+		t.Fatalf("invalid state made a request: calls = %d", got)
 	}
 }

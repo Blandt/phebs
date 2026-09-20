@@ -5,8 +5,8 @@ package t422q
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
-	"fmt"
 	"strings"
 
 	"github.com/bmeddeb/phebs/spike/t4013"
@@ -29,6 +29,7 @@ type Episode struct {
 type Provenance struct {
 	ReceiptGroup   string `json:"receipt_group"`
 	ReceiptSchema  string `json:"receipt_schema"`
+	MeasuredOn     string `json:"measured_on"`
 	WaitOrdinal    int    `json:"wait_ordinal"`
 	EpisodeOrdinal int    `json:"episode_ordinal"`
 }
@@ -87,8 +88,15 @@ func ProjectReceipt(receiptGroup string, receipt t4013.Receipt) ([]Episode, erro
 	resolution := resolutionForReceipt(receipt)
 	var episodes []Episode
 	for waitIndex, wait := range receipt.ConvergenceWaits {
-		projected := projectWait(receiptGroup, receipt.Schema, waitIndex, wait, resolution)
+		projected := projectWait(receiptGroup, receipt.Schema, receipt.MeasuredOn, waitIndex, wait, resolution)
 		episodes = append(episodes, projected...)
+	}
+	for index := range episodes {
+		identity, err := canonicalEpisodeID(episodes[index])
+		if err != nil {
+			return nil, err
+		}
+		episodes[index].EpisodeID = identity
 	}
 	return episodes, nil
 }
@@ -96,6 +104,7 @@ func ProjectReceipt(receiptGroup string, receipt t4013.Receipt) ([]Episode, erro
 func projectWait(
 	receiptGroup string,
 	receiptSchema string,
+	measuredOn string,
 	waitIndex int,
 	wait t4013.ConvergenceWaitObservation,
 	resolution EpisodeResolution,
@@ -115,6 +124,7 @@ func projectWait(
 		episodes = append(episodes, makeEpisode(
 			receiptGroup,
 			receiptSchema,
+			measuredOn,
 			waitIndex,
 			len(episodes),
 			ShadowState{
@@ -175,6 +185,7 @@ func projectWait(
 		episodes = append(episodes, makeEpisode(
 			receiptGroup,
 			receiptSchema,
+			measuredOn,
 			waitIndex,
 			len(episodes),
 			ShadowState{
@@ -209,25 +220,18 @@ func projectWait(
 }
 
 func makeEpisode(
-	receiptGroup, receiptSchema string,
+	receiptGroup, receiptSchema, measuredOn string,
 	waitIndex, episodeIndex int,
 	state ShadowState,
 	facts EpisodeFacts,
 	resolution EpisodeResolution,
 ) Episode {
-	identity := sha256.Sum256([]byte(fmt.Sprintf(
-		"%s\x00%s\x00%d\x00%d",
-		EpisodeSchema,
-		receiptGroup,
-		waitIndex,
-		episodeIndex,
-	)))
 	return Episode{
-		Schema:    EpisodeSchema,
-		EpisodeID: "sha256:" + hex.EncodeToString(identity[:]),
+		Schema: EpisodeSchema,
 		Provenance: Provenance{
 			ReceiptGroup:   receiptGroup,
 			ReceiptSchema:  receiptSchema,
+			MeasuredOn:     measuredOn,
 			WaitOrdinal:    waitIndex,
 			EpisodeOrdinal: episodeIndex,
 		},
@@ -235,6 +239,16 @@ func makeEpisode(
 		Facts:      facts,
 		Resolution: resolution,
 	}
+}
+
+func canonicalEpisodeID(episode Episode) (string, error) {
+	episode.EpisodeID = ""
+	raw, err := json.Marshal(episode)
+	if err != nil {
+		return "", err
+	}
+	identity := sha256.Sum256(raw)
+	return "sha256:" + hex.EncodeToString(identity[:]), nil
 }
 
 func resolutionForReceipt(receipt t4013.Receipt) EpisodeResolution {
@@ -283,8 +297,13 @@ func isSummarizedRetryConflict(
 	wait t4013.ConvergenceWaitObservation,
 	value t4013.ConvergenceTransitionObservation,
 ) bool {
-	return wait.ProgressRetryConflicts > 0 && value.Class == "status" &&
+	return wait.ProgressRetryConflicts > 0 && progressRetryConflictStage(value.Stage) && value.Class == "status" &&
 		value.HTTPStatus == 409 && value.HTTPReason == "409_stale"
+}
+
+func progressRetryConflictStage(stage string) bool {
+	return stage == "observation_publication" || stage == "extraction_publication" ||
+		stage == "caller_generation"
 }
 
 func progressChanged(previous, current string) bool {

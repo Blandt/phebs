@@ -4491,6 +4491,18 @@ owns the design and dependency order. Execution remains excluded.
   ticket authorizes no live-ceremony influence, retry suppression, merge of
   T42.2p, exact-main freeze, execution, release, accuracy or scale claim.
 
+  Review correction: the paid classifier must consume and authenticate the
+  reviewed allowlist directly, close every outbound field, bind episode content
+  and the exact question contract, preflight its create-only output, and use a
+  no-follow/nonblocking identity-checked input open. Authenticated measurement
+  dates must enforce development-before-test. Each Noul is scored separately;
+  abstention denominators remain visible and any abstention blocks shadow GO.
+  The false-benign upper bound is conditional on separately justified receipt-
+  group independence. V32 deduplication applies only to observation,
+  extraction and caller progress-retry stages. The serial network deadline
+  scales with the bounded episode count while retaining the no-retry/no-resample
+  rule.
+
 **T42.2n completion implementation (2026-09-13).** The launcher now connects
 real phase execution, observed success/stopped receipt assembly, the sole-use
 signed package builder, and independently verified framed delivery. The four

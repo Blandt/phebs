@@ -4452,3 +4452,32 @@ in [docs/ROADMAP.md](./docs/ROADMAP.md).
   an automation-safe calibration bound; model output remains external metadata
   under TM-10/TM-15. Ordinary request/query, sync, startup, retry, publication,
   store/schema, lock, cache, child, memory/disk and ceremony costs are unchanged.
+
+  Exact-commit review of `eff7f78d04618d86c4c415f7d903c8a6b863e2d0`
+  blocked the first candidate with critical/high/medium/low `0/2/6/2`; the
+  separate OCR pass covered 6 selected files, returned two corroborating
+  medium findings and timed out on the two core calibration files. The
+  classifier now accepts
+  the reviewed allowlist itself and re-authenticates every package before any
+  egress; arbitrary episode JSONL is local evaluation input only. The outbound
+  tuple has a closed vocabulary, episode IDs hash canonical local content, and
+  predictions bind the exact question contract. Receipts sort by authenticated
+  `measured_on` then digest, and evaluation refuses a development date that is
+  not strictly earlier than every test date. It scores the two Nouls
+  independently, reports abstentions, and requires zero development or test
+  abstentions plus both classes and positive Brier skill on each axis for
+  `shadow_go`. The 409 aggregate suppresses only its three owning stages.
+  Inputs use no-follow/nonblocking descriptor opens with identity revalidation,
+  and create-only outputs are opened before extraction or paid calls. The Jev
+  phase is bounded by `30s × projected episodes + 1m`; a failed
+  request still stops without retry or favorable resampling. The binomial
+  false-benign bound is explicitly conditional on receipt-group independence,
+  which this inventory does not establish. These corrections add only bounded
+  offline parsing, hashing and evaluation. Projection reads at most one 4-MiB
+  package and one at-most-1-MiB expanded receipt at a time, retains at most
+  128 MiB of expanded temporary custody plus 4,096 projected episodes, and
+  deletes custody before return. JSONL rows are capped at 16 KiB, so a
+  4,096-row decode admits at most 64 MiB of row bytes;
+  classification makes at most 4,096 sequential requests, and evaluation is
+  linear in those rows. There are no locks, stores, schemas, caches or child
+  processes. Ordinary Phebs and ceremony costs remain zero.

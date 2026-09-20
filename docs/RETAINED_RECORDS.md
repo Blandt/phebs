@@ -52,7 +52,8 @@ current behavior documentation and do not inherit T11.1’s sealed status.
 Production packages must not import spike packages.
 
 The T42.2q directory retains only the deterministic source-free projector,
-strict pinned-model client, offline evaluator and tests. Reviewed package
+strict pinned-model client, content-bound episode/question identities, offline
+two-axis evaluator and tests. Reviewed package
 allowlists, projected episodes, predictions and blinded labels remain private
 operator records unless a later decision accepts an exact redacted artifact.
 Neither code presence nor a model response establishes calibration, accuracy,
