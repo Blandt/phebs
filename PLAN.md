@@ -4618,3 +4618,38 @@ in [docs/ROADMAP.md](./docs/ROADMAP.md).
   startup/retry/no-op cost.
   T42.2p review, renewed T42.2n acceptance, and T42.2o V4 seal/freeze sequencing
   remain unchanged.
+
+- **2026-09-21 — T42.2n cancellation preserves the pre-admission abort allowance.**
+  The exact `95ac8995` cancel-wait rehearsal returned the intended ordinary
+  status one with no package and joined launcher sessions, but retained an
+  unmounted image and operational root. Retained test timestamps and a bounded
+  host unified-log observation show that the outer launcher's five-second stop
+  grace killed the inner while its sole non-forced `hdiutil detach` was still
+  waiting; that separately sessioned command completed about seven seconds
+  after the inner died, so no owner remained to remove the image and root. This
+  is an inherited cleanup-deadline mismatch, not admission, signer or
+  post-detach authority drift. Every outer stop boundary now gives the inner a
+  cooperative wait until the earlier of the original outer deadline or eighty
+  seconds: the existing one-minute abort allowance, five-second command unwind,
+  six-second forced-session unwind and scheduling margin. Ordinary terminal
+  session inspection remains five seconds. A cooperative timeout still enters
+  the existing failed forced-cleanup classification, with its separate
+  six-second allowance; no detach retry or force is added.
+
+  A cooperative stop can therefore hold the outer launcher for up to seventy-five
+  seconds longer before that unchanged forced-classification path, while using
+  only the existing abort, native-detach and forced-session cleanup paths.
+  During a pre-admission abort, the existing preparation/volume mutexes,
+  operation lock and
+  tool/image/pipe/session custody may consequently remain held for up to
+  seventy-five seconds longer; their counts and peak allocations do not change.
+  Successful execution, ordinary completion, requests, sync, startup/restart,
+  retry/no-op, publication, caches, schemas, memory, disk allocation and child
+  count are unchanged. The focused regression delays the existing cancellation
+  fixture for six seconds and adds no production seam. A reviewed disposition
+  preserved the failed status/log, source-free identity record and signer
+  evidence, then removed only the exact already-detached image/root and clean
+  detached worktree under the held operation lock; it attempted no detach and
+  used no force. That disposition is not a pass;
+  exact corrected-source review, gates and all seven native outcomes remain
+  required before integration, V4 author/seal, freeze or ceremony execution.

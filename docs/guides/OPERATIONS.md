@@ -7807,6 +7807,16 @@ The signed-readiness harness is now implemented. Its explicit
 source and private log retained. A timeout or signal termination cannot be
 reported as an intended ordinary refusal.
 
+An outer stop, including cancellation after a live handoff, must leave the
+inner's existing pre-admission abort time to finish. Its cooperative wait is
+capped at eighty seconds and clipped to the original deadline: this covers the
+abort's one-minute ceiling, the command's five-second unwind, its six-second
+forced-session unwind and scheduling margin. The ordinary joined-session check
+remains five seconds. If the cooperative wait expires, the existing failed
+forced classification may use its separate six-second allowance. Do not impose
+the ordinary five-second bound on a stop, retry detach, or use force; expiry
+retains exact custody for review.
+
 Before spawning a rehearsal bootstrap shell, enter a surviving primary checkout
 in the current Terminal shell (`cd -P /Users/ben/phebs.com || exit 1` on the
 recorded host). After preparing the fresh detached worktree, run its existing

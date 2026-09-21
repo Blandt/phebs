@@ -111,6 +111,9 @@ func TestMain(m *testing.M) {
 			}
 			select {
 			case <-innerCtx.Done():
+				// The outer must preserve the abort owner's existing one-minute
+				// allowance rather than killing it at the ordinary five-second join.
+				time.Sleep(6 * time.Second)
 				if closeErr := parent.Close(); !errors.Is(closeErr, ErrExecutionLauncher) {
 					os.Exit(56)
 				}
@@ -251,6 +254,17 @@ func TestExecutionOuterCancellationCleansPrivateSession(t *testing.T) {
 	}
 	if info, err := os.Lstat(selection.RepositoryRoot + ".post-eof"); err != nil || !info.Mode().IsRegular() {
 		t.Fatalf("inner did not prove post-EOF watcher join: %v", err)
+	}
+}
+
+func TestExecutionAbortDeadlinePreservesCleanupAllowance(t *testing.T) {
+	started := time.Now()
+	if got := executionAbortDeadline(started.Add(time.Hour)); got.Before(started.Add(79*time.Second)) || got.After(time.Now().Add(80*time.Second)) {
+		t.Fatal("abort deadline lost the cleanup allowance", got)
+	}
+	outer := started.Add(time.Second)
+	if got := executionAbortDeadline(outer); !got.Equal(outer) {
+		t.Fatal("abort deadline renewed the outer lifetime", got)
 	}
 }
 

@@ -13947,6 +13947,29 @@ exact-main duties against V4; its former V3 version target is superseded. This
 record changes no code, runs no rehearsal and authorizes no merge, freeze,
 ceremony, release or scale claim.
 
+**T42.2n cancel-wait cleanup correction, 2026-09-21:** the exact `95ac8995`
+matrix stopped after its cancel-wait outcome returned the expected ordinary
+status one and no package but left `/private/tmp/phebs-t422-96270385` with an
+unmounted 9,161,445,376-byte sparse image. Both launcher sessions joined and
+no process or port-65499 listener survived. Retained test timestamps plus a
+bounded host unified-log observation show that the outer's five-second stop
+grace killed the inner while its single non-forced detach was still waiting;
+the separately sessioned `hdiutil` finished about seven seconds later, after
+its Go owner was gone. Every outer stop boundary now preserves the existing
+one-minute pre-admission abort, five-second command unwind, six-second
+forced-session unwind and scheduling margin, clipped to the original outer
+deadline. Normal finish remains five seconds; a cooperative timeout still
+enters the existing failed six-second forced classification. No force or second
+detach is added.
+Focused normal/race cancellation tests pass. A reviewed disposition retained
+the status/log and signer evidence, recorded source-free identity/result bytes
+with `sha256:e1abaa21192d8b514e06fbf16805bf54d3524e6492b1d5751786eafc2adcdde5`,
+and removed only the exact already-detached image/root and clean detached
+worktree under the verified operation lock. It attempted no detach and used no
+force. A corrected immutable commit, complete gates, independent review and all
+seven exact-tip native outcomes remain required; disposal does not turn the
+failed run into a pass or authorize merge, seal or freeze.
+
 **T42.3 · Scale posture decision and neutral product closure** — independently
 review the T42.2 receipt, replay representative All code → service →
 relationship → Workbench → proof → MCP flows, and record one decision:
