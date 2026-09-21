@@ -108,7 +108,10 @@ func TestCIContractPinsToolsAndNamedGates(t *testing.T) {
 		"runs-on: ubuntu-24.04",
 		"mcr.microsoft.com/playwright:v1.62.1-noble@sha256:c091b21d9fae78c76e85cd4356431e9b018402f172a214fc7d7a5e9a7e29d8ac",
 		"PHEBS_RECEIPTS_BROWSER: chromium",
+		"shell: bash",
 		"cleanup_server()",
+		"ready_deadline=$((SECONDS + 600))",
+		"curl -fsS --connect-timeout 2 --max-time 5 http://127.0.0.1:3073/api/version",
 	} {
 		if !strings.Contains(workflow, gate) {
 			t.Errorf("workflow is missing gate %q", gate)
