@@ -14,8 +14,8 @@ const api = vi.hoisted(() => ({
 vi.mock('../api', () => api)
 
 const repos: RepoStatus[] = [
-  { name: 'github.com/one/shared', clone_url: '', orphaned: false, last_index_job_state: 'unavailable' },
-  { name: 'github.com/two/shared', clone_url: '', orphaned: false, last_index_job_state: 'unavailable' },
+  { name: 'github.com/one/shared', clone_url: '', orphaned: false, last_index_job_state: 'unavailable', last_extraction_job_state: 'unavailable', last_caller_job_state: 'unavailable', last_resolver_job_state: 'unavailable', is_fork: false, is_archived: false, is_public: true },
+  { name: 'github.com/two/shared', clone_url: '', orphaned: false, last_index_job_state: 'unavailable', last_extraction_job_state: 'unavailable', last_caller_job_state: 'unavailable', last_resolver_job_state: 'unavailable', is_fork: false, is_archived: false, is_public: true },
 ]
 
 const engine = new Client()
@@ -113,6 +113,7 @@ test('reindex controls name a focused unit instead of implying a whole-repositor
     last_index_job: {
       target: repos[0].name,
       status: 'done',
+      attempts: 1,
       created_at: '2026-08-02T00:00:00Z',
       finished_at: '2026-08-02T00:00:00Z',
     },
@@ -151,6 +152,7 @@ test('reindex controls preserve a retained whole-repository posture', async () =
     last_index_job: {
       target: repos[0].name,
       status: 'done',
+      attempts: 1,
       created_at: '2026-08-02T00:00:00Z',
       finished_at: '2026-08-02T00:00:00Z',
     },

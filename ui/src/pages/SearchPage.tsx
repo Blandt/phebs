@@ -4,7 +4,7 @@ import { Input } from 'baseui/input'
 import { Notification, KIND } from 'baseui/notification'
 import type { LanguageSupport } from '@codemirror/language'
 import { fetchRepoStatus, streamSearch } from '../api'
-import type { FileResult, Range, RepoStatus, SearchScopeReceipt, Stats } from '../api'
+import type { Chunk, FileResult, Range, RepoStatus, SearchScopeReceipt, Stats } from '../api'
 import { FOCUS_SEARCH, href, navigate } from '../router'
 import { usePhebsTokens, useMode, usePalette, FONTS, MOTION, REDUCED_MOTION, animated, type PhebsTokens } from '../theme'
 import type { PaletteName } from '../palette'
@@ -19,9 +19,9 @@ import { analysisScopeFromRepoStatus } from '../components/analysisScope'
 
 type Phase = 'idle' | 'streaming' | 'stopped' | 'done' | 'error'
 
-const fileKey = (f: FileResult) => f.repo + '\0' + f.ref + '\0' + f.path
+const fileKey = (f: FileResult) => f.repo + '\0' + (f.ref ?? '') + '\0' + f.path
 const firstMatchLine = (f: FileResult) =>
-  f.chunks.find((chunk) => chunk.ranges.length > 0)?.ranges[0]?.start_line
+  (f.chunks ?? []).find((chunk) => (chunk.ranges ?? []).length > 0)?.ranges?.[0]?.start_line
 
 export default function SearchPage({ params }: { params: URLSearchParams }) {
   const urlQuery = params.get('q') ?? ''
@@ -44,7 +44,7 @@ export default function SearchPage({ params }: { params: URLSearchParams }) {
     return files.map((f) => ({
       repository: f.repo,
       label: multiRepo ? `${f.repo} · ${f.path}` : f.path,
-      href: href('/file', { repo: f.repo, path: f.path, ref: f.ref }),
+      href: href('/file', { repo: f.repo, path: f.path, ref: f.ref ?? '' }),
     }))
   }, [files])
   const [repositories, setRepositories] = useState<RepoStatus[]>([])
@@ -116,7 +116,7 @@ export default function SearchPage({ params }: { params: URLSearchParams }) {
     setPhase('streaming')
     stopRef.current = streamSearch(
       urlQuery,
-      (batch) => setFiles((prev) => [...prev, ...batch.files]),
+      (batch) => setFiles((prev) => [...prev, ...(batch.files ?? [])]),
       (s) => {
         setStats(s)
         setPhase('done')
@@ -324,7 +324,7 @@ export default function SearchPage({ params }: { params: URLSearchParams }) {
         navigate('/file', {
           repo: f.repo,
           path: f.path,
-          ref: f.ref,
+          ref: f.ref ?? '',
           L: String(firstMatchLine(f) ?? 1),
         })
       } else if (e.key === 'y' && selected >= 0 && visible[selected]) {
@@ -643,7 +643,7 @@ function SearchScopeSelector({ kind, repository, serviceKey, query, receipt, dra
               ? `${receipt.service_status} · shared paths included · unowned paths excluded · ${receipt.result_files} cited files`
               : 'Shared paths are included; unowned paths are excluded. Exact current or stale authority is required.'
             : receipt
-              ? `Visible indexed repositories · ${receipt.revisions.length} exact revision${receipt.revisions.length === 1 ? '' : 's'} · ${receipt.result_files} cited files`
+              ? `Visible indexed repositories · ${(receipt.revisions ?? []).length} exact revision${(receipt.revisions ?? []).length === 1 ? '' : 's'} · ${receipt.result_files} cited files`
               : 'Search every visible indexed repository.'}
         </span>
       </div>
@@ -984,7 +984,7 @@ function SearchMeta({
 }
 
 function countMatches(files: FileResult[]): number {
-  return files.reduce((n, f) => n + f.chunks.reduce((m, c) => m + c.ranges.length, 0), 0)
+  return files.reduce((n, f) => n + (f.chunks ?? []).reduce((m, c) => m + (c.ranges ?? []).length, 0), 0)
 }
 
 function RepoGroup({
@@ -1104,14 +1104,14 @@ function FileBlock({
   }, [file.path])
 
   const firstLine = firstMatchLine(file)
-  const matches = file.chunks.reduce((m, c) => m + c.ranges.length, 0)
+  const matches = (file.chunks ?? []).reduce((m, c) => m + (c.ranges ?? []).length, 0)
   const slash = file.path.lastIndexOf('/')
   const dir = slash === -1 ? '' : file.path.slice(0, slash + 1)
   const name = slash === -1 ? file.path : file.path.slice(slash + 1)
   const fileHref = href('/file', {
     repo: file.repo,
     path: file.path,
-    ref: file.ref,
+    ref: file.ref ?? '',
     ...(firstLine ? { L: String(firstLine) } : {}),
   })
 
@@ -1141,7 +1141,7 @@ function FileBlock({
           <OpenIcon size={13} />
         </a>
       </div>
-      {file.chunks.map((chunk, i) => (
+      {(file.chunks ?? []).map((chunk, i) => (
         <ChunkView key={i} chunk={chunk} file={file} lang={lang} first={i === 0} selectedLine={selected ? firstLine : undefined} />
       ))}
     </div>
@@ -1155,7 +1155,7 @@ function ChunkView({
   first,
   selectedLine,
 }: {
-  chunk: FileResult['chunks'][number]
+  chunk: Chunk
   file: FileResult
   lang: LanguageSupport | null
   first: boolean
@@ -1184,7 +1184,7 @@ function ChunkView({
               href={href('/file', {
                 repo: file.repo,
                 path: file.path,
-                ref: file.ref,
+                ref: file.ref ?? '',
                 L: String(lineNo),
               })}
               className={css({ flexShrink: 0, width: '40px', paddingRight: '10px', textAlign: 'right', color: tok.gutter, textDecoration: 'none', userSelect: 'none', ':hover': { color: tok.accent } })}
@@ -1192,7 +1192,7 @@ function ChunkView({
               {lineNo}
             </a>
             <code className={css({ flex: '1 1 0', minWidth: 0, whiteSpace: 'pre', overflowX: 'auto', tabSize: 4, color: tok.plainCode, paddingRight: '12px' })}>
-              {renderLine(line, lineNo, chunk.ranges, lang, mode, palette, tok.matchBg)}
+              {renderLine(line, lineNo, chunk.ranges ?? [], lang, mode, palette, tok.matchBg)}
             </code>
           </div>
         )

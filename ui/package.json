@@ -10,7 +10,11 @@
     "preview": "vite preview",
     "test": "vitest run",
     "receipts": "playwright test",
-    "receipts:update": "playwright test --update-snapshots"
+    "receipts:update": "playwright test --update-snapshots",
+    "spec:dump": "go run ../scripts/openapi-dump > openapi.json",
+    "gen:api": "openapi-typescript openapi.json -o src/api.generated.ts && node scripts/gen-api.mjs",
+    "gen:api:full": "npm run spec:dump && npm run gen:api",
+    "gen:api:check": "npm run gen:api:full && git diff --exit-code -- openapi.json src/api.generated.ts"
   },
   "dependencies": {
     "@codemirror/lang-cpp": "^6.0.3",
@@ -43,12 +47,14 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.62.1",
+    "@testing-library/dom": "^10.4.2",
     "@testing-library/react": "^16.3.2",
     "@types/node": "^24.13.2",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.3",
     "jsdom": "^29.1.1",
+    "openapi-typescript": "^7.13.0",
     "oxlint": "^1.71.0",
     "typescript": "~6.0.2",
     "vite": "^8.1.1",

@@ -367,9 +367,11 @@ function LifecycleBadge({ status }: { status: LifecycleStatus }) {
 function LifecyclePanel({ status }: { status: LifecycleStatus }) {
   const [css] = useStyletron()
   const tok = usePhebsTokens()
-  const completed = status.owners.filter((owner) => owner.state !== 'not_run').length
-  const failed = status.owners.filter((owner) => owner.state === 'error')
-  const backlog = status.owners.filter((owner) => owner.backlog)
+  // The wire schema marks owners nullable (Go slice); null renders as empty.
+  const owners = status.owners ?? []
+  const completed = owners.filter((owner) => owner.state !== 'not_run').length
+  const failed = owners.filter((owner) => owner.state === 'error')
+  const backlog = owners.filter((owner) => owner.backlog)
   const pressure = status.capacity.pressure
   const pressureTone = !status.policy.enabled ? 'neutral'
     : pressure === 'normal' ? 'green'

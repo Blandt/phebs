@@ -1,94 +1,25 @@
-// Wire types mirrored from the huma API (internal/search, internal/store).
-// openapi-typescript codegen can replace this file once the API stabilizes.
+// Wire types for the huma API. Response shapes are generated from the backend
+// OpenAPI schema (see src/api.generated.ts, refreshed with `npm run gen:api`);
+// the exported aliases below keep the UI's historical names while tracking the
+// wire truth, so backend/frontend type drift fails the build instead of
+// hiding behind `as` casts.
 
+import type { components } from './api.generated'
 import { csrfHeaders, notifyAuthRequired } from './authSession'
 
-export interface Range {
-  start_line: number
-  start_col: number
-  end_line: number
-  end_col: number
-}
+export type Schemas = components['schemas']
 
-export interface Chunk {
-  content: string
-  start_line: number
-  ranges: Range[]
-}
-
-export interface FileResult {
-  repo: string
-  path: string
-  ref: string
-  language?: string
-  chunks: Chunk[]
-}
-
-export interface Stats {
-  match_count: number
-  file_count: number
-  duration_ms: number
-}
-
-export interface SearchResult {
-  files: FileResult[]
-  stats: Stats
-  scope_receipt?: SearchScopeReceipt
-}
-
-export interface SearchScopeRevision {
-  repository: string
-  commit: string
-}
-
+// Search core (backend: search.Result and friends).
+export type Range = Schemas['Range']
+export type Chunk = Schemas['Chunk']
+export type FileResult = Schemas['FileResult']
+export type Stats = Schemas['Stats']
+export type SearchResult = Schemas['Result']
+export type SearchScopeRevision = Schemas['ScopeRevision']
 // Mirrors internal/servicequery.Authority — the exact service authority a
 // service-scoped search executed under.
-export interface ServiceScopeAuthority {
-  schema: string
-  predicate_policy: string
-  topology_policy: string
-  repository: string
-  service_key: string
-  status: string
-  incarnation: number
-  revision_selector: string
-  revision_branch: string
-  revision_commit: string
-  expression_digest: string
-  current_catalog_generation: string
-  catalog_control_revision: number
-  active_catalog_generation: string
-  active_source_generation: string
-  active_desired_generation: string
-  service_state_digest: string
-  service_state_revision: number
-  state_summary_digest: string
-  state_summary_revision: number
-  repository_source_generation: string
-  repository_search_generation: string
-  path_digest: string
-  path_count: number
-  path_bytes: number
-  predicate_atoms: number
-  predicate_bytes: number
-  digest: string
-}
-
-export interface SearchScopeReceipt {
-  schema: 'phebs-search-scope-v1'
-  kind: 'all_code' | 'service'
-  repository?: string
-  service_key?: string
-  service_status?: ServiceStatus
-  membership_policy: string
-  expression_digest: string
-  service_authority?: ServiceScopeAuthority
-  revisions: SearchScopeRevision[]
-  result_set_digest: string
-  result_files: number
-  result_matches: number
-  digest: string
-}
+export type ServiceScopeAuthority = Schemas['Authority']
+export type SearchScopeReceipt = Schemas['ScopeReceipt']
 
 export interface IndexJob {
   target: string
@@ -98,11 +29,7 @@ export interface IndexJob {
   finished_at?: string
 }
 
-export interface IndexedRevision {
-  selector: string
-  branch: string
-  commit: string
-}
+export type IndexedRevision = Schemas['IndexedRevision']
 
 export interface AnalysisUnitTypedIndex {
   kind: string
@@ -134,20 +61,7 @@ export interface AnalysisScopeProjection {
   analysis_unit?: AnalysisUnitState
 }
 
-export interface RepoStatus {
-  name: string
-  clone_url: string
-  default_branch?: string
-  indexed_at?: string
-  indexed_commit_hash?: string
-  indexed_revisions?: IndexedRevision[]
-  latest_indexing_job_status?: string
-  orphaned: boolean
-  connections?: string[]
-  last_index_job?: IndexJob
-  last_index_job_state: 'exact' | 'unavailable'
-  analysis_unit?: AnalysisUnitState
-}
+export type RepoStatus = Schemas['RepoStatus']
 
 export type ServiceStatus =
   | 'current'
@@ -169,103 +83,21 @@ export type ServiceMembershipRole =
   | 'generated'
   | 'typed'
 
-export interface ServiceAuthority {
-  kind: string
-  id: string
-  version: string
-  override_id?: string
-  override_version?: string
-}
+export type ServiceAuthority = Schemas['ServiceAuthority']
 
-export interface ServiceRepository {
-  repository: string
-  source_kind: string
-  source_commit: string
-  source_file_count: number
-  accepted_file_count: number
-  unowned_file_count: number
-  authority: ServiceAuthority
-  catalog_digest: string
-  catalog_generation: string
-  catalog_control_revision: number
-  state_control_revision: number
-  catalog_service_count: number
-  live_service_count: number
-  current_count: number
-  stale_count: number
-  unavailable_count: number
-  conflict_count: number
-  tombstone_count: number
-  published_at: string
-  state_updated_at: string
-}
+export type ServiceRepository = Schemas['ServiceRepository']
 
-export interface ServiceRoleCounts {
-  primary: number
-  supporting: number
-  shared: number
-  generated: number
-  typed: number
-}
+export type ServiceRoleCounts = Schemas['ServiceRoleCounts']
 
-export interface ServiceRecord {
-  repository: string
-  key: string
-  display_name: string
-  disposition: ServiceDisposition
-  origin: string
-  reason?: string
-  successor_count: number
-  incarnation: number
-  desired_generation?: string
-  desired_source_generation?: string
-  desired_catalog_generation?: string
-  active_desired_generation?: string
-  active_source_generation?: string
-  active_catalog_generation?: string
-  status: ServiceStatus
-  removed: boolean
-  membership_count: number
-  distinct_path_count: number
-  role_counts: ServiceRoleCounts
-  state_digest: string
-  control_revision: number
-  changed_at: string
-}
+export type ServiceRecord = Schemas['Service']
 
-export interface ServiceMembership {
-  path: string
-  role: ServiceMembershipRole
-  origin: string
-}
+export type ServiceMembership = Schemas['ServiceMembership']
 
-export interface ServicePagination {
-  order: string
-  page_size: number
-  returned: number
-  next_cursor?: string
-}
+export type ServicePagination = Schemas['ServicePagination']
 
-export interface ServiceInventory {
-  schema: string
-  repository: ServiceRepository
-  filters: {
-    repository: string
-    status?: ServiceStatus
-    disposition?: ServiceDisposition
-    include_removed?: boolean
-  }
-  services: ServiceRecord[]
-  pagination: ServicePagination
-}
+export type ServiceInventory = Schemas['ServiceInventory']
 
-export interface ServiceDetail {
-  schema: string
-  repository: ServiceRepository
-  service: ServiceRecord
-  successors: string[]
-  memberships: ServiceMembership[]
-}
+export type ServiceDetail = Schemas['ServiceDetail']
 
 export type ServiceRelationshipView = 'all' | 'dependencies' | 'callers' | 'topics'
 
@@ -461,17 +293,11 @@ export interface ServiceRelationshipCitation {
   content: string
 }
 
-export interface SourceFile {
-  content: string
-  encoding: 'utf8' | 'base64'
-  size: number
-}
+export type SourceFile = Schemas['SourceOutBody']
 
-export interface TreeEntry {
-  name: string
-  type: 'file' | 'dir' | 'symlink' | 'submodule'
-  size?: number
-}
+export type TreeEntry = Schemas['TreeEntry']
+
+export type FolderContents = Schemas['FolderOutBody']
 
 export type APIKeyCapability = 'investigation:write'
 
@@ -498,28 +324,7 @@ export interface LifecycleOwnerStatus {
   attempted_at?: string
 }
 
-export interface LifecycleStatus {
-  schema: 'phebs-lifecycle-status-v1'
-  policy: {
-    enabled: boolean
-    owners: number
-    soft_watermark_percent: number
-    hard_watermark_percent: number
-    resume_watermark_percent: number
-    max_candidates_per_turn: number
-    max_deletes_per_turn: number
-    max_queries_per_turn: number
-  }
-  capacity: {
-    completeness: 'exact' | 'unavailable'
-    pressure: LifecyclePressure
-    total_bytes?: number
-    used_bytes?: number
-    used_percent?: number
-    observed_at?: string
-  }
-  owners: LifecycleOwnerStatus[]
-}
+export type LifecycleStatus = Schemas['Status']
 
 export interface CreatedAPIKey {
   key: APIKeySummary
@@ -527,36 +332,14 @@ export interface CreatedAPIKey {
 }
 
 // T10.1: one append-only audit record
-export interface AuditEvent {
-  id: string
-  action: string
-  target?: string
-  actor_id?: string
-  actor_email?: string
-  api_key_id?: string
-  auth_method?: string
-  source_ip?: string
-  status: number
-  created_at: string
-}
+export type AuditEvent = Schemas['AuditEvent']
 
-export interface AuditPage {
-  events: AuditEvent[]
-  has_more: boolean
-}
+export type AuditPage = Schemas['AuditOutBody']
 
 // T10.2: local usage aggregates (zero telemetry — computed from local data)
-export interface AnalyticsSummary {
-  total_searches: number
-  avg_duration_ms: number
-  daily: { date: string; count: number }[]
-  top_repos: { name: string; count: number }[]
-}
+export type AnalyticsSummary = Schemas['AnalyticsOutBody']
 
-export interface VersionInfo {
-  version: string
-  capabilities?: string[]
-}
+export type VersionInfo = Schemas['VersionOutBody']
 
 export type WorkbenchTicketKind = 'add' | 'modify' | 'migrate' | 'retire'
 export type WorkbenchSelectionRole = 'current' | 'replacement' | 'analogous'
@@ -2069,38 +1852,13 @@ export interface GitIdentity {
   time: string
 }
 
-export interface GitCommit {
-  id: string
-  short_id: string
-  parent_ids: string[]
-  subject: string
-  message: string
-  author: GitIdentity
-  committer: GitIdentity
-}
+export type GitCommit = Schemas['GitCommit']
 
-export interface BlameLine {
-  line: number
-  original_line: number
-  commit_id: string
-  original_path: string
-  content: string
-}
+export type BlameLine = Schemas['BlameLine']
 
-export interface BlameResult {
-  revision: string
-  path: string
-  lines: BlameLine[]
-  commits: GitCommit[]
-  truncated: boolean
-}
+export type BlameResult = Schemas['BlameResult']
 
-export interface CommitListResult {
-  revision: string
-  commits: GitCommit[]
-  offset: number
-  has_more: boolean
-}
+export type CommitListResult = Schemas['CommitListResult']
 
 export interface GitFileChange {
   status: string
@@ -2112,19 +1870,9 @@ export interface GitFileChange {
   binary?: boolean
 }
 
-export interface CommitResult {
-  revision: string
-  commit: GitCommit
-  changes: GitFileChange[]
-}
+export type CommitResult = Schemas['CommitResult']
 
-export interface DiffResult {
-  base?: string
-  head: string
-  patch: string
-  files: GitFileChange[]
-  truncated: boolean
-}
+export type DiffResult = Schemas['DiffResult']
 
 export type PositionEncoding = 'utf8' | 'utf16' | 'utf32'
 
@@ -2146,34 +1894,13 @@ export interface CodeLocation {
   encoding: PositionEncoding
 }
 
-export interface DefinitionResult {
-  available: boolean
-  symbol?: string
-  location?: CodeLocation
-}
+export type DefinitionResult = Schemas['DefinitionResult']
 
-export interface ReferencesResult {
-  available: boolean
-  symbol?: string
-  locations: CodeLocation[]
-  truncated?: boolean
-}
+export type ReferencesResult = Schemas['ReferencesResult']
 
-export interface HoverInfo {
-  symbol: string
-  display_name?: string
-  kind?: string
-  signature?: string
-  language?: string
-  documentation?: string[]
-  range: CodeRange
-  encoding: PositionEncoding
-}
+export type HoverInfo = Schemas['HoverInfo']
 
-export interface HoverResult {
-  available: boolean
-  hover?: HoverInfo
-}
+export type HoverResult = Schemas['HoverResult']
 
 async function request(url: string, init: RequestInit = {}): Promise<Response> {
   const res = await fetch(url, { credentials: 'same-origin', ...init })
@@ -2252,7 +1979,7 @@ export const fetchFolderContents = (
   path: string,
   signal?: AbortSignal,
 ) =>
-  getJSON<{ entries: TreeEntry[] }>(
+  getJSON<FolderContents>(
     `/api/folder_contents?${query({ repo, ref, path })}`,
     signal,
   )

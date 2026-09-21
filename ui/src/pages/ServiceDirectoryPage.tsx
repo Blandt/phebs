@@ -284,7 +284,7 @@ function RepositorySummary({ inventory }: { inventory: ServiceInventory }) {
   const [css] = useStyletron()
   const tok = usePhebsTokens()
   const repository = inventory.repository
-  const sharedOnPage = inventory.services.reduce(
+  const sharedOnPage = (inventory.services ?? []).reduce(
     (total, service) => total + service.role_counts.shared, 0,
   )
   const attention = repository.stale_count + repository.unavailable_count +
@@ -338,7 +338,7 @@ function ServiceList({ inventory, route, onRoute }: {
   const filtered = Boolean(route.status || route.disposition || route.includeRemoved)
   const nextCursor = inventory.pagination.next_cursor ?? ''
   const narrowed = useMemo(
-    () => narrowServices(inventory.services, route.narrow),
+    () => narrowServices(inventory.services ?? [], route.narrow),
     [inventory.services, route.narrow],
   )
   const items = useMemo(() => groupItems(narrowed, route.group), [narrowed, route.group])
@@ -405,7 +405,7 @@ function ServiceList({ inventory, route, onRoute }: {
         )}
       </div>
 
-      {inventory.services.length === 0 ? (
+      {(inventory.services ?? []).length === 0 ? (
         <div className={css({ padding: '32px 18px', color: tok.textSecondary })}>
           <div className={css({ fontSize: '13px', lineHeight: '18px', fontWeight: 600, color: tok.textPrimary })}>
             {nextCursor ? 'No matches in this scan window' : filtered ? 'No services match these filters' : 'This catalog has no service records'}
@@ -644,7 +644,7 @@ function ServiceDetailPanel({ detail, detailError, selectedKey, route, relations
         )}
       </header>
 
-      <ServiceStateNotice service={service} successors={detail.successors} />
+      <ServiceStateNotice service={service} successors={detail.successors ?? []} />
 
       <div className={css({ padding: '16px' })}>
         <h3 className={css(sectionHeading(tok))}>Lifecycle identities</h3>
@@ -661,12 +661,12 @@ function ServiceDetailPanel({ detail, detailError, selectedKey, route, relations
         <p className={css({ margin: '5px 0 0', fontSize: '11px', lineHeight: '16px', color: tok.textTertiary })}>
           Exact catalog roles attribute paths to this service identity. Shared, generated, typed, proposal, and rejected authority remain explicit; no runtime owner is inferred.
         </p>
-        {detail.memberships.length === 0 ? (
+        {(detail.memberships ?? []).length === 0 ? (
           <div className={css({ padding: '16px 0 2px', fontSize: '12px', lineHeight: '18px', color: tok.textTertiary })}>No membership paths are attached to this authority record.</div>
         ) : (
           <div className={css({ marginTop: '8px', border: `1px solid ${tok.innerSep}`, borderRadius: '7px', overflow: 'hidden' })}>
-            {detail.memberships.map((membership, index) => (
-              <div key={`${membership.path}:${membership.role}:${membership.origin}`} className={css({ minHeight: '38px', display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', alignItems: 'center', gap: '12px', padding: '7px 10px', boxSizing: 'border-box', borderBottom: index === detail.memberships.length - 1 ? 'none' : `1px solid ${tok.innerSep}`, '@media screen and (max-width: 520px)': { gridTemplateColumns: '1fr', gap: '5px' } })}>
+            {(detail.memberships ?? []).map((membership, index) => (
+              <div key={`${membership.path}:${membership.role}:${membership.origin}`} className={css({ minHeight: '38px', display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', alignItems: 'center', gap: '12px', padding: '7px 10px', boxSizing: 'border-box', borderBottom: index === (detail.memberships ?? []).length - 1 ? 'none' : `1px solid ${tok.innerSep}`, '@media screen and (max-width: 520px)': { gridTemplateColumns: '1fr', gap: '5px' } })}>
                 <code className={css({ minWidth: 0, fontFamily: FONTS.MONO, fontSize: '11px', lineHeight: '16px', color: tok.textSecondary, overflowWrap: 'anywhere' })}>{membership.path}</code>
                 <div className={css({ display: 'flex', gap: '5px' })}>
                   <SmallTag text={membership.role} />
@@ -817,7 +817,7 @@ function directoryHref(
   return href('/services', directoryParams({ ...route, ...changes }))
 }
 
-function statusTone(status: ServiceStatus): ToneName {
+function statusTone(status: string): ToneName {
   switch (status) {
   case 'current': return 'green'
   case 'stale': return 'amber'

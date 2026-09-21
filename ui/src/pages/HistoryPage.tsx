@@ -44,7 +44,9 @@ export default function HistoryPage({ params }: { params: URLSearchParams }) {
     fetchCommits(repo, ref, path, 50, 0, controller.signal)
       .then((result) => {
         if (current !== generation.current || currentRequestKey !== latestRequestKey.current) return
-        setCommits(result.commits)
+        // The wire schema marks the commit list nullable (Go slice); null
+        // renders as an empty page.
+        setCommits(result.commits ?? [])
         setRevision(result.revision)
         setHasMore(result.has_more)
       })
@@ -73,7 +75,7 @@ export default function HistoryPage({ params }: { params: URLSearchParams }) {
     try {
       const result = await fetchCommits(repo, revision, path, 50, commits.length, controller.signal)
       if (controller.signal.aborted || current !== generation.current || currentRequestKey !== latestRequestKey.current) return
-      setCommits((current) => [...current, ...result.commits])
+      setCommits((current) => [...current, ...(result.commits ?? [])])
       setHasMore(result.has_more)
     } catch (cause) {
       if (!isAbortError(cause) && current === generation.current && currentRequestKey === latestRequestKey.current) {

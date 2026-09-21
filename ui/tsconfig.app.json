@@ -20,7 +20,11 @@
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "erasableSyntaxOnly": true,
-    "noFallthroughCasesInSwitch": true
+    "noFallthroughCasesInSwitch": true,
+
+    /* Strictness: generated wire types (src/api.generated.ts) keep the
+       frontend honest against the huma OpenAPI schema. */
+    "strict": true
   },
   "include": ["src"]
 }
