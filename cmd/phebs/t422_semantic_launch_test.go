@@ -358,6 +358,9 @@ func TestT422SemanticConfigAndServeBinding(t *testing.T) {
 	if got, raw, err := launch.loadConfig(path, false); err != nil || !reflect.DeepEqual(got, cfg) || !bytes.Equal(raw, configRaw) {
 		t.Fatal("bound single-parse config differs", err)
 	}
+	if _, _, err := launch.loadConfig(path, true); !errors.Is(err, errT422SemanticLaunch) {
+		t.Fatal("exact launch accepted unbound insecure-permissions override", err)
+	}
 	if _, _, err := launch.loadConfig(filepath.Dir(path), false); err == nil {
 		t.Fatal("directory config accepted")
 	}

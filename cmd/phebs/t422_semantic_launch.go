@@ -194,9 +194,12 @@ func (launch *t422SemanticLaunch) loadConfig(path string, allowInsecurePerms boo
 	if launch == nil {
 		return loadServerConfig(path, allowInsecurePerms)
 	}
+	if allowInsecurePerms {
+		return nil, nil, errT422SemanticLaunch
+	}
 	// Exact-mode semantic launch reads the file directly; loadServerConfig
 	// is not on this path, so enforce here.
-	if err := enforceConfigFilePermissions(path, allowInsecurePerms); err != nil {
+	if err := enforceConfigFilePermissions(path, false); err != nil {
 		return nil, nil, err
 	}
 	if len(path) > 4096 || !filepath.IsAbs(path) || filepath.Clean(path) != path {
