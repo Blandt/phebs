@@ -152,9 +152,12 @@ smoke-release: verify-release verify-surreal ## empty-data sync/index/search and
 # PHEBS_SKIP_SURREAL_TESTS=1 runs the suite without a SurrealDB binary; the
 # SurrealDB-backed tests keep their existing skip instead of failing this gate.
 test: verify-glossary ## full suite; fails loudly without the surreal binary unless PHEBS_SKIP_SURREAL_TESTS=1
-	@if [ -z "$(PHEBS_SKIP_SURREAL_TESTS)" ] && ! command -v surreal >/dev/null 2>&1; then \
+	@if [ -z "$(PHEBS_SKIP_SURREAL_TESTS)" ] && \
+		{ [ -z "$${PHEBS_SURREAL:-}" ] || [ ! -x "$$PHEBS_SURREAL" ]; } && \
+		! command -v surreal >/dev/null 2>&1; then \
 		printf 'error: `surreal` binary not found in PATH; SurrealDB-backed tests would silently skip\n' >&2; \
 		printf 'install SurrealDB %s (pinned in .surrealdb-version) and add it to PATH\n' "$(SURREALDB_VERSION)" >&2; \
+		printf 'or set PHEBS_SURREAL to an executable SurrealDB %s binary\n' "$(SURREALDB_VERSION)" >&2; \
 		printf '(in CI: sh scripts/install-surreal-ci.sh <work-dir>, then add <work-dir>/surreal-bin to PATH)\n' >&2; \
 		printf 'or set PHEBS_SKIP_SURREAL_TESTS=1 to run the suite without the SurrealDB-backed tests\n' >&2; \
 		exit 2; \

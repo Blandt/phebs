@@ -62,6 +62,9 @@ func TestCIContractPinsToolsAndNamedGates(t *testing.T) {
 			t.Errorf("Makefile target %s is missing full-suite allowance %q", gate.target, gate.command)
 		}
 	}
+	if !strings.Contains(string(makefile), `[ -z "$${PHEBS_SURREAL:-}" ] || [ ! -x "$$PHEBS_SURREAL" ]`) {
+		t.Error("make test must admit the supported explicit PHEBS_SURREAL binary override")
+	}
 	for _, exact := range []string{
 		"actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
 		"actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e",
