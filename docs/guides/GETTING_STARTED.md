@@ -42,6 +42,7 @@ requires either `provisional_proto_extraction` or
 git clone <your-clone-of-phebs> && cd phebs
 make build          # builds the UI, whole/focused zoekt and Buf children, and ./phebs
 ./phebs version     # 0.2.1-dev for an ordinary source build
+chmod 600 phebs.yaml
 ./phebs serve -config phebs.yaml
 ```
 
