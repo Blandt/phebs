@@ -65,6 +65,9 @@ func TestCIContractPinsToolsAndNamedGates(t *testing.T) {
 	if !strings.Contains(string(makefile), `[ -z "$${PHEBS_SURREAL:-}" ] || [ ! -x "$$PHEBS_SURREAL" ]`) {
 		t.Error("make test must admit the supported explicit PHEBS_SURREAL binary override")
 	}
+	if !strings.Contains(string(makefile), `[ -n "$${PHEBS_SKIP_SURREAL_TESTS:-}" ] && [ "$$PHEBS_SKIP_SURREAL_TESTS" != 1 ]`) {
+		t.Error("make test must reject misspelled SurrealDB skip values")
+	}
 	for _, exact := range []string{
 		"actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
 		"actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e",
