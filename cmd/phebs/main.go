@@ -387,6 +387,8 @@ func printVersion(args []string, output io.Writer) error {
 func backup(ctx context.Context, args []string) error {
 	flags := flag.NewFlagSet("backup", flag.ContinueOnError)
 	cfgPath := flags.String("config", "", "path to config file (defaults apply if omitted)")
+	allowInsecurePerms := flags.Bool("allow-insecure-config-perms", false,
+		"warn instead of refusing a config file readable by group or others")
 	output := flags.String("output", "", "new backup directory (must not exist)")
 	if err := flags.Parse(args); err != nil {
 		return err
@@ -394,7 +396,7 @@ func backup(ctx context.Context, args []string) error {
 	if flags.NArg() != 0 || *output == "" {
 		return errors.New("backup requires -output and accepts no positional arguments")
 	}
-	cfg, raw, err := loadRecoveryConfig(*cfgPath)
+	cfg, raw, err := loadRecoveryConfig(*cfgPath, *allowInsecurePerms)
 	if err != nil {
 		return err
 	}
@@ -423,6 +425,8 @@ func backup(ctx context.Context, args []string) error {
 func restore(ctx context.Context, args []string) error {
 	flags := flag.NewFlagSet("restore", flag.ContinueOnError)
 	cfgPath := flags.String("config", "", "path to config file (defaults apply if omitted)")
+	allowInsecurePerms := flags.Bool("allow-insecure-config-perms", false,
+		"warn instead of refusing a config file readable by group or others")
 	backupPath := flags.String("backup", "", "backup directory to verify and import")
 	if err := flags.Parse(args); err != nil {
 		return err
@@ -430,7 +434,7 @@ func restore(ctx context.Context, args []string) error {
 	if flags.NArg() != 0 || *backupPath == "" {
 		return errors.New("restore requires -backup and accepts no positional arguments")
 	}
-	cfg, raw, err := loadRecoveryConfig(*cfgPath)
+	cfg, raw, err := loadRecoveryConfig(*cfgPath, *allowInsecurePerms)
 	if err != nil {
 		return err
 	}
@@ -599,6 +603,8 @@ func initializeCompatibilityForLaunch(ctx context.Context, semanticLaunch *t422S
 func serve(ctx context.Context, args []string) (retErr error) {
 	flags := flag.NewFlagSet("serve", flag.ContinueOnError)
 	cfgPath := flags.String("config", "", "path to config file (defaults apply if omitted)")
+	allowInsecurePerms := flags.Bool("allow-insecure-config-perms", false,
+		"warn instead of refusing a config file readable by group or others")
 	addr := flags.String("addr", "", "listen address (overrides config)")
 	if err := flags.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
@@ -623,7 +629,7 @@ func serve(ctx context.Context, args []string) (retErr error) {
 	}
 	reportT4013Startup("process_started")
 
-	cfg, rawConfig, err := semanticLaunch.loadConfig(*cfgPath)
+	cfg, rawConfig, err := semanticLaunch.loadConfig(*cfgPath, *allowInsecurePerms)
 	if err != nil {
 		return err
 	}
@@ -2656,8 +2662,11 @@ func newHTTPHandler(authService *auth.Service, apiHandler, mcpHandler, metricsHa
 	return securityHeadersMiddleware(serverCfg.SecurityHeadersEnabled())(handler)
 }
 
-func loadServerConfig(path string) (*config.Config, []byte, error) {
+func loadServerConfig(path string, allowInsecurePerms bool) (*config.Config, []byte, error) {
 	if path != "" {
+		if err := enforceConfigFilePermissions(path, allowInsecurePerms); err != nil {
+			return nil, nil, err
+		}
 		raw, err := os.ReadFile(path)
 		if err != nil {
 			return nil, nil, fmt.Errorf("read config: %w", err)
@@ -2674,8 +2683,32 @@ func loadServerConfig(path string) (*config.Config, []byte, error) {
 	return cfg, raw, err
 }
 
-func loadRecoveryConfig(path string) (*config.Config, []byte, error) {
+// enforceConfigFilePermissions refuses a config file that grants group or
+// other access — fail-closed, since the config may hold API keys, OIDC client
+// secrets, webhook secrets, and connection tokens. allowInsecurePerms
+// (--allow-insecure-config-perms) downgrades the refusal to a loud warning
+// for operators who know what they're doing.
+func enforceConfigFilePermissions(path string, allowInsecurePerms bool) error {
+	err := config.CheckFilePermissions(path)
+	if err == nil {
+		return nil
+	}
+	var insecure *config.InsecurePermissionsError
+	if !errors.As(err, &insecure) {
+		return err
+	}
+	if allowInsecurePerms {
+		log.Printf("WARNING: %s", insecure.Error())
+		return nil
+	}
+	return insecure
+}
+
+func loadRecoveryConfig(path string, allowInsecurePerms bool) (*config.Config, []byte, error) {
 	if path != "" {
+		if err := enforceConfigFilePermissions(path, allowInsecurePerms); err != nil {
+			return nil, nil, err
+		}
 		return config.LoadForRecovery(path)
 	}
 	raw := []byte("{}")

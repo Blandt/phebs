@@ -17,6 +17,23 @@ non-empty; this applies to legacy API/webhook secrets, bootstrap passwords,
 OIDC client secrets, PATs, inline App keys, and Git HTTP credentials. A
 missing variable stops startup rather than silently weakening authentication.
 
+### Config file permissions
+
+The config file can hold API keys, OIDC client secrets, webhook secrets, and
+connection tokens, so phebs refuses to start when the config file grants group or others any read, write,
+or execute access — any group/other permission bit set (`mode & 0077 != 0`). The
+check
+applies to `serve`, `backup`, and `restore` whenever `-config` names a real
+file; embedded bytes and defaults skip it. Keep the file owner-only:
+
+```sh
+chmod 600 phebs.yaml
+```
+
+Operators who knowingly run with looser permissions (e.g. a shared config
+mounted into a container) can downgrade the refusal to a logged warning with
+`--allow-insecure-config-perms`.
+
 ```yaml
 server:
   addr: "127.0.0.1:3070" # loopback listen address (default)

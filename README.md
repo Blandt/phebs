@@ -92,6 +92,7 @@ git clone https://github.com/bmeddeb/phebs.git
 cd phebs
 
 make build
+chmod 600 phebs.yaml
 ./phebs serve -config phebs.yaml
 ```
 
