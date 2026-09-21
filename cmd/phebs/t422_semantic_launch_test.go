@@ -361,6 +361,15 @@ func TestT422SemanticConfigAndServeBinding(t *testing.T) {
 	if _, _, err := launch.loadConfig(path, true); !errors.Is(err, errT422SemanticLaunch) {
 		t.Fatal("exact launch accepted unbound insecure-permissions override", err)
 	}
+	if err := os.Chmod(path, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := launch.loadConfig(path, false); !errors.Is(err, errT422SemanticLaunch) {
+		t.Fatal("exact launch exposed a non-generic permission refusal", err)
+	}
+	if err := os.Chmod(path, 0o600); err != nil {
+		t.Fatal(err)
+	}
 	if _, _, err := launch.loadConfig(filepath.Dir(path), false); err == nil {
 		t.Fatal("directory config accepted")
 	}
