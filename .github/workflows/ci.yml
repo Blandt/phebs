@@ -113,6 +113,10 @@ jobs:
         with:
           go-version-file: .go-version
           cache-dependency-path: go.sum
+      - name: Install GNU make
+        run: |
+          apt-get update
+          apt-get install --yes --no-install-recommends make
       - name: Install pinned SurrealDB
         run: sh scripts/install-surreal-ci.sh "$RUNNER_TEMP"
       - name: Boot dev instance and run screenshot receipts

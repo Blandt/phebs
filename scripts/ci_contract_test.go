@@ -108,6 +108,8 @@ func TestCIContractPinsToolsAndNamedGates(t *testing.T) {
 		"runs-on: ubuntu-24.04",
 		"mcr.microsoft.com/playwright:v1.62.1-noble@sha256:c091b21d9fae78c76e85cd4356431e9b018402f172a214fc7d7a5e9a7e29d8ac",
 		"PHEBS_RECEIPTS_BROWSER: chromium",
+		"apt-get update",
+		"apt-get install --yes --no-install-recommends make",
 		"shell: bash",
 		"cleanup_server()",
 		"ready_deadline=$((SECONDS + 600))",
@@ -124,6 +126,13 @@ func TestCIContractPinsToolsAndNamedGates(t *testing.T) {
 		jobBody := regexp.MustCompile(`(?m)^  ` + regexp.QuoteMeta(job) + `:\n(?:[ ]{4,}[^\n]*\n|\n)*`).FindString(workflow)
 		if count := strings.Count(jobBody, `sh scripts/install-surreal-ci.sh "$RUNNER_TEMP"`); count != 1 {
 			t.Errorf("job %s pinned SurrealDB installer calls = %d, want 1", job, count)
+		}
+		if job == "screenshots" {
+			for _, required := range []string{"apt-get update", "apt-get install --yes --no-install-recommends make"} {
+				if !strings.Contains(jobBody, required) {
+					t.Errorf("screenshots job is missing %q", required)
+				}
+			}
 		}
 	}
 	if count := strings.Count(workflow, `sh scripts/install-surreal-ci.sh "$RUNNER_TEMP"`); count != 4 {
@@ -152,20 +161,23 @@ func TestMakeTestGuardRequiresSurrealOnPath(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	fake := filepath.Join(t.TempDir(), "surreal-override")
+	trPath, err := exec.LookPath("tr")
+	if err != nil {
+		t.Fatal(err)
+	}
+	testBin := t.TempDir()
+	if err := os.Symlink(trPath, filepath.Join(testBin, "tr")); err != nil {
+		t.Fatal(err)
+	}
+	fake := filepath.Join(testBin, "surreal-override")
 	if err := os.WriteFile(fake, []byte("#!/bin/sh\nexit 0\n"), 0o700); err != nil {
 		t.Fatal(err)
 	}
-	baseEnv := make([]string, 0, len(os.Environ())+2)
-	for _, entry := range os.Environ() {
-		if strings.HasPrefix(entry, "PATH=") ||
-			strings.HasPrefix(entry, "PHEBS_SURREAL=") ||
-			strings.HasPrefix(entry, "PHEBS_SKIP_SURREAL_TESTS=") {
-			continue
-		}
-		baseEnv = append(baseEnv, entry)
+	baseEnv := []string{
+		"LC_ALL=C",
+		"PATH=" + testBin,
+		"PHEBS_SURREAL=" + fake,
 	}
-	baseEnv = append(baseEnv, "PATH=/usr/bin:/bin", "PHEBS_SURREAL="+fake)
 
 	command := exec.Command(makePath, "--no-print-directory", "verify-test-surreal")
 	command.Dir = root

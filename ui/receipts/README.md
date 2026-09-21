@@ -19,9 +19,28 @@ machine — otherwise macOS and Ubuntu CI can never share one baseline set.
 - **Boot the receipt instance like this** (from the repo root):
 
   ```bash
+  required_surreal="$(tr -d '[:space:]' < .surrealdb-version)"
+  command -v surreal >/dev/null
+  test "$(surreal version | awk '{print $1}')" = "$required_surreal"
+
+  export PHEBS_RECEIPT_EMAIL=receipts@localhost.test
+  export PHEBS_RECEIPT_PASSWORD="$(openssl rand -hex 16)"
+  umask 077
+  receipt_run="$(mktemp -d "${TMPDIR:-/tmp}/phebs-receipts.XXXXXX")"
+  receipt_config="$receipt_run/phebs-receipts.yaml"
+  cat >"$receipt_config" <<EOF
+  server:
+    addr: "127.0.0.1:3073"
+    data_dir: "$receipt_run/data"
+  auth:
+    bootstrap_user:
+      email: "$PHEBS_RECEIPT_EMAIL"
+      display_name: Receipt Operator
+      password: "$PHEBS_RECEIPT_PASSWORD"
+  EOF
   receipt_env="$(sh scripts/stage-receipt-fixtures.sh --env)" || exit 1
   eval "$receipt_env"
-  make dev ARGS="-config phebs-ux-dev.yaml"
+  make dev ARGS="-config $receipt_config"
   ```
 
   Capture the staging output and check it **before** `eval`: a failed
@@ -29,6 +48,10 @@ machine — otherwise macOS and Ubuntu CI can never share one baseline set.
   environment (eval of a failed command substitution's empty output
   succeeds silently). Invoking via `sh` keeps the boot independent of the
   script's executable bit.
+
+  Keep the two exported receipt credentials in the shell that runs
+  `make ui-receipts`; they are the fresh instance's operator login. The
+  `surreal` binary on `PATH` must match `.surrealdb-version`.
 
   The staging script copies the neutral-demo bundles into the fixed root;
   `make dev` / `make dev-api` honor the pre-set
