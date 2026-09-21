@@ -1,11 +1,9 @@
 /**
- * Regenerates src/api.generated.ts from the checked-in openapi.json snapshot
- * with a deterministic header.
+ * Replaces openapi-typescript's generated header with a deterministic one.
  *
  * Run: npm run gen:api   (from ui/)
  * Refresh the snapshot first with: npm run spec:dump
  */
-import { execFileSync } from 'node:child_process'
 import { readFileSync, writeFileSync } from 'node:fs'
 
 const HEADER = `/**
@@ -19,12 +17,6 @@ const HEADER = `/**
  * running backend; refresh the snapshot when the huma API changes.
  */
 `
-
-execFileSync(
-  process.platform === 'win32' ? 'npx.cmd' : 'npx',
-  ['openapi-typescript', 'openapi.json', '-o', 'src/api.generated.ts'],
-  { stdio: 'inherit' },
-)
 
 // The generator's default header is replaced with the header above so every
 // regeneration byte-matches the checked-in file when the spec is unchanged.

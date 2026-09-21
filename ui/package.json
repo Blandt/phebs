@@ -12,7 +12,7 @@
     "receipts": "playwright test",
     "receipts:update": "playwright test --update-snapshots",
     "spec:dump": "go run ../scripts/openapi-dump > openapi.json",
-    "gen:api": "node scripts/gen-api.mjs",
+    "gen:api": "openapi-typescript openapi.json -o src/api.generated.ts && node scripts/gen-api.mjs",
     "gen:api:full": "npm run spec:dump && npm run gen:api",
     "gen:api:check": "npm run gen:api:full && git diff --exit-code -- openapi.json src/api.generated.ts"
   },
