@@ -1410,8 +1410,8 @@ reverse proxy terminates TLS, restrict direct access to phebs and configure
 every trusted proxy-hop CIDR in `auth.trusted_proxies` so clients receive
 separate login buckets. Phebs ignores forwarded-IP headers unless the direct
 peer is trusted.
-- Health, version, OpenAPI/docs, auth status/enrollment/login/OIDC routes, and
-`/metrics` are public. Search, repository content, code navigation, history,
+- Health, version, OpenAPI/docs, and auth status/enrollment/login/OIDC routes are
+public. `/metrics`, search, repository content, code navigation, history,
 and MCP require a session or API key. Reindexing additionally requires an
 administrator principal.
 - Browser sessions are ambient credentials, so unsafe requests require CSRF.
@@ -4236,7 +4236,8 @@ authorization, freshness, evidence availability, or continuing validity.
 | `phebs_focused_index_opened_blob_bytes` | histogram | —                                                          |
 
 
-Plus standard Go process metrics. Scrape `/metrics`.
+Plus standard Go process metrics. Scrape `/metrics` with an authenticated
+session or Bearer <redacted> key.
 
 ### Shutdown
 
