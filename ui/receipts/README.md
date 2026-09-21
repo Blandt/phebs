@@ -59,12 +59,17 @@ machine — otherwise macOS and Ubuntu CI can never share one baseline set.
   `local/tmp/phebs-receipts-fixtures/t307-neutral-service.bundle` and
   `local/tmp/phebs-receipts-fixtures/t323-neutral-corpus.bundle` on every
   machine, regardless of checkout location.
+- Before capture, the authenticated setup waits for that exact two-repository
+  cohort, settled index and extraction jobs, the required current services,
+  and complete `orders-api` relationship authority. Empty, partial, failed,
+  canceled, or unexpected state cannot become a baseline.
 
 ## Baselines
 
-- `baselines/` holds the reviewed truth. They are **produced in the Ubuntu
-  CI rendering environment** — the same `ubuntu-latest` image the workflow
-  uses. A single baseline set serves all platforms; macOS and Linux are
+- `baselines/` holds the reviewed truth. They are **produced in the pinned
+  CI rendering environment** — Playwright 1.62.1's Noble container at the
+  digest recorded in `.github/workflows/ci.yml`, using its package-matched
+  bundled Chromium. A single baseline set serves all platforms; macOS and Linux are
   **not** compared against separate image sets. (Font rasterization differs
   across platforms, so a local macOS `make ui-receipts` run is expected to
   report diffs; the canonical gate is the CI run.)
@@ -79,8 +84,8 @@ machine — otherwise macOS and Ubuntu CI can never share one baseline set.
 
 Regeneration is always explicit and always re-reviewed — never automatic.
 
-1. On an Ubuntu host matching CI (or in the CI job itself), boot the
-   receipt instance exactly as above with a **fresh data dir**, then:
+1. In the digest-pinned receipt CI environment, boot the receipt instance
+   exactly as above with a **fresh data dir**, then:
 
    ```bash
    cd ui && npm run receipts:update   # or: make ui-receipts-update
@@ -96,7 +101,7 @@ Regeneration is always explicit and always re-reviewed — never automatic.
    - Confirm masked regions (audit table cells, analytics body, settings
      lifecycle values) did not gain or lose coverage.
 3. Commit the PNGs with a message naming the rendering environment
-   (e.g. `test(receipts): refresh baselines on ubuntu-latest`).
+   (e.g. `test(receipts): refresh baselines on pinned Playwright Chromium`).
 
 ## What else is instance-generation-dependent
 

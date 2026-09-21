@@ -2,6 +2,7 @@ package main
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -52,7 +53,7 @@ func TestCIContractPinsToolsAndNamedGates(t *testing.T) {
 		prerequisites string
 		command       string
 	}{
-		{"test", "verify-glossary", "\tgo test ./... -timeout=60m"},
+		{"test", "verify-test-surreal verify-glossary", "\tgo test ./... -timeout=60m"},
 		{"ci-go", "verify-go verify-surreal", "\tgo test ./... -count=1 -timeout=60m"},
 	} {
 		// Match only this target's recipe, allowing its comment and engine
@@ -61,9 +62,6 @@ func TestCIContractPinsToolsAndNamedGates(t *testing.T) {
 		if !strings.Contains(recipe, gate.command+"\n") {
 			t.Errorf("Makefile target %s is missing full-suite allowance %q", gate.target, gate.command)
 		}
-	}
-	if !strings.Contains(string(makefile), `[ -z "$${PHEBS_SURREAL:-}" ] || [ ! -x "$$PHEBS_SURREAL" ]`) {
-		t.Error("make test must admit the supported explicit PHEBS_SURREAL binary override")
 	}
 	if !strings.Contains(string(makefile), `[ -n "$${PHEBS_SKIP_SURREAL_TESTS:-}" ] && [ "$$PHEBS_SKIP_SURREAL_TESTS" != 1 ]`) {
 		t.Error("make test must reject misspelled SurrealDB skip values")
@@ -107,6 +105,10 @@ func TestCIContractPinsToolsAndNamedGates(t *testing.T) {
 		`cmp "$first/$bundle/release-manifest.json" "$second/$bundle/release-manifest.json"`,
 		`sha256sum "$bundle.tar.gz"`,
 		"if-no-files-found: error",
+		"runs-on: ubuntu-24.04",
+		"mcr.microsoft.com/playwright:v1.62.1-noble@sha256:c091b21d9fae78c76e85cd4356431e9b018402f172a214fc7d7a5e9a7e29d8ac",
+		"PHEBS_RECEIPTS_BROWSER: chromium",
+		"cleanup_server()",
 	} {
 		if !strings.Contains(workflow, gate) {
 			t.Errorf("workflow is missing gate %q", gate)
@@ -141,6 +143,50 @@ func TestCIContractPinsToolsAndNamedGates(t *testing.T) {
 	}
 }
 
+func TestMakeTestGuardRequiresSurrealOnPath(t *testing.T) {
+	root := filepath.Clean("..")
+	makePath, err := exec.LookPath("make")
+	if err != nil {
+		t.Fatal(err)
+	}
+	fake := filepath.Join(t.TempDir(), "surreal-override")
+	if err := os.WriteFile(fake, []byte("#!/bin/sh\nexit 0\n"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	baseEnv := make([]string, 0, len(os.Environ())+2)
+	for _, entry := range os.Environ() {
+		if strings.HasPrefix(entry, "PATH=") ||
+			strings.HasPrefix(entry, "PHEBS_SURREAL=") ||
+			strings.HasPrefix(entry, "PHEBS_SKIP_SURREAL_TESTS=") {
+			continue
+		}
+		baseEnv = append(baseEnv, entry)
+	}
+	baseEnv = append(baseEnv, "PATH=/usr/bin:/bin", "PHEBS_SURREAL="+fake)
+
+	command := exec.Command(makePath, "--no-print-directory", "verify-test-surreal")
+	command.Dir = root
+	command.Env = baseEnv
+	output, err := command.CombinedOutput()
+	if err == nil || !strings.Contains(string(output), "binary not found in PATH") {
+		t.Fatalf("runtime-only override passed test guard: err=%v output=%s", err, output)
+	}
+
+	command = exec.Command(makePath, "--no-print-directory", "verify-test-surreal")
+	command.Dir = root
+	command.Env = append(baseEnv, "PHEBS_SKIP_SURREAL_TESTS=1")
+	if output, err := command.CombinedOutput(); err != nil {
+		t.Fatalf("explicit skip was refused: %v: %s", err, output)
+	}
+
+	command = exec.Command(makePath, "--no-print-directory", "verify-test-surreal")
+	command.Dir = root
+	command.Env = append(baseEnv, "PHEBS_SKIP_SURREAL_TESTS=true")
+	if output, err := command.CombinedOutput(); err == nil || !strings.Contains(string(output), "must be exactly 1") {
+		t.Fatalf("invalid skip value was accepted: err=%v output=%s", err, output)
+	}
+}
+
 // TestReceiptFixtureStagingContract pins the R3 hardening of the receipt
 // fixture staging path: the workflow must check the staging output before
 // eval (so a failed staging run fails the step instead of silently
@@ -169,6 +215,13 @@ func TestReceiptFixtureStagingContract(t *testing.T) {
 	}
 	if !strings.Contains(workflow, "sh scripts/test-stage-receipt-fixtures.sh") {
 		t.Error("workflow must run the receipt fixture staging regression tests")
+	}
+	configBytes, err := os.ReadFile(filepath.Join(root, "phebs-ux-dev.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(workflow, "sourcegraph/zoekt") || strings.Contains(string(configBytes), "sourcegraph/zoekt") {
+		t.Error("receipt cohort must not clone mutable sourcegraph/zoekt HEAD")
 	}
 
 	scriptBytes, err := os.ReadFile(filepath.Join(root, "scripts", "stage-receipt-fixtures.sh"))

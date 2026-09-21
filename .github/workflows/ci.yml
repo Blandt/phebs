@@ -92,7 +92,9 @@ jobs:
 
   screenshots:
     name: Playwright screenshot receipts
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    container:
+      image: mcr.microsoft.com/playwright:v1.62.1-noble@sha256:c091b21d9fae78c76e85cd4356431e9b018402f172a214fc7d7a5e9a7e29d8ac
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -113,6 +115,7 @@ jobs:
       - name: Boot dev instance and run screenshot receipts
         env:
           PHEBS_RECEIPT_EMAIL: ci-receipts@localhost.test
+          PHEBS_RECEIPTS_BROWSER: chromium
         run: |
           set -euo pipefail
           set -m
@@ -135,12 +138,8 @@ jobs:
           umask 077
           receipts_config="$RUNNER_TEMP/phebs-ci-receipts.yaml"
           cat > "$receipts_config" <<EOF
-          # CI copy of phebs-ux-dev.yaml: same neutral cohorts, a per-run
-          # data dir, and an ephemeral bootstrap operator for receipt auth.
-          connections:
-            - name: zoekt
-              type: git
-              url: https://github.com/sourcegraph/zoekt.git
+          # CI copy of phebs-ux-dev.yaml: the two retained local bundles are
+          # the complete receipt cohort. No mutable remote source is cloned.
           server:
             addr: "127.0.0.1:3073"
             data_dir: "$RUNNER_TEMP/phebs-ci-receipts-data"
@@ -164,8 +163,27 @@ jobs:
           # UI, then serves with the neutral demo fixtures the receipts pin.
           make dev ARGS="-config $receipts_config" >"$RUNNER_TEMP/phebs-dev.log" 2>&1 &
           server_pid=$!
-          trap 'kill -- -"$server_pid" 2>/dev/null || true' EXIT
+          cleanup_server() {
+            [ -n "${server_pid:-}" ] || return
+            kill -TERM -- "-$server_pid" 2>/dev/null || true
+            for _ in $(seq 1 20); do
+              if ! kill -0 -- "-$server_pid" 2>/dev/null; then
+                wait "$server_pid" 2>/dev/null || true
+                return
+              fi
+              sleep 0.25
+            done
+            kill -KILL -- "-$server_pid" 2>/dev/null || true
+            wait "$server_pid" 2>/dev/null || true
+          }
+          trap cleanup_server EXIT
           for _ in $(seq 1 120); do
+            if ! kill -0 "$server_pid" 2>/dev/null; then
+              if wait "$server_pid"; then server_status=0; else server_status=$?; fi
+              [ "$server_status" -ne 0 ] || server_status=1
+              printf 'receipt dev instance exited before readiness (status %s)\n' "$server_status" >&2
+              exit "$server_status"
+            fi
             if curl -fsS http://127.0.0.1:3073/api/version >/dev/null 2>&1; then
               break
             fi

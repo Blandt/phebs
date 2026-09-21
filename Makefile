@@ -16,7 +16,7 @@ T2014_RESULTS_PATH ?= /private/tmp/phebs-t20.14-results.json
 
 .PHONY: dev dev-api build clean validate-version validate-release-version validate-release-target \
 	release verify-release smoke-release test ui-test ui-receipts ui-receipts-update lint ui db-server \
-	verify-go verify-node verify-golangci-lint verify-surreal verify-glossary t20-closure \
+	verify-go verify-node verify-golangci-lint verify-surreal verify-test-surreal verify-glossary t20-closure \
 	docs-check ci ci-static ci-go ci-race ci-ui
 
 bin:
@@ -151,22 +151,24 @@ smoke-release: verify-release verify-surreal ## empty-data sync/index/search and
 
 # PHEBS_SKIP_SURREAL_TESTS=1 runs the suite without a SurrealDB binary; the
 # SurrealDB-backed tests keep their existing skip instead of failing this gate.
-test: verify-glossary ## full suite; fails loudly without the surreal binary unless PHEBS_SKIP_SURREAL_TESTS=1
+# Tests discover `surreal` on PATH, so the runtime-only PHEBS_SURREAL override
+# cannot satisfy this guard.
+test: verify-test-surreal verify-glossary ## full suite; fails loudly without the surreal binary unless PHEBS_SKIP_SURREAL_TESTS=1
+	go test ./... -timeout=60m
+
+verify-test-surreal:
 	@if [ -n "$${PHEBS_SKIP_SURREAL_TESTS:-}" ] && [ "$$PHEBS_SKIP_SURREAL_TESTS" != 1 ]; then \
 		printf 'error: PHEBS_SKIP_SURREAL_TESTS must be exactly 1 when set\n' >&2; \
 		exit 2; \
 	fi
 	@if [ "$${PHEBS_SKIP_SURREAL_TESTS:-}" != 1 ] && \
-		{ [ -z "$${PHEBS_SURREAL:-}" ] || [ ! -x "$$PHEBS_SURREAL" ]; } && \
 		! command -v surreal >/dev/null 2>&1; then \
 		printf 'error: `surreal` binary not found in PATH; SurrealDB-backed tests would silently skip\n' >&2; \
 		printf 'install SurrealDB %s (pinned in .surrealdb-version) and add it to PATH\n' "$(SURREALDB_VERSION)" >&2; \
-		printf 'or set PHEBS_SURREAL to an executable SurrealDB %s binary\n' "$(SURREALDB_VERSION)" >&2; \
 		printf '(in CI: sh scripts/install-surreal-ci.sh <work-dir>, then add <work-dir>/surreal-bin to PATH)\n' >&2; \
 		printf 'or set PHEBS_SKIP_SURREAL_TESTS=1 to run the suite without the SurrealDB-backed tests\n' >&2; \
 		exit 2; \
 	fi
-	go test ./... -timeout=60m
 
 docs-check: ## resolve tracked docs, enforce map coverage, and verify sealed T11.1 bytes
 	go test ./scripts \
