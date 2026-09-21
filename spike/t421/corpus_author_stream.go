@@ -34,7 +34,7 @@ type corpusAuthorSource struct {
 }
 
 func newCorpusAuthorSource(ctx context.Context, plan Plan) (*corpusAuthorSource, error) {
-	if ctx == nil || ctx.Err() != nil || plan.Schema != PlanV3Schema ||
+	if ctx == nil || ctx.Err() != nil || !processAccountingPlanSemantics(plan.Schema) ||
 		plan.Profile.Physical.CombinedRegularFiles != maxCorpusAuthorRecords || len(plan.Revisions.Physical) != 3 {
 		return nil, ErrExecutionCorpusAuthor
 	}

@@ -55,7 +55,7 @@ func TestStoreAccountingNativeControlReplyShapes(t *testing.T) {
 		name, method string
 		params       []any
 	}{
-		{"signin", "signin", []any{surrealdb.Auth{Username: "root", Password: "root"}}},
+		{"signin", "signin", []any{surrealdb.Auth{Username: "root", Password: runtime.Pass}}},
 		{"namespace_definition", "query", []any{"DEFINE NAMESPACE IF NOT EXISTS phebs;", nil}},
 		{"namespace_use", "use", []any{"phebs", nil}},
 		{"database_definition", "query", []any{"DEFINE DATABASE IF NOT EXISTS phebs;", nil}},
@@ -205,9 +205,9 @@ func TestStoreAccountingNativeFullInitializationAndReopen(t *testing.T) {
 	t.Cleanup(closeCurrent)
 	for phase := uint32(1); phase <= 2; phase++ {
 		if phase == 1 {
-			current, err = openLocalRootWithOwner(ctx, runtime.Endpoint, owner)
+			current, err = openLocalRootWithOwner(ctx, runtime, owner)
 		} else {
-			current, err = openWithOwner(ctx, runtime.Endpoint, "root", "root", "phebs", "phebs", owner)
+			current, err = openWithOwner(ctx, runtime.Endpoint, "root", runtime.Pass, "phebs", "phebs", owner)
 		}
 		if err != nil {
 			prefix, snapshotErr := controller.Snapshot()

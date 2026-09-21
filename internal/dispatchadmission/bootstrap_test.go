@@ -137,13 +137,28 @@ func TestProductionBootstrapHelper(t *testing.T) {
 		site = 999
 	case "compatibility":
 		site = SiteCompatibilitySandbox
+	case "surreal-no-credential":
+		command = exec.CommandContext(ctx, ProductionTool("surreal"), "-c", "exit 47")
+		site = SiteSurrealEngine
+		if owner, err := ProcessStoreOwner(); err != nil || owner != nil {
+			t.Fatal("fixture must have an installed runtime without an SDK owner")
+		}
 	case "healthy", "check-refused", "zero-budget":
 	default:
 		t.Fatal("unknown helper mode")
 	}
 	if mode != "healthy" {
-		if _, err := StartProduction(ctx, site, command); err == nil {
+		var err error
+		if mode == "surreal-no-credential" {
+			_, err = StartProductionWithEnv(ctx, site, command, nil)
+		} else {
+			_, err = StartProduction(ctx, site, command)
+		}
+		if err == nil {
 			t.Fatal("invalid command started")
+		}
+		if mode == "surreal-no-credential" && command.Process != nil {
+			t.Fatal("credential-free engine launched in an admitted lifetime")
 		}
 		if err := lifetime.Close(ctx); err == nil {
 			t.Fatal("failed producer closed successfully")
@@ -194,11 +209,46 @@ func TestProductionBootstrapHelper(t *testing.T) {
 	if err != nil || string(output) != "native-version\n" {
 		t.Fatalf("combined output: %q, %v", output, err)
 	}
-	recovery := exec.CommandContext(ctx, ProductionTool("surreal"), "-c", `test "$SURREAL_USER" = root && test "$SURREAL_PASS" = root`)
-	if err := RunProduction(ctx, SiteRecoverySurreal, recovery); err != nil {
+	recovery := exec.CommandContext(ctx, ProductionTool("surreal"), "-c", `test "$SURREAL_USER" = root && test "$SURREAL_PASS" = caller-supplied-test-pass`)
+	if err := RunProductionWithEnv(ctx, SiteRecoverySurreal, recovery, []string{SurrealPassEnvKey + "=caller-supplied-test-pass"}); err != nil {
 		t.Fatal(err)
 	}
 	productionHelperFinish(t, ctx, lifetime)
+}
+
+// TestAdmitSurrealPassEnv exercises the closed extra-environment channel for
+// the SurrealDB child sites without poisoning a live production lifetime: no
+// hardcoded credential may reach a child, and only the exact single
+// "SURREAL_PASS=<value>" entry is admitted.
+func TestAdmitSurrealPassEnv(t *testing.T) {
+	t.Parallel()
+	for _, site := range []uint32{SiteSurrealEngine, SiteRecoverySurreal} {
+		entry, err := admitSurrealPassEnv(site, []string{SurrealPassEnvKey + "=caller-supplied-test-pass"})
+		if err != nil || entry != SurrealPassEnvKey+"=caller-supplied-test-pass" {
+			t.Fatalf("site %d admit valid entry: %q, %v", site, entry, err)
+		}
+		for name, extra := range map[string][]string{
+			"missing":     nil,
+			"empty":       {},
+			"two entries": {SurrealPassEnvKey + "=a", SurrealPassEnvKey + "=b"},
+			"wrong key":   {"SURREAL_USER=root"},
+			"no value":    {SurrealPassEnvKey + "="},
+			"no equals":   {SurrealPassEnvKey},
+			"newline":     {SurrealPassEnvKey + "=a\nb"},
+			"nul":         {SurrealPassEnvKey + "=a\x00b"},
+		} {
+			if admitted, err := admitSurrealPassEnv(site, extra); err == nil {
+				t.Fatalf("site %d admitted %s entry: %q", site, name, admitted)
+			}
+		}
+	}
+	// Non-SurrealDB sites refuse any extra environment entry.
+	if _, err := admitSurrealPassEnv(SiteSyncGit, []string{SurrealPassEnvKey + "=caller-supplied-test-pass"}); err == nil {
+		t.Fatal("non-surreal site admitted SURREAL_PASS entry")
+	}
+	if admitted, err := admitSurrealPassEnv(SiteSyncGit, nil); err != nil || admitted != "" {
+		t.Fatalf("non-surreal site empty entry: %q, %v", admitted, err)
+	}
 }
 
 func productionHelperFinish(t *testing.T, ctx context.Context, lifetime *ProductionLifetime) {
@@ -222,7 +272,7 @@ func productionHelperFinish(t *testing.T, ctx context.Context, lifetime *Product
 }
 
 func TestProductionBootstrapInheritedBoundary(t *testing.T) {
-	for _, mode := range []string{"healthy", "author", "semantic", "wrong-path", "wrong-argv0", "extra-files", "unknown-site", "compatibility", "check-refused", "zero-budget", "output-overflow"} {
+	for _, mode := range []string{"healthy", "author", "semantic", "wrong-path", "wrong-argv0", "extra-files", "unknown-site", "compatibility", "surreal-no-credential", "check-refused", "zero-budget", "output-overflow"} {
 		t.Run(mode, func(t *testing.T) {
 			ctx, cancel := context.WithTimeout(t.Context(), 15*time.Second)
 			defer cancel()

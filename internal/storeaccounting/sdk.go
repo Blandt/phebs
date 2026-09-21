@@ -622,6 +622,7 @@ type SDKConnection struct {
 	sdkNative
 	owner     *SDKOwner
 	localStep storeLocalStep // guarded by owner.mu; zero is not a local initializer
+	localAuth surrealdb.Auth // guarded by owner.mu; fixed local root auth for the local steps
 	localBusy bool
 }
 
@@ -732,7 +733,7 @@ func (conn *SDKConnection) Call(ctx context.Context, request *connection.RPCRequ
 		// copy, never that externally mutable pointer after the final gate.
 		forwarded.Params = []any{&nativeTransaction}
 	case "signin":
-		forwarded.Params = []any{storeLocalAuth()}
+		forwarded.Params = []any{conn.localAuth}
 	case "use":
 		forwarded.Params = storeLocalUseParams(call.localStep)
 	}

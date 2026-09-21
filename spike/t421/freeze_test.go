@@ -343,7 +343,11 @@ type executionFreezeCandidateTestFixture struct {
 
 func newExecutionFreezeCandidateTestFixture(t *testing.T) executionFreezeCandidateTestFixture {
 	t.Helper()
-	plan := accountingTestPlan(t)
+	return newExecutionFreezeCandidateTestFixtureForPlan(t, accountingTestPlan(t))
+}
+
+func newExecutionFreezeCandidateTestFixtureForPlan(t *testing.T, plan Plan) executionFreezeCandidateTestFixture {
+	t.Helper()
 	commits := executionFreezeTestCommits()
 	tools := executionFreezeTestTools(plan, commits)
 	host := executionFreezeTestHost()
@@ -661,7 +665,7 @@ func TestExecutionFreezeCandidateRejectsMutatedWireBytes(t *testing.T) {
 
 func TestExecutionFreezeCandidatePreservesPublicLegacyConstruction(t *testing.T) {
 	for _, plan := range lifecyclePolicyPlans(t) {
-		if plan.Schema == PlanV3Schema {
+		if processAccountingPlanSemantics(plan.Schema) {
 			continue
 		}
 		t.Run(plan.Schema, func(t *testing.T) {
@@ -754,7 +758,7 @@ func executionFreezeTestTools(plan Plan, commits ExecutionCommits) []ExecutionTo
 				"t422-zoekt-build-recipe-v1", tool.ModulePath, tool.ModuleVersion,
 				tool.ModuleSum, plan.ToolPolicy.ZoektBuildRecipe,
 			)
-			if plan.Schema == PlanV3Schema {
+			if processAccountingPlanSemantics(plan.Schema) {
 				tool.Provenance = zoektOfferProvenance
 				tool.BuildRecipeSHA256 = zoektOfferRecipe(plan.ToolPolicy, commits.T422SourceCommit)
 			}
@@ -806,7 +810,7 @@ func executionProfileTestAdmission(
 		rootVolumeBindingsSHA256:  SHA256([]byte("t422-test-root-volume-bindings")),
 		closedEnvironment:         true,
 	}
-	if plan.Schema == PlanV3Schema {
+	if processAccountingPlanSemantics(plan.Schema) {
 		admission.verifiedBeforeOperationalWork = true
 		admission.signerNamespaceSHA256 = strings.TrimPrefix(SHA256([]byte("t422-test-signer-namespace")), "sha256:")
 		if len(signerNamespaceSHA256) == 1 {
@@ -857,7 +861,7 @@ func executionProfileTestAdmission(
 		Roots:                    frozenExecutionRoots(host, admission.rootVolumeBindingsSHA256),
 		Epochs:                   epochs,
 	}
-	if plan.Schema == PlanV3Schema {
+	if processAccountingPlanSemantics(plan.Schema) {
 		admission.processAccountingSHA256, err = canonicalSHA256(plan.ProcessAccounting)
 		if err != nil {
 			t.Fatal(err)

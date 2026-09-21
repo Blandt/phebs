@@ -114,7 +114,7 @@ func TestResolverRetirementNativeFences(t *testing.T) {
 			t.Error(err)
 		}
 	})
-	if _, err := db.SignIn(ctx, surrealdb.Auth{Username: "root", Password: "root"}); err != nil {
+	if _, err := db.SignIn(ctx, surrealdb.Auth{Username: "root", Password: runtime.Pass}); err != nil {
 		t.Fatal(err)
 	}
 	if err := db.Use(ctx, "phebs", "phebs"); err != nil {

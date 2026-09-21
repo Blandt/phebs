@@ -175,7 +175,7 @@ func TestPartitionedPinNativeAcquisition(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(stop)
-	s, err := Open(ctx, runtime.Endpoint, "root", "root", submissionProbeScope, submissionProbeScope)
+	s, err := Open(ctx, runtime.Endpoint, "root", runtime.Pass, submissionProbeScope, submissionProbeScope)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -293,7 +293,7 @@ CREATE $other CONTENT {pin_key: $key, run_id: $run, kind: $owner, created_at: $a
 			if runtime.Surreal.Version != "3.2.0" {
 				t.Fatalf("unexpected native version %q", runtime.Surreal.Version)
 			}
-			partitionedPinNativeMetrics(ctx, t, s, runtime.Endpoint, owner)
+			partitionedPinNativeMetrics(ctx, t, s, runtime.Endpoint, runtime.Pass, owner)
 		})
 	}
 }
@@ -336,10 +336,10 @@ func partitionedPinNativeTimestamp(ctx context.Context, t *testing.T, s *Surreal
 	return (*rows)[0].Result[0].At
 }
 
-func partitionedPinNativeMetrics(ctx context.Context, t *testing.T, s *Surreal, endpoint, owner string) {
+func partitionedPinNativeMetrics(ctx context.Context, t *testing.T, s *Surreal, endpoint, pass, owner string) {
 	t.Helper()
 	run, _ := partitionedPinNativeFixture(ctx, t, s, "metrics")
-	bearer, err := s.db.SignIn(ctx, surrealdb.Auth{Username: "root", Password: "root"})
+	bearer, err := s.db.SignIn(ctx, surrealdb.Auth{Username: "root", Password: pass})
 	if err != nil || bearer == "" {
 		t.Fatalf("metrics token unavailable: %v", err)
 	}

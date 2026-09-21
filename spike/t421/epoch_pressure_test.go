@@ -17,8 +17,9 @@ import (
 
 func TestExecutionEpochPressureBounds(t *testing.T) {
 	plan := Plan{Schema: PlanV3Schema, PhaseDeadlines: frozenPhaseDeadlines(), SafetyEnvelope: frozenSafetyEnvelope()}
+	plan.PhaseDeadlines[8].DeadlineMS = pressure80V3DeadlineMS
 	bounds, err := checkpointPressureEpochBounds(plan)
-	if err != nil || bounds.lifetime != 5*time.Hour || bounds.controlPairs != 28 || bounds.health != 15*time.Minute || bounds.outputBytes != 64<<20 {
+	if err != nil || bounds.lifetime != 5*time.Hour+5*time.Minute || bounds.controlPairs != 28 || bounds.health != 15*time.Minute || bounds.outputBytes != 64<<20 {
 		t.Fatal(bounds, err)
 	}
 	// The launcher uses this same conversion for both authenticated endpoints.

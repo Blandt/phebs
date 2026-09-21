@@ -68,7 +68,7 @@ func (flow *ExecutionEpochOne) bindProfileExecutor(ctx context.Context, launcher
 	epochs.mu.Lock()
 	defer epochs.mu.Unlock()
 	live := &executionProfileLauncherCustody{parent: launcher}
-	if flow.plan.Schema != PlanV3Schema || flow.closed || flow.used || flow.authored || !flow.authorStarted.IsZero() ||
+	if !processAccountingPlanSemantics(flow.plan.Schema) || flow.closed || flow.used || flow.authored || !flow.authorStarted.IsZero() ||
 		flow.workspace != nil || flow.profileExecutor != nil || author.request.Builds == nil ||
 		author.closed || author.err != nil || author.active ||
 		author.borrowedBy != nil || author.next != 0 || epochs.closed || epochs.err != nil || epochs.active || epochs.released != 0 {
@@ -116,7 +116,7 @@ func verifyExecutionProfileExecutor(ctx context.Context, builds *ExecutionGoBuil
 	if builds.check(ctx) != nil {
 		return ExecutionToolIdentity{}, ErrExecutionEpochOne
 	}
-	identity, goIdentity, err := builds.verifyReferenceTool(ctx, filepath.Dir(builds.directory), "t422-execute", path, PlanV3Schema)
+	identity, goIdentity, err := builds.verifyReferenceTool(ctx, filepath.Dir(builds.directory), "t422-execute", path, PlanV4Schema)
 	if err != nil || goIdentity != builds.goIdentity || identity.SHA256 != digest {
 		return ExecutionToolIdentity{}, ErrExecutionEpochOne
 	}
@@ -148,7 +148,7 @@ func (custody *executionProfileExecutorCustody) check(ctx context.Context) (Exec
 }
 
 func newExecutionWorkspaceCustodyCapability(schema string, volume *executionPressureVolume, flow *ExecutionEpochOne) *executionWorkspaceCustodyCapability {
-	if schema != PlanV3Schema || volume == nil || flow == nil {
+	if !processAccountingPlanSemantics(schema) || volume == nil || flow == nil {
 		return nil
 	}
 	capability := &executionWorkspaceCustodyCapability{state: &executionWorkspaceCustodyCapabilityState{}}
@@ -557,7 +557,7 @@ func profileObservationSetComplete(flow *ExecutionEpochOne) bool {
 }
 
 func profilePreimageObservationSetComplete(flow *ExecutionEpochOne) bool {
-	return flow.plan.Schema == PlanV3Schema && flow.profileEnvironmentUsed && flow.profileEnvironment != nil && len(flow.profileCommands) == 3 &&
+	return processAccountingPlanSemantics(flow.plan.Schema) && flow.profileEnvironmentUsed && flow.profileEnvironment != nil && len(flow.profileCommands) == 3 &&
 		flow.profileHostUsed && flow.profileHost != nil && flow.profileSystemUsed &&
 		flow.profileSigner != nil && flow.profileTools[0] != nil && flow.profileTools[1] != nil &&
 		flow.profileRuntime != nil && flow.profileRuntime.Complete && flow.profileRuntime.err == nil && flow.profileRuntime.releasable()

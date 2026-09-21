@@ -64,7 +64,7 @@ func TestLocalEngineQuiescentMeasurementNative(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer engine.stop()
-	state, err := openLocalRootWithOwner(ctx, runtime.Endpoint, owner)
+	state, err := openLocalRootWithOwner(ctx, runtime, owner)
 	if err != nil {
 		t.Fatal(err)
 	}

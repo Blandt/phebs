@@ -11,7 +11,7 @@ import (
 // traversals whose native manifest was validated, written and directory-synced;
 // failed B/E byte prefixes and retained-source reopens are not full passes.
 func composeExecutionPopulationMetrics(plan Plan, work executionJoinedWork, inspection []ExecutionPhaseInspection, authors []ExecutionAuthorResult, out *executionReceiptMetrics) error {
-	if out == nil || plan.Schema != PlanV3Schema || len(plan.PhaseOrder) != 15 || len(inspection) > 14 || len(authors) > 3 {
+	if out == nil || !processAccountingPlanSemantics(plan.Schema) || len(plan.PhaseOrder) != 15 || len(inspection) > 14 || len(authors) > 3 {
 		return errExecutionReceiptMetrics
 	}
 	seen := [15]bool{}

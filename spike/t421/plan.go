@@ -128,6 +128,8 @@ func ValidateFrozenPlan(plan Plan) error {
 		if plan.LogicalStoreWork != nil {
 			build = BuildPlanV3WithLogicalStoreWork
 		}
+	case PlanV4Schema:
+		build = BuildPlanV4
 	default:
 		return errors.New("T42.1 plan schema is unknown")
 	}
@@ -248,8 +250,8 @@ func validatePlan(plan Plan, knownRevisions *RevisionHistory) error {
 	if len(raw) > MaxPlanBytes {
 		return fmt.Errorf("T42.1 plan exceeds its frozen byte bound: observed=%d limit=%d", len(raw), MaxPlanBytes)
 	}
-	if plan.Schema == PlanV3Schema && len(raw) > MaxPlanV3AuthorBytes {
-		return fmt.Errorf("T42.1 V3 plan exceeds its authoring headroom target: observed=%d limit=%d", len(raw), MaxPlanV3AuthorBytes)
+	if processAccountingPlanSemantics(plan.Schema) && len(raw) > MaxPlanV3AuthorBytes {
+		return fmt.Errorf("T42.1 compact plan exceeds its authoring headroom target: observed=%d limit=%d", len(raw), MaxPlanV3AuthorBytes)
 	}
 	return rejectSourceBearingPlan(raw)
 }
@@ -329,7 +331,7 @@ func validateCombinedProfile(profile CombinedProfile, schema string) error {
 		CandidateRepositoryMembers: 8, CandidateCallerLeaves: 8, MaximumCallerLeafRecords: 2_773,
 		ExtractionDomains: frozenExtractionDomains(),
 	}
-	if schema == PlanV3Schema {
+	if processAccountingPlanSemantics(schema) {
 		wantPipeline.ExtractionDomains = storeBoundExtractionDomains()
 	}
 	if !reflect.DeepEqual(pipeline, wantPipeline) {

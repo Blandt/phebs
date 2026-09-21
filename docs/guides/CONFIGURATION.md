@@ -596,7 +596,11 @@ the nearest proxy outward.
 After signing in, open **Settings**, name a key, and copy the returned
 `phebs_<id>.<secret>` token immediately; the secret is shown once and only its
 SHA-256 hash is stored. Send it as `Authorization: Bearer <token>`. Keys are
-individually revocable and their last-use time is recorded. Key listing,
+individually revocable and their last-use time is recorded. Key creation
+accepts an optional `expires_at` RFC3339 timestamp, which must be in the
+future; an expired key fails authentication. Omitting `expires_at` (or sending
+`null`) creates a key that never expires, and existing keys without an expiry
+keep working unchanged. Key listing,
 creation, and revocation require a CSRF-protected browser session; bearer keys
 cannot mint replacements or revoke sibling credentials.
 
@@ -626,7 +630,19 @@ startup phebs imports only that key's hash as `Legacy config key`. Create a
 named key for each client, deploy those tokens, then remove `auth.api_key`;
 the next startup deletes the legacy key row. The legacy principal has no user
 identity, has an empty capability set, and cannot manage named keys or perform
-Investigation mutations itself. Existing named keys likewise migrate with an
+Investigation mutations itself. An administrator can revoke the legacy key
+through the API with `DELETE /api/auth/keys/legacy-config`; anyone else
+receives the same not-found response as for any out-of-scope key id. The
+revocation survives restarts: re-syncing an unchanged `auth.api_key` does not
+resurrect a revoked key. Rotating the configured key clears the revocation,
+and removing `auth.api_key` deletes the legacy row at the next startup.
+Once this version has opened the store, a generation-named database event also
+keeps that boundary fail-closed across an older binary reopen. The previous
+legacy writer cannot replace the reserved row identity or recreate a deleted
+legacy row, so its configured legacy bearer remains unavailable; current
+binaries can still rotate, remove, and explicitly recreate the credential as
+described above.
+Existing named keys likewise migrate with an
 empty set; their tokens, hashes, identity, expiry, revocation, and existing
 read behavior do not change.
 The startup migration records its exact generation and skips the key-table

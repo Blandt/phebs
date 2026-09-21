@@ -43,12 +43,21 @@ evidence.
 - [T42.1 combined-gate freeze contract](../spike/t421/README.md) and canonical
   [source-free plan](../spike/t421/plan.json). The plan is not an exact-main
   execution freeze and grants no T42.2 execution or release authority.
+- [T42.2q source-free failure-calibration shadow](../spike/t422q/)
 
 These directories preserve executable gates, locked inputs, synthetic
 fixtures, and decision tables used by their completed tickets. They may be
 maintained when a reproducibility defect is found, but they do not become
 current behavior documentation and do not inherit T11.1’s sealed status.
 Production packages must not import spike packages.
+
+The T42.2q directory retains only the deterministic source-free projector,
+strict pinned-model client, content-bound episode/question identities, offline
+two-axis evaluator and tests. Reviewed package
+allowlists, projected episodes, predictions and blinded labels remain private
+operator records unless a later decision accepts an exact redacted artifact.
+Neither code presence nor a model response establishes calibration, accuracy,
+ceremony authority, release or permission to skip an existing failure gate.
 
 The T32.2 directory retains the strict source-free receipt builder,
 invalid-until-completed templates, tests, private-run protocol, and the

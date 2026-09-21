@@ -55,6 +55,7 @@ preserve both parent and server logs when diagnosing a selected run.
 ```
 $DATA/                     # server.data_dir, default ~/.phebs
 ├── db/                    # SurrealDB — users, API keys, sessions, repo/jobs
+├── .surreal-child-pass    # mode-0600 root password bound to this db/; back up with db/
 ├── .surreal-runtime.json  # private, process-owned live-backup rendezvous
 ├── repos/<host>/<path>.git  # bare mirrors
 ├── candidates/            # derived candidate manifests and NDJSON members
@@ -68,8 +69,11 @@ $DATA/                     # server.data_dir, default ~/.phebs
 Mirrors, candidate publications, shards, repo rows, and jobs are rebuildable
 from config and upstream Git. **Authentication state is not derived:**
 `$DATA/db` now contains users,
-OIDC links, API-key hashes, and sessions (see *Backup & restore*). Deleting
-the whole data directory is an intentional auth reset as well as a reindex;
+OIDC links, API-key hashes, and sessions (see *Backup & restore*), and the
+database's root credential lives in `$DATA/.surreal-child-pass`, a mode-0600
+file bound to that `db/` directory's lifetime. A `db/` copy without its
+matching password file cannot be opened. Deleting the whole data directory
+is an intentional auth reset as well as a reindex;
 the next start requires first-user enrollment.
 
 ### Startup schema repair
@@ -114,10 +118,16 @@ The source-definition guard is not a database-row or memory limit.
 
 ### Backup & restore
 
-Precious state is `$DATA/db` plus the exact config file — the users, OIDC
+Precious state is `$DATA/db`, `$DATA/.surreal-child-pass`, and the exact
+config file — the users, OIDC
 links, API-key hashes, sessions, permission edges, audit/analytics history,
 evidence, extraction outcomes, and proof pins that cannot be rebuilt (repo
-rows and job state ride along but are derivable). Mirrors and
+rows and job state ride along but are derivable). The password file holds the
+random root credential recorded when that database was initialized; SurrealDB
+never rotates the stored root password, so a `db/` copy is openable only with
+its matching password file. A database initialized before this binding (the
+old root/root era) keeps that password instead and also persists the choice in
+its password file on first contact. Mirrors and
 whole-repository shards are derived.
 Focused shards are also derived semantically, but online backup preserves
 a validated marker-free physical publication byte-exactly without claiming
@@ -416,6 +426,10 @@ absent or completely empty configured `$DATA`:
 phebs restore -config /etc/phebs/phebs.yaml -backup /restricted/phebs-backup-20260722
 phebs serve   -config /etc/phebs/phebs.yaml
 ```
+
+The import target is a fresh database with its own new root credential, so
+the online path never needs the source's `.surreal-child-pass`; the manifest
+records the database identity but no password.
 
 Recovery config validation deliberately leaves `${SECRET}` references
 unexpanded, so verification/import can happen in an isolated environment
@@ -1340,13 +1354,48 @@ live — rotate them if the backup's custody was ever in doubt.
 The stop-first cold path remains available:
 
 1. Stop phebs and wait for exit, so SurrealKV is quiescent — a plain
-   filesystem copy of a live `db/` is not consistent.
-2. Copy the config file and `$DATA/db` to restricted storage; this is
-   credential-bearing state.
-3. Restart.
+   filesystem copy of a live `db/` is not consistent. Confirm the database
+   child process has exited before copying.
+2. Copy the config file, `$DATA/db`, and `$DATA/.surreal-child-pass` to
+   restricted storage as one matching set; this is credential-bearing state.
+   The password file is the root credential for exactly that `db/` copy —
+   never mix a `db/` copy with another directory's password file.
+3. Preserve restrictive permissions on the copied state: the password file
+   must be mode 0600.
+4. Restart.
 
-For a cold restore, place only the copied `db/` into a fresh `$DATA`, point
-phebs at the same config, and start; the same automatic backfill applies.
+For a cold restore, place the copied `db/` and its matching
+`.surreal-child-pass` into a fresh `$DATA`, restore the password file as mode
+0600, point phebs at the same config, and start; the same automatic backfill
+applies.
+
+The password file is not optional. A restore without it, or with another
+database's file, fails authentication before phebs opens its store. No root
+credential is created or rotated, no persisted credential is replaced, and
+no phebs schema or application write runs before successful sign-in. Starting
+the engine can still update its storage housekeeping files; this is not a
+byte-for-byte read-only inspection. If the
+original directory is gone and its password file was not preserved, that
+database cannot be opened again — do not delete the file and do not generate
+a replacement password expecting it to work. Recover from the online backup
+instead, or re-enroll into a fresh data directory. An empty `db/` directory
+is the one exception: with no initialized database inside, the next start
+treats it as a fresh database and persists a new root credential for it.
+A nonempty directory without a password file is ambiguous, even if its only
+entry is unrelated to SurrealDB. Ordinary startup probes with authentication
+enabled, no root-initialization credentials, and no automatic namespace or
+database defaults. This legacy probe ignores inherited `SURREAL_*` settings
+(including import files and authentication overrides). It persists the
+historical root password only after an actual successful sign-in to a legacy
+root/root database. A rootless or unknown-password database refuses startup
+without minting an inaccessible root or guessing a replacement password.
+Selected-owner execution refuses this legacy migration before the database
+child starts; perform any verified legacy migration in ordinary mode first.
+
+The online logical path is different and stays separate: `phebs restore`
+imports the exported SurrealQL into a fresh target database that receives its
+own new root credential, so it does not need — and the online backup does not
+contain — the source's `.surreal-child-pass`.
 
 ### Security boundary
 
@@ -7448,9 +7497,24 @@ restart and pressure-volume selectors, along with their existing predecessor
 selectors, before allocating custody. It prepares one empty ballast inode
 before AuthorA, then uses the owned 96-GiB volume for the fixed 80/90/75
 sequence after checkpoint recovery. Each pressure phase retains its original
-twenty-minute deadline; the test's total allowance adds one hour, without
-extending any phase deadline. Run only from a reviewed exact source and with
-the separately verified pinned environment and disk prerequisites.
+target and mutation predicates. Prospective V3 gives pressure-80 twenty-five
+minutes for its post-cleanup 150-second sampled stabilization gate;
+pressure-90 and pressure-75 remain twenty minutes. The test's pressure
+allowance is therefore sixty-five minutes. Historical V1/V2 deadlines remain
+exact. Run only from a reviewed exact source and with the separately verified
+pinned environment and disk prerequisites.
+
+After pressure-80's real lifecycle cleanup is drained and requests are fenced,
+the V3 parent anchors the first valid non-ballast `Used - Allocated` sample,
+continues sampling at the existing 50-ms cadence for at least 150 seconds, and
+requires a later valid sample within the 4,096-byte allocation-unit tolerance.
+Intermediate movement within the frozen pre-pressure `Used` envelope remains
+in the fixed diagnostic aggregate but does not restart the interval. An
+out-of-envelope sample, persistent anchor shift, custody or ballast-allocation
+drift, authority loss, cancellation or phase-wall expiry refuses. This gate
+precedes the first ballast mutation and does not relax its delta check, receipt
+continuity or the one-shot rule. Endpoint stabilization is not proof of
+continuous stability.
 
 Before each ballast mutation, the parent reuses the phase's required native
 workspace sample to project both logical and per-linked-path allocated bytes
@@ -7507,14 +7571,217 @@ Every report must be zero, every parsing phase needs one, and a sixth report in
 one phase refuses. This does not mean all source languages are supported, and
 the record is not a phase metric or freeze authorization by itself.
 
-### T42.2 canonical V3 plan authoring
+### T42.2p prospective V4 pressure continuity
 
-After complete implementation acceptance, select `-schema v3` on
+V4 will retain a fresh native sample at each pressure boundary and permit that
+sample to differ from the prior phase endpoint by at most the signed
+`InterphaseDriftToleranceBytes` value of 65,536. The bound applies separately,
+in either direction, to available filesystem bytes and linked-data allocated
+bytes at 80-to-90 and 90-to-75. It is not carry-forward: the receipt keeps both
+observed endpoints, checks each boundary independently and grants no cumulative
+credit. Exactly 65,536 is a selected 16-block policy margin, not a measured
+maximum for APFS, SurrealKV or the host.
+
+The retained evidence supports only the measured shape. `64f2f455` recorded
+10,255 valid samples and 74 adjacent changes across a 12,288-byte `Used` range,
+with equal first and last values and a three-block `Bfree` range; aggregates do
+not prove two levels, lockstep counters or a causal owner. `e8d2cd35` recorded
+8,192-byte opposite-direction `Used`/`Available` movement at an interphase
+boundary while linked-data allocation stayed exact. Its final ballast removal
+also used the full existing 4,096-byte mutation tolerance. The separately
+observed 61,472,768-byte persistent release is exactly 938 times the V4
+allowance and remains a refusal.
+
+V4 does not change the 80/90/75 targets, their 4,096-byte tolerance, the
+one-shot add/shrink checks, exact ballast/data allocation equality, the
+150-second anchored endpoint gate, pre-pressure envelope, cancellation,
+authority, event order or phase walls. V4 recovery removal instead uses the
+same signed 65,536-byte bound for its volume delta; V1/V2/V3 retain 4,096.
+Plan, freeze, receipt and pressure-transition schemas
+advance independently so retained V1, V2 and V3 artifacts continue to validate
+byte-for-byte; the new freeze scalar must be absent from those historical JSON
+encodings. A complete audit of every V3-only author, freeze, profile, launcher,
+composer and validator route is required before V4 is runnable.
+
+The implemented create-only author accepts `-schema v4` with the existing
+`-repository-root`, exact `-source-commit` and new `-out` arguments. That option
+does not grant readiness or retry authority. T42.2p implementation and
+independent review precede renewed T42.2n exact-tree acceptance, and T42.2o may
+author/seal only V4 after both close. Do not run another pressure or signed-
+readiness rehearsal under this ticket. A failure still retains exact custody
+for review and is never an automatic retry or disposal authorization.
+
+### T42.2q source-free Jev shadow
+
+This operator-only spike is separate from the ceremony. It cannot start,
+resume, stop, retry, seal or classify a live run. Build its reviewed allowlist
+out of band; adjacent `.sha256` files and bundle-internal checksums are not an
+independent trust root. The strict input is one JSON object:
+
+```json
+{"schema":"t422q-reviewed-bundle-allowlist-v1","bundles":[{"package_path":"/absolute/reviewed/source-free.tgz","package_digest":"sha256:<reviewed-package-digest>"}]}
+```
+
+Project only authenticated returned bundles into a create-only private JSONL
+file:
+
+```sh
+go run ./spike/t422q/cmd/t422q-shadow project \
+  -allowlist /absolute/path/to/reviewed-allowlist.json \
+  -output /absolute/private/path/episodes.jsonl
+```
+
+The projector reuses the returned-package authenticator, decodes the canonical
+plan and receipt, collapses repeated closed diagnostics and deletes its private
+temporary extraction root before returning. It never discovers bundles or
+trusts an adjacent sidecar. Episode facts and final resolution remain local;
+only each episode's `model_input` object is eligible for egress.
+
+Load `JEV_KEY` into the command environment without placing it in a file,
+argument, log or artifact, then run the pinned shadow classifier:
+
+```sh
+go run ./spike/t422q/cmd/t422q-shadow classify \
+  -allowlist /absolute/path/to/reviewed-allowlist.json \
+  -output /absolute/private/path/predictions.jsonl
+```
+
+The classifier deliberately re-authenticates and reprojects the allowlist; an
+operator-edited episode file can never reach the network. Classification is
+serial, gives each request 30 seconds, bounds the Jev phase to 30 seconds per
+projected episode plus one minute, and never retries a 429, 529 or ambiguous
+transport result. It opens the create-only output before extraction or paid
+calls, and deletes that output if the all-or-nothing attempt fails.
+An uncatchable process death or power loss can instead leave a zero-byte 0600
+output sentinel. Treat it as an ambiguous consumed attempt: retain it, do not
+overwrite it or automatically rerun, and use a new output path only after an
+explicit operator disposition.
+The exact response model must be `jev-1.13.0`; malformed, oversized, partial,
+extra-field or out-of-range output fails the pilot attempt. Every prediction
+also binds the exact `t422q-jev-questions-v1` contract. Predictions are
+external advisory metadata under TM-10 and TM-15. They must not be copied into
+a ceremony package or used to suppress an existing stop/retry/review gate.
+Keep human labels separate and blinded to predictions until adjudication.
+Use `t422q-human-label-v1` JSONL keyed by `episode_id`; each row assigns the
+whole receipt to `development` or `test`, records both
+`observation_terminal` and `repair_required` booleans, and uses
+`basis=human_adjudication`. Set both answers to `null` to abstain. The report
+keeps abstention denominators, and any development or test abstention blocks
+`shadow_go`. Keep every episode from one receipt in one split; authenticated
+measurement dates must put every development receipt strictly before every test
+receipt. The realized live corpus has 25 episode-bearing groups, so the earlier
+oldest-20/newest-10 plan is impossible. No adjudication is required for its
+operational `shadow_no_go`. If a separately authorized diagnostic evaluation
+is still useful, freeze the oldest 15 groups through 2026-08-21 as development
+and the newest 10 groups from 2026-08-22 as test before revealing labels. That
+post-screen diagnostic cannot authorize a no-action GO.
+
+After adjudication, evaluate without another API call:
+
+```sh
+go run ./spike/t422q/cmd/t422q-shadow evaluate \
+  -episodes /absolute/private/path/episodes.jsonl \
+  -predictions /absolute/private/path/predictions.jsonl \
+  -labels /absolute/private/path/labels.jsonl \
+  -output /absolute/private/path/calibration-report.json
+```
+
+The evaluator scores `observation_terminal` and `repair_required` separately;
+each test axis needs both classes and positive receipt-equal Brier skill. Its
+zero-error false-benign bound is conditional on independently justified receipt
+groups, which the retained inventory does not establish. `shadow_go=true`
+means only that the frozen no-action pilot criteria passed. It is not permission
+to change a ceremony or automate classification.
+
+Offline cost remains bounded: projection reads one at-most-4-MiB package and
+one at-most-1-MiB expanded receipt at a time, may retain up to 128 MiB of
+expanded temporary custody plus 4,096 projected episodes, and always attempts
+to remove that custody. JSONL rows are at most 16 KiB, classification makes at
+most 4,096 serial calls, and evaluation is linear in at most 4,096 rows. No
+product request, sync, startup, retry/no-op,
+publication, store/schema operation, lock, cache, corpus/shard read or child
+process is added.
+
+### T42.2r offline error-site census
+
+Run the census only from the repository root and before any model call:
+
+```sh
+go run ./spike/t422r/cmd/t422r-sweep census -root "$PWD" > /private/tmp/t422r-error-sites.jsonl
+```
+
+The CLI checks clean `HEAD` before analysis and rechecks it before successful
+return. Its first JSONL row is a header that binds the source commit, analyzer
+build and resolved/unresolved counts. It then follows typed package-local calls
+across sibling files from the four repository-status and progress polling roots
+and writes deterministic rows for reachable Phebs-owned 400–599 constructors
+and unresolved boundaries. The initial census finds 50 statically resolved
+sites plus 37 explicit unresolved boundaries. Those gaps block completeness
+and calibration; the resolved set is not a high-volume corpus.
+
+Review static `unnameable_inline` rows and policy-fixed `real_fault` rows
+locally. Do not send them to Jev, copy the worklist into the T42.2q classifier,
+or edit `progressRetryConflictDetail` from generated output. A candidate fence
+change is a separate human-authored and reviewed ticket. Any incomplete type
+load, unresolved overflow or changed census requires review rather than a paid
+fallback. No model invocation is authorized until a separate volume and egress
+contract is reviewed.
+
+### T42.2s source-hunk hazard shadow
+
+Project one exact clean base/HEAD pair into a private, source-bearing review
+file. The output must be outside the repository and must not already exist:
+
+```sh
+go run ./spike/t422s/cmd/t422s-shadow project \
+  -root "$PWD" \
+  -base <EXACT_40_HEX_ANCESTOR> \
+  -output /ABSOLUTE/PRIVATE/PATH/t422s-hunks.jsonl
+```
+
+Review every eligible source excerpt and every local `review_reason`. Create a
+separate allowlist using `phebs-t422s-reviewed-allowlist-v1`, the exact
+`base_commit` and `head_commit` from the header, and only reviewed
+`hunk_id`/`content_sha256` pairs. Do not treat projection as approval to send
+source. Binary, generated, mode-only, over-16-KiB, over-400-line, and uncertain
+hunks are deliberately ineligible rather than truncated.
+
+The following command documents the prospective classifier interface only. Do
+not run it until independent review has closed the exact implementation,
+schema, question digest, volume, and allowlist and Ben has explicitly accepted
+the new TM-10/TM-15 source egress:
+
+```sh
+go run ./spike/t422s/cmd/t422s-shadow classify \
+  -root "$PWD" \
+  -base <EXACT_40_HEX_ANCESTOR> \
+  -allowlist /ABSOLUTE/PRIVATE/PATH/t422s-reviewed-allowlist.json \
+  -output /ABSOLUTE/PRIVATE/PATH/t422s-predictions.jsonl
+```
+
+Classification recomputes the clean exact pair and matches the reviewed
+commit, hunk, and content identities; it never consumes the projected JSONL.
+`JEV_KEY` is environment-only. Each selected hunk makes one serial 30-second
+request containing all six hazard questions and no provenance. There is no
+retry. Predictions contain probabilities, not commands or gate decisions.
+Union any later human-approved routes with mandatory deterministic checks;
+never use a low score, ambiguity, or failed request to suppress a check.
+
+Both outputs are owner-only and create-only. A normal error removes the new
+file; hard process death can leave an empty or partial sentinel. Treat that
+path as a consumed ambiguous attempt: inspect it, never overwrite it, and do
+not automatically retry. No output is evidence, a receipt, readiness, freeze,
+or permission to consume a ceremony identifier.
+
+### T42.2 retained V3 plan authoring
+
+For retained V3 reproduction only, select `-schema v3` on
 `go run ./spike/t421/cmd/author` with the existing `-repository-root`, exact
 `-source-commit` and new `-out` path arguments. The command requires a clean
 checkout, builds the launcher's corrected V3 plan and creates a private file
-without replacing an existing artifact. Omitting `-schema`, or selecting
-`v2`, retains the historical V2 author; other values refuse.
+without replacing an existing artifact. It must not author the next freeze or
+execution candidate. Omitting `-schema`, or selecting `v2`, retains the
+historical V2 author; `v4` selects the separate prospective V4 author.
 
 This create-only plan seal is separate from the live execution freeze and its
 signature. Preserve retained V1/V2 artifacts. The author option alone supplies
@@ -7590,6 +7857,24 @@ The signed-readiness harness is now implemented. Its explicit
 source and private log retained. A timeout or signal termination cannot be
 reported as an intended ordinary refusal.
 
+An outer stop, including cancellation after a live handoff, must leave the
+inner's existing pre-admission abort time to finish. Its cooperative wait is
+capped at eighty seconds and clipped to the original deadline: this covers the
+abort's one-minute ceiling, the command's five-second unwind, its six-second
+forced-session unwind and scheduling margin. The ordinary joined-session check
+remains five seconds. If the cooperative wait expires, the existing failed
+forced classification may use its separate six-second allowance. Do not impose
+the ordinary five-second bound on a stop, retry detach, or use force; expiry
+retains exact custody for review.
+
+Before spawning a rehearsal bootstrap shell, enter a surviving primary checkout
+in the current Terminal shell (`cd -P /Users/ben/phebs.com || exit 1` on the
+recorded host). After preparing the fresh detached worktree, run its existing
+exact-source command inside a subshell that first explicitly enters that
+worktree by absolute path and stops if `cd` fails. Leave a worktree before any
+authorized removal. This avoids inheriting a deleted cwd; it does not diagnose
+which command emitted a prior unretained warning or authorize another rehearsal.
+
 Plan-authoring and execution-source commits may differ along the required
 ancestry. Profile admission checks tool revisions and the Zoekt build recipe
 against the protected execution source, retaining the separate plan-source
@@ -7622,6 +7907,34 @@ These are unsigned private troubleshooting files,
 not public evidence. Existing files are never overwritten. Missing, closed or
 replaced custody makes diagnostics unavailable; successful runs create none.
 An error after successful root removal cannot recreate that root to save logs.
+
+The summary also copies the actual epoch-four owner's four retained ballast
+records after its server joins, even if a restored server later becomes
+current. Indices 0–3 mean pressure 80, pressure 90, pressure 75, and removal.
+Each row preserves attempted/completed/fence-present flags and raw before/after
+used, available and allocated bytes. Incomplete or unattempted fields may be
+zero; these rows do not certify a sample, mutation or receipt. An existing
+owner's unavailable snapshot is marked; no volume is resampled for this diagnostic.
+A rounded 75-percent volume display does not prove agreement with the frozen
+byte target and its 4,096-byte tolerance. Post-stop filesystem observations
+must not be substituted for missing in-run values.
+
+For each shrink, `pressure_settlement_index` adds the count and first/last of
+samples that passed the existing custody/logical/allocation checks, Used
+minimum/maximum, Used-change count and largest adjacent Used difference. Raw
+`free_blocks` is `Fstatfs.Bfree` in the frozen 4,096-byte block units, copied
+from the same call that supplies `Bavail`; it is diagnostic only. Its extrema
+and before/after values are retained too. Zero samples means no valid settlement
+sample, not zero capacity, and emits no `pressure_settlement_endpoint_index`
+rows. An invalid terminal mutation After can differ from
+the last valid settlement sample. These summaries are updated in memory on
+successful and failed attempts but written only in the private failure summary.
+They add no sampling, request or mutation and do not enter the public receipt.
+Observed large steps cannot distinguish a discrete release from gradual changes
+between ticks. Changing `Bavail` with stable sampled `Bfree` distinguishes those
+counters, not the owner/cause; unchanged linked-file allocation also cannot rule
+out database work or delayed release. Do not relax frozen pressure rules on
+the strength of this diagnostic.
 
 The September 16 `2340ca7c` rehearsal published its archive and then failed
 in backup completion before restore. A published manifest does not prove

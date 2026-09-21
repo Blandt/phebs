@@ -26,7 +26,7 @@ func composeExecutionReceiptAuthorityInventory(
 	plan Plan,
 	values []AuthorityPhaseResult,
 ) (executionReceiptAuthorityInventory, error) {
-	if plan.Schema != PlanV3Schema || validatePlan(plan, &plan.Revisions) != nil ||
+	if !processAccountingPlanSemantics(plan.Schema) || validatePlan(plan, &plan.Revisions) != nil ||
 		!slices.Equal(plan.PhaseOrder, frozenPhaseOrder()) {
 		return executionReceiptAuthorityInventory{}, errExecutionReceiptAuthority
 	}

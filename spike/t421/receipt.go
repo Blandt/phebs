@@ -1069,7 +1069,7 @@ func bindExecutionFreezeForReceipt(
 	expectedSignerNamespaceSHA256 string,
 	admission ExecutionFreezeAdmissionBinding,
 ) (ExecutionFreezeBinding, error) {
-	if plan.Schema == PlanV3Schema {
+	if processAccountingPlanSemantics(plan.Schema) {
 		current, namespaceErr := admission.signerNamespace.recheck(context.Background())
 		if namespaceErr != nil || current.digest != expectedSignerNamespaceSHA256 {
 			return ExecutionFreezeBinding{}, errors.New("T42.2 execution freeze signer namespace is no longer admitted")
@@ -1090,11 +1090,11 @@ func bindExecutionFreezeForReceipt(
 		admission.freezeSHA256 != freezeSHA256 || admission.signatureNamespace != plan.SealPolicy.FreezeSignatureNamespace ||
 		admission.signerFingerprint != expectedSignerFingerprint || admission.admissionEventSHA256 != wantAdmissionSHA256 ||
 		admission.signerNamespaceSHA256 != expectedSignerNamespaceSHA256 ||
-		plan.Schema == PlanV3Schema && !validExecutionHexSHA256(expectedSignerNamespaceSHA256) ||
-		plan.Schema != PlanV3Schema && expectedSignerNamespaceSHA256 != "" ||
+		processAccountingPlanSemantics(plan.Schema) && !validExecutionHexSHA256(expectedSignerNamespaceSHA256) ||
+		!processAccountingPlanSemantics(plan.Schema) && expectedSignerNamespaceSHA256 != "" ||
 		admission.admissionEventOrdinal != 1 || !admission.signatureVerified ||
-		plan.Schema == PlanV3Schema && (!admission.verifiedBeforeOperationalWork || admission.verifiedBeforeWork) ||
-		plan.Schema != PlanV3Schema && (!admission.verifiedBeforeWork || admission.verifiedBeforeOperationalWork) {
+		processAccountingPlanSemantics(plan.Schema) && (!admission.verifiedBeforeOperationalWork || admission.verifiedBeforeWork) ||
+		!processAccountingPlanSemantics(plan.Schema) && (!admission.verifiedBeforeWork || admission.verifiedBeforeOperationalWork) {
 		return ExecutionFreezeBinding{}, errors.New("T42.2 execution freeze lacks verified pre-work signature admission")
 	}
 	return ExecutionFreezeBinding{
@@ -1204,8 +1204,8 @@ func validateReceiptFreezeBinding(receipt Receipt, plan Plan, binding ExecutionF
 		binding.freeze.SignerFingerprint != binding.expectedSignerFingerprint ||
 		binding.freeze.SignerNamespaceSHA256 != binding.expectedSignerNamespaceSHA256 ||
 		binding.freeze.Profile.SignerNamespaceSHA256 != binding.expectedSignerNamespaceSHA256 ||
-		plan.Schema == PlanV3Schema && !validExecutionHexSHA256(binding.expectedSignerNamespaceSHA256) ||
-		plan.Schema != PlanV3Schema && binding.expectedSignerNamespaceSHA256 != "" ||
+		processAccountingPlanSemantics(plan.Schema) && !validExecutionHexSHA256(binding.expectedSignerNamespaceSHA256) ||
+		!processAccountingPlanSemantics(plan.Schema) && binding.expectedSignerNamespaceSHA256 != "" ||
 		binding.freezeSHA256 != freezeSHA256 || !validDigest(binding.freezeSHA256) {
 		return errors.New("T42.2 execution freeze binding is invalid")
 	}
@@ -1582,7 +1582,7 @@ func expectedStoppedDecision(
 		if !gaugeObservationMatches(stopped.Observation, metric, limit, observed) {
 			return "", 0, errors.New("T42.2 resource stop observation is not exact")
 		}
-		if plan.Schema == PlanV3Schema && (!metrics.NativeMeasurementAvailable || !metrics.DispatchMeasurementAvailable ||
+		if processAccountingPlanSemantics(plan.Schema) && (!metrics.NativeMeasurementAvailable || !metrics.DispatchMeasurementAvailable ||
 			hasUnavailableStoreMetrics(stopped.Observation.UnavailableMetrics) || hasUnavailableWorkMetrics(stopped.Observation.UnavailableMetrics) ||
 			hasUnavailableByteMetrics(stopped.Observation.UnavailableMetrics) ||
 			measuredV3WorkCrossing(metrics, plan.WorkEnvelope.Phases[deadlineIndex], plan.WorkEnvelope)) {
@@ -1627,7 +1627,7 @@ func validateStoppedFailureEvidence(
 			return errors.New("T42.2 stopped work envelope is absent")
 		}
 		for _, value := range boundedPhaseMetricValues(metrics, plan.WorkEnvelope.Phases[index]) {
-			if workCounterObservationMatches(observation, value.name, value.bound.Maximum, value.value, plan.Schema == PlanV3Schema) {
+			if workCounterObservationMatches(observation, value.name, value.bound.Maximum, value.value, processAccountingPlanSemantics(plan.Schema)) {
 				return nil
 			}
 		}
@@ -1641,7 +1641,7 @@ func validateStoppedFailureEvidence(
 			{name: "max_retries_on_any_unit", limit: plan.WorkEnvelope.MaximumRetriesPerUnit, observed: uint64(metrics.MaxRetriesUnit)},
 			{name: "max_rows_in_any_transaction", limit: plan.WorkEnvelope.MaximumStoreRowsPerTransaction, observed: uint64(metrics.MaxRowsTransaction)},
 		} {
-			if workCounterObservationMatches(observation, value.name, value.limit, value.observed, plan.Schema == PlanV3Schema) {
+			if workCounterObservationMatches(observation, value.name, value.limit, value.observed, processAccountingPlanSemantics(plan.Schema)) {
 				return nil
 			}
 		}
@@ -1730,7 +1730,7 @@ func validateFailureEvidenceProjection(receipt Receipt, stopped ReceiptFailure, 
 			!within(value.EventOrdinal) || !safeToken(value.Stage, 64) || !safeToken(value.ErrorClass, 64) {
 			return errors.New("T42.2 internal failure projection is invalid")
 		}
-		if plan.Schema == PlanV3Schema && value.Stage == "store_submission" &&
+		if processAccountingPlanSemantics(plan.Schema) && value.Stage == "store_submission" &&
 			(!hasUnavailableStoreMetrics(stopped.Observation.UnavailableMetrics) || !validSecondaryUnavailableMetrics(stopped.Observation.UnavailableMetrics) ||
 				!slices.Contains([]string{"budget_refused", "invalid_descriptor", "invalid_protocol", "transport_unavailable", "canceled", "incomplete"}, value.ErrorClass)) {
 			return errors.New("T42.2 store submission refusal lacks its closed incomplete-prefix evidence")
@@ -1749,7 +1749,7 @@ func lifecycleFailureMatches(value LifecycleFailureEvidence, plan Plan) bool {
 		value.Owner.State == "error" && value.Owner.Completeness == string(lifecycle.Unavailable) &&
 		value.Owner.Scanned <= uint64(lifecycle.MaxCandidatesPerTick) &&
 		value.Owner.Deleted <= lifecycleDeleteLimit(plan.Schema, value.Owner.Name) &&
-		(plan.Schema == PlanV3Schema || value.Owner.Deleted <= value.Owner.Scanned) &&
+		(processAccountingPlanSemantics(plan.Schema) || value.Owner.Deleted <= value.Owner.Scanned) &&
 		value.Owner.LogicalBytes <= uint64(servicecatalogv3.MaxLogicalBytes) &&
 		value.Owner.RootBytes <= uint64(servicecatalogv3.MaxRootBytes) &&
 		value.Owner.MemberBytes <= uint64(servicecatalogv3.MaxMemberBytes) &&
@@ -1848,7 +1848,7 @@ func validateReceiptMeasurements(
 	if correctedPlanSemantics(plan.Schema) {
 		wantMetrics = correctedReceiptMetricNames()
 	}
-	if plan.Schema == PlanV3Schema {
+	if processAccountingPlanSemantics(plan.Schema) {
 		wantMetrics = accountingReceiptMetricNames()
 	}
 	if !slices.Equal(plan.ReceiptContract.RequiredMetrics, wantMetrics) ||
@@ -1883,7 +1883,7 @@ func validateReceiptMeasurements(
 		unavailable := func(metric string) bool {
 			return observation != nil && slices.Contains(observation.UnavailableMetrics, metric) &&
 				(stopped.Code == "measurement_unavailable" && observation.Kind == "measurement_unavailable" ||
-					plan.Schema == PlanV3Schema && outcomes[phase] == "stopped" && byteUnavailableMetric(metric) &&
+					processAccountingPlanSemantics(plan.Schema) && outcomes[phase] == "stopped" && byteUnavailableMetric(metric) &&
 						validSecondaryUnavailableMetrics(observation.UnavailableMetrics))
 		}
 		teardownUnavailable := func(metric string) bool {
@@ -1896,7 +1896,7 @@ func validateReceiptMeasurements(
 		processUnavailable := unavailable("peak_rss_bytes") || teardownUnavailable("peak_rss_bytes")
 		processInvalid := value.Metrics.ProcessMeasurementAvailable == processUnavailable ||
 			(value.Metrics.PeakRSSBytes == 0) != processUnavailable
-		if plan.Schema == PlanV3Schema {
+		if processAccountingPlanSemantics(plan.Schema) {
 			processInvalid = false
 			if err := validateAccountingMeasurement(value, outcomes[phase], stopped, teardown, plan); err != nil {
 				return fmt.Errorf("T42.2 phase %q process accounting: %w", phase, err)
@@ -1908,13 +1908,13 @@ func validateReceiptMeasurements(
 		// A later refused traversal invalidates coverage, not the completed
 		// maxima already observed. This exception never admits an incomplete
 		// passing phase and never substitutes a partial traversal's total.
-		retainBytePrefix := plan.Schema == PlanV3Schema &&
+		retainBytePrefix := processAccountingPlanSemantics(plan.Schema) &&
 			(outcomes[phase] == "stopped" || phase == "teardown" && teardown.Outcome == "failed")
 		logicalCrossingValid := false
 		if value.Metrics.DataLogicalBytes > Bytes(plan.WorkEnvelope.MaximumDataLogicalBytes) && observation != nil {
 			logicalCrossingValid = stopped.Code == "data_logical_ceiling" &&
 				gaugeObservationMatches(*observation, "data_logical_bytes", plan.WorkEnvelope.MaximumDataLogicalBytes, uint64(value.Metrics.DataLogicalBytes))
-			if plan.Schema == PlanV3Schema && outcomes[phase] == "stopped" {
+			if processAccountingPlanSemantics(plan.Schema) && outcomes[phase] == "stopped" {
 				// The complete decision validator owns topology/work/resource
 				// precedence. A second measured gauge cannot replace that primary
 				// or force a logical-only attribution; work evidence is separately
@@ -1923,7 +1923,7 @@ func validateReceiptMeasurements(
 				logicalCrossingValid = decisionErr == nil
 			}
 		}
-		if plan.Schema == PlanV3Schema && phase == "teardown" && teardown.Outcome == "failed" && logicalUnavailable {
+		if processAccountingPlanSemantics(plan.Schema) && phase == "teardown" && teardown.Outcome == "failed" && logicalUnavailable {
 			// Teardown has its own exact failure inventory, not a second
 			// stopped-phase primary. Preserve its earlier completed maximum
 			// when a later required traversal failed, including an overshoot.
@@ -1940,7 +1940,7 @@ func validateReceiptMeasurements(
 			value.Metrics.AllocationMeasurementAvailable && allocationUnavailable ||
 			!retainBytePrefix && (value.Metrics.DataAllocatedBytes != 0 && allocationUnavailable ||
 				value.Metrics.DataLogicalBytes != 0 && logicalUnavailable) ||
-			plan.Schema == PlanV3Schema && outcomes[phase] == "passed" && (allocationUnavailable || logicalUnavailable) ||
+			processAccountingPlanSemantics(plan.Schema) && outcomes[phase] == "passed" && (allocationUnavailable || logicalUnavailable) ||
 			value.Metrics.DataLogicalBytes > Bytes(plan.WorkEnvelope.MaximumDataLogicalBytes) &&
 				!logicalCrossingValid {
 			return fmt.Errorf("T42.2 phase %q measurement is unavailable or invalid", phase)
@@ -1978,7 +1978,7 @@ func validateReceiptMeasurements(
 			return fmt.Errorf("T42.2 phase %q clean work crossed a frozen gauge ceiling", phase)
 		}
 		roles := value.ChildProcessRoles
-		if plan.Schema == PlanV3Schema {
+		if processAccountingPlanSemantics(plan.Schema) {
 			roles = value.DispatchAccounting.Roles
 		}
 		if err := validatePhaseWorkMetrics(value.Metrics, roles, plan.WorkEnvelope.Phases[index], workOutcome, observation, plan.WorkEnvelope); err != nil {
@@ -3035,7 +3035,7 @@ func validateCheckpointRecovery(
 	toolIndex := slices.IndexFunc(freeze.Tools, func(tool ExecutionToolIdentity) bool { return tool.Role == "phebs" })
 	phebsChildren := slices.IndexFunc(children, func(value Count) bool { return value.Name == "phebs" })
 	if checkpoint == nil || rootIndex < 0 || toolIndex < 0 ||
-		plan.Schema != PlanV3Schema && phebsChildren < 0 ||
+		!processAccountingPlanSemantics(plan.Schema) && phebsChildren < 0 ||
 		value.Target.Ordinal >= uint64(len(authority.ExtractionRoots[rootIndex].PartitionResults)) {
 		return errors.New("checkpoint restart evidence is absent")
 	}
@@ -3047,7 +3047,7 @@ func validateCheckpointRecovery(
 	processIdentityValid := value.ProcessIdentityBeforeSHA256 == beforeIdentity &&
 		value.ProcessIdentityAfterSHA256 == afterIdentity && beforeIdentity != afterIdentity
 	processStartsValid := phebsChildren >= 0 && children[phebsChildren].Count == 1
-	if plan.Schema == PlanV3Schema {
+	if processAccountingPlanSemantics(plan.Schema) {
 		// V3's separately validated runtime bindings carry successful owned
 		// starts. Admission permissions cannot substantiate a server birth.
 		processStartsValid = children == nil
@@ -3494,7 +3494,7 @@ func validateLifecycleOwners(
 		if value.Name != name || value.State != "ok" ||
 			lifecycleTimestampOutOfOrder(plan.Schema, value.AttemptedAtUnixMS, latestAttempt) ||
 			value.Scanned > uint64(lifecycle.MaxCandidatesPerTick) ||
-			value.Deleted > lifecycleDeleteLimit(plan.Schema, name) || plan.Schema != PlanV3Schema && value.Deleted > value.Scanned {
+			value.Deleted > lifecycleDeleteLimit(plan.Schema, name) || !processAccountingPlanSemantics(plan.Schema) && value.Deleted > value.Scanned {
 			return lifecycleAggregate{}, errors.New("lifecycle owner row is invalid")
 		}
 		latestAttempt = value.AttemptedAtUnixMS
@@ -3536,7 +3536,7 @@ func validateLifecycleTotals(total, finalRows lifecycleAggregate, ownerTurns, mi
 	if ownerTurns < minimumTurns || ownerTurns > math.MaxUint64/uint64(lifecycle.MaxCandidatesPerTick) ||
 		ownerTurns > math.MaxUint64/maximumDeleted ||
 		total.scanned > ownerTurns*uint64(lifecycle.MaxCandidatesPerTick) ||
-		total.deleted > ownerTurns*maximumDeleted || planSchema != PlanV3Schema && total.deleted > total.scanned ||
+		total.deleted > ownerTurns*maximumDeleted || !processAccountingPlanSemantics(planSchema) && total.deleted > total.scanned ||
 		total.scanned < finalRows.scanned || total.deleted < finalRows.deleted ||
 		total.logicalBytes < finalRows.logicalBytes || total.rootBytes < finalRows.rootBytes ||
 		total.memberBytes < finalRows.memberBytes {
@@ -3560,6 +3560,10 @@ func validatePressureTransitions(
 ) error {
 	start := SHA256([]byte("t422-pressure-sequence-start-v1"))
 	priorSequence, priorBallast, priorAvailable, priorDataAllocated := start, uint64(0), uint64(0), uint64(0)
+	interphaseTolerance := uint64(0)
+	if plan.Schema == PlanV4Schema {
+		interphaseTolerance = freeze.Pressure.InterphaseDriftToleranceBytes
+	}
 	baseAllocated := uint64(0)
 	serverEpoch := uint64(0)
 	if restart, ok := namedTransition(values, "process_restart"); ok && restart.Outcome == "passed" {
@@ -3579,7 +3583,7 @@ func validatePressureTransitions(
 		value := transition.Pressure
 		target := freeze.Pressure.Targets[index]
 		authoritySHA256, ok := authorityIdentitySHA256(authority[phase])
-		if value == nil || !ok || value.Schema != plan.ReceiptContract.TransitionSchema+"/pressure-v1" ||
+		if value == nil || !ok || value.Schema != pressureTransitionSchema(plan) ||
 			value.TargetUsedPercent != target.TargetUsedPercent || value.Action != target.Action ||
 			value.ExpectedDisposition != target.ExpectedDisposition || value.ObservedDisposition != target.ExpectedDisposition ||
 			value.PriorGateSequenceSHA256 != priorSequence || value.ServerEpoch == 0 || value.ServerEpoch != serverEpoch ||
@@ -3602,8 +3606,8 @@ func validatePressureTransitions(
 			!pressurePhaseAllocationMatches(*value, metrics[phase], phase, plan.Schema) {
 			return fmt.Errorf("phase %q pressure facts are invalid", phase)
 		}
-		if index > 0 && (value.VolumeAvailableBytesBefore != priorAvailable ||
-			value.DataAllocatedBytesBefore != priorDataAllocated) {
+		if index > 0 && (!withinTolerance(value.VolumeAvailableBytesBefore, priorAvailable, interphaseTolerance) ||
+			!withinTolerance(value.DataAllocatedBytesBefore, priorDataAllocated, interphaseTolerance)) {
 			return fmt.Errorf("phase %q pressure capacity is not contiguous", phase)
 		}
 		if !pressureMutationMatches(
@@ -3640,6 +3644,10 @@ func validatePressureTransitions(
 			return fmt.Errorf("phase %q lacks the typed production pressure refusal", phase)
 		}
 		if phase == "pressure_75" {
+			recoveryTolerance := target.ToleranceBytes
+			if plan.Schema == PlanV4Schema {
+				recoveryTolerance = interphaseTolerance
+			}
 			if value.RecoveryBallastAllocatedBytes != 0 || value.RecoveryUsedPercent > freeze.Pressure.Recovery.MaximumUsedPercent ||
 				value.RecoveryUsedBytes+value.RecoveryAvailableBytes != freeze.Pressure.PressureVolumeBytes ||
 				usedPercentCeiling(value.RecoveryUsedBytes, freeze.Pressure.PressureVolumeBytes) != value.RecoveryUsedPercent ||
@@ -3651,7 +3659,7 @@ func validatePressureTransitions(
 					"remove", value.VolumeUsedBytesAfter, value.RecoveryUsedBytes,
 					value.BallastAllocatedBytesAfter, value.RecoveryBallastAllocatedBytes,
 					value.DataAllocatedBytesAtTarget, value.RecoveryDataAllocatedBytes,
-					target.ToleranceBytes,
+					recoveryTolerance,
 				) ||
 				!orderedEventsWithin(transition.StartEventOrdinal, transition.FinishEventOrdinal,
 					value.BallastMutationEventOrdinal, value.GateEventOrdinal, value.RecoveryBallastEventOrdinal,
@@ -3701,9 +3709,9 @@ func validatePressureTransitions(
 
 // V3 records maxima over completed non-atomic traversals, so no designated
 // pressure endpoint must be the maximum. Every retained traversal must fit.
-// The separate mutation, continuity and frozen geometry predicates stay exact.
+// Mutation and frozen geometry stay exact; V4 continuity is freeze-bounded.
 func pressurePhaseAllocationMatches(value PressureTransition, metrics ReceiptMetrics, phase, schema string) bool {
-	if schema == PlanV3Schema {
+	if processAccountingPlanSemantics(schema) {
 		return max(value.DataAllocatedBytesBefore, value.DataAllocatedBytesAtTarget,
 			value.PrePressureAllocatedBytes, value.RecoveryDataAllocatedBytes) <= uint64(metrics.DataAllocatedBytes)
 	}
@@ -3770,9 +3778,9 @@ func validatePressure80Lifecycle(value PressureTransition, metrics ReceiptMetric
 	if err := validatePressureLifecycle(value, metrics, plan); err != nil {
 		return err
 	}
-	// Only prospective V3 shares recovery/fresh's truthful durable-job
-	// lower-bound backlog rule. All owner, total and freshness checks above stay.
-	if plan.Schema == PlanV3Schema || !correctedPlanSemantics(plan.Schema) {
+	// The V3/V4 family shares recovery/fresh's truthful durable-job lower-bound
+	// backlog rule. All owner, total and freshness checks above stay.
+	if processAccountingPlanSemantics(plan.Schema) || !correctedPlanSemantics(plan.Schema) {
 		return nil
 	}
 	index := slices.IndexFunc(value.Owners, func(owner LifecycleOwnerResult) bool {
@@ -4151,7 +4159,7 @@ func expectedProductRelationshipResult(plan Plan) ProductRelationshipResult {
 	}
 	// V1/V2 retain their historical zero. V3 reports the frozen semantic
 	// hotspot pairs, not a product-side cooccurrence expansion.
-	if plan.Schema == PlanV3Schema {
+	if processAccountingPlanSemantics(plan.Schema) {
 		for _, family := range plan.Oracle.Relationships {
 			if family.Name == "hotspot" {
 				result.KafkaPairRows = family.SemanticPairEdges
@@ -4225,7 +4233,7 @@ func receiptTeardownFailedChecks(value ReceiptTeardown, measurements []PhaseMeas
 	add("derived_custody_not_removed", rule.RemoveDerivedCustody && (value.DerivedCustodyPaths != 0 || value.DerivedRemovalErrors != 0))
 	add("scratch_source_not_removed", rule.RemoveScratchSource && (value.ScratchSourcePaths != 0 || value.ScratchRemovalErrors != 0))
 	add("children_remain", rule.RequireZeroChildren && value.ChildrenRemaining != 0)
-	if plan.Schema == PlanV3Schema {
+	if processAccountingPlanSemantics(plan.Schema) {
 		var err error
 		failed, err = appendAccountingTeardownFailures(failed, value, measurements, ownedServerStarted)
 		if err != nil {
@@ -4992,7 +5000,7 @@ func validReceiptFailure(value ReceiptFailure, phase string, plan Plan) bool {
 		"internal_error":                             "internal/typed_error",
 		"lifecycle_error":                            "lifecycle/typed_error",
 	}
-	if plan.Schema == PlanV3Schema {
+	if processAccountingPlanSemantics(plan.Schema) {
 		delete(want, "peak_rss_ceiling")
 		want["observed_rss_ceiling"] = "resource/gauge_limit"
 		if value.Observation.Kind == "counter_crossing" && v3WorkMetric(value.Observation.Metric) {
@@ -5007,7 +5015,7 @@ func validReceiptFailure(value ReceiptFailure, phase string, plan Plan) bool {
 		// V3 may retain an independently substantiated primary stop beside an
 		// incomplete work/store prefix or byte-traversal coverage. Values remain the exact
 		// retained positive prefix; absence of completeness never means zero.
-		if plan.Schema != PlanV3Schema || !validSecondaryUnavailableMetrics(observation.UnavailableMetrics) {
+		if !processAccountingPlanSemantics(plan.Schema) || !validSecondaryUnavailableMetrics(observation.UnavailableMetrics) {
 			return false
 		}
 	}
@@ -5025,7 +5033,7 @@ func validReceiptFailure(value ReceiptFailure, phase string, plan Plan) bool {
 			observation.Observed == observation.Limit+1 && observation.ExpectedSHA256 == "" &&
 			observation.ObservedSHA256 == ""
 	case "counter_crossing":
-		return (observation.Metric == "materialized_cartesian_owner_pairs" || plan.Schema == PlanV3Schema && value.Code == "phase_work_limit" && v3WorkMetric(observation.Metric)) &&
+		return (observation.Metric == "materialized_cartesian_owner_pairs" || processAccountingPlanSemantics(plan.Schema) && value.Code == "phase_work_limit" && v3WorkMetric(observation.Metric)) &&
 			observation.Observed > observation.Limit && observation.ExpectedSHA256 == "" &&
 			observation.ObservedSHA256 == ""
 	case "gauge_limit":

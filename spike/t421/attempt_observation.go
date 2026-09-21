@@ -68,7 +68,7 @@ func observeExecutionAttempts(raw []byte, plan Plan, producer uint32, input [32]
 			}
 		}
 	}()
-	if !joined || plan.Schema != PlanV3Schema || len(plan.PhaseOrder) != len(out.Phases) || len(plan.WorkEnvelope.Phases) != len(out.Phases) ||
+	if !joined || !processAccountingPlanSemantics(plan.Schema) || len(plan.PhaseOrder) != len(out.Phases) || len(plan.WorkEnvelope.Phases) != len(out.Phases) ||
 		executionWorkProducerByte(producer) == 0 || input == ([32]byte{}) || len(raw) > 64<<20 || plan.ProcessAccounting == nil ||
 		len(plan.ProcessAccounting.DispatchBudgets) != len(out.Phases) || !slices.Equal(plan.PhaseOrder, frozenPhaseOrder()) {
 		return out, errExecutionAttempts
@@ -126,18 +126,18 @@ func observeExecutionAttempts(raw []byte, plan Plan, producer uint32, input [32]
 		if readErr == nil && executionSetupTokenDiagnostic(line) {
 			continue
 		}
+		if observed, err := observeArchiveArtifactEvent(line, producer, wantInput, &out.ArchiveArtifacts); observed {
+			if err != nil || readErr != nil {
+				return out, errExecutionAttempts
+			}
+			continue
+		}
 		// Offline archive commands install context observers, not server job or
 		// lifecycle sinks. A server-only stream cannot fill their measured zero.
 		if producer >= 10 && (reservedCompactAttempt(line) || reservedLifecycleEvent(line) || reservedReuseEvent(line) || reservedUnsupportedSourceEvent(line)) {
 			return out, errExecutionAttempts
 		}
 		if observed, err := observeWorkspaceByteEvent(line, plan, producer, wantInput, &out.WorkspaceBytes); observed {
-			if err != nil || readErr != nil {
-				return out, errExecutionAttempts
-			}
-			continue
-		}
-		if observed, err := observeArchiveArtifactEvent(line, producer, wantInput, &out.ArchiveArtifacts); observed {
 			if err != nil || readErr != nil {
 				return out, errExecutionAttempts
 			}

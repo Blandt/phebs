@@ -133,6 +133,40 @@ func TestArchiveWorkspaceJoined(t *testing.T) {
 	}
 }
 
+func TestArchiveWorkJoinedArtifactAndWorkspace(t *testing.T) {
+	plan := accountingTestPlan(t)
+	maximum, err := archiveCheckpointMaximum(plan, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var tail strings.Builder
+	fmt.Fprintf(&tail, "AEB1:10:sha256:01%s\n", strings.Repeat("00", 31))
+	tail.WriteString(workspaceTestBinding(10))
+	for sequence := uint32(1); sequence <= maximum; sequence++ {
+		tail.WriteString(workspaceTestPair(10, 12, uint64(sequence), 4, 8))
+	}
+	for component := range 6 {
+		fmt.Fprintf(&tail, "AE1:A:C:1:%d:%016x:%016x:%s\n", component, 1, 100, strings.Repeat("2", 64))
+	}
+	valid := archiveWorkTestBindings(10) + tail.String()
+	for _, test := range []struct {
+		name, raw string
+		want      bool
+	}{
+		{"valid", valid, true},
+		{"malformed archive", strings.Replace(valid, "AE1:A:C:1:0:", "AE1:A:C:3:0:", 1), false},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			output := &checkoutCommandOutput{}
+			output.buffer.WriteString(test.raw)
+			got, err := observeArchiveWork(output, plan, 10, [32]byte{1}, true, true)
+			if (err == nil) != test.want || got.Complete != test.want || got.ArchiveArtifacts.Complete != test.want || got.WorkspaceBytes.Complete != test.want {
+				t.Fatal(got, err)
+			}
+		})
+	}
+}
+
 func TestArchiveWorkCompactHeadroom(t *testing.T) {
 	plan := accountingTestPlan(t)
 	row := plan.WorkEnvelope.Phases[11]

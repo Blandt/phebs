@@ -2,6 +2,25 @@ package t421
 
 import "testing"
 
+func TestPressureTransitionSchemaIsVersioned(t *testing.T) {
+	for _, test := range []struct {
+		plan string
+		want string
+	}{
+		{PlanSchema, "/pressure-v1"},
+		{PlanV2Schema, "/pressure-v1"},
+		{PlanV3Schema, "/pressure-v1"},
+		{PlanV4Schema, "/pressure-v2"},
+	} {
+		t.Run(test.plan, func(t *testing.T) {
+			plan := Plan{Schema: test.plan, ReceiptContract: ReceiptContract{TransitionSchema: "transition"}}
+			if got := pressureTransitionSchema(plan); got != "transition"+test.want {
+				t.Fatalf("schema = %q", got)
+			}
+		})
+	}
+}
+
 func TestExecutionReceiptTransitionReadPrefixJoinsActualEpochs(t *testing.T) {
 	subtotal := TransitionReadSubtotal{Schema: "t422-transition-read-accounting-v1", Class: "checkpoint-restart", ReportCalls: 1, ControlFileReads: 7, StoreReadAttempts: 2}
 	servers := []ExecutionEpochOneResult{{Inspection: []ExecutionPhaseInspection{{Phase: "process_restart", TransitionReads: &subtotal}}}, {Inspection: []ExecutionPhaseInspection{{Phase: "process_restart", TransitionReads: &subtotal}}}}

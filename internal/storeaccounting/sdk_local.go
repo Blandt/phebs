@@ -55,8 +55,13 @@ func (decoder storeLocalReplyDecoder) Unmarshal(data []byte, value any) error {
 	return nil
 }
 
-func storeLocalAuth() surrealdb.Auth {
-	return surrealdb.Auth{Username: "root", Password: "root"}
+// storeLocalRootAuth binds the fixed local root username to the database-bound
+// password carried by the supervised engine's 0600 runtime descriptor.
+// The password is never a package-level constant: the first engine start for
+// a database directory persists its own, and the SDK connection that signs in
+// must carry that exact value.
+func storeLocalRootAuth(pass string) surrealdb.Auth {
+	return surrealdb.Auth{Username: "root", Password: pass}
 }
 
 func storeLocalUseParams(step storeLocalStep) []any {
@@ -81,7 +86,7 @@ func (conn *SDKConnection) validLocalCallLocked(call *storeSDKCall, request *con
 			return false
 		}
 		auth, ok := request.Params[0].(surrealdb.Auth)
-		return ok && auth == storeLocalAuth()
+		return ok && auth == conn.localAuth
 	case storeLocalNamespaceUse, storeLocalDatabaseUse, storeExistingLocalUse:
 		if call.kind != 0 || call.rows != 0 || len(request.Params) != 2 || request.Params[0] != "phebs" {
 			return false
@@ -158,7 +163,7 @@ func storeLocalControl(ctx context.Context, db *surrealdb.DB, conn *SDKConnectio
 	switch step {
 	case storeLocalSignIn, storeExistingLocalSignIn:
 		var token string
-		token, err = db.SignIn(ctx, storeLocalAuth())
+		token, err = db.SignIn(ctx, conn.localAuth)
 		if err == nil && token == "" {
 			err = ErrProtocol
 		}
@@ -230,21 +235,23 @@ func (owner *SDKOwner) Check(ctx context.Context) error {
 
 // NewLocalSDKConnection keeps the fixed local controls and their raw-result
 // decoder on the same actual connection. The caller owns endpoint admission.
-func NewLocalSDKConnection(ctx context.Context, owner *SDKOwner, config *connection.Config) (*SDKConnection, error) {
-	return newLocalSDKConnection(ctx, owner, config, storeLocalSignIn)
+// pass is the supervised engine's database-bound root password; it must match
+// the 0600 runtime descriptor the caller admitted.
+func NewLocalSDKConnection(ctx context.Context, owner *SDKOwner, config *connection.Config, pass string) (*SDKConnection, error) {
+	return newLocalSDKConnection(ctx, owner, config, storeLocalSignIn, pass)
 }
 
 // NewExistingLocalSDKConnection selects only the fixed two-control sequence.
 // Its caller must admit the actual existing-local runtime endpoint and scope.
-func NewExistingLocalSDKConnection(ctx context.Context, owner *SDKOwner, config *connection.Config) (*SDKConnection, error) {
-	return newLocalSDKConnection(ctx, owner, config, storeExistingLocalSignIn)
+func NewExistingLocalSDKConnection(ctx context.Context, owner *SDKOwner, config *connection.Config, pass string) (*SDKConnection, error) {
+	return newLocalSDKConnection(ctx, owner, config, storeExistingLocalSignIn, pass)
 }
 
-func newLocalSDKConnection(ctx context.Context, owner *SDKOwner, config *connection.Config, first storeLocalStep) (*SDKConnection, error) {
+func newLocalSDKConnection(ctx context.Context, owner *SDKOwner, config *connection.Config, first storeLocalStep, pass string) (*SDKConnection, error) {
 	if err := owner.Check(ctx); err != nil {
 		return nil, err
 	}
-	if config == nil {
+	if config == nil || pass == "" {
 		return nil, ErrConfig
 	}
 	selected := *config
@@ -255,6 +262,7 @@ func newLocalSDKConnection(ctx context.Context, owner *SDKOwner, config *connect
 		return nil, err
 	}
 	conn.localStep = first
+	conn.localAuth = storeLocalRootAuth(pass)
 	return conn, nil
 }
 

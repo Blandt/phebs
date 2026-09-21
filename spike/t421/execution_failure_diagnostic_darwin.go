@@ -102,6 +102,7 @@ func retainExecutionFailureDiagnostic(root productionRoot, stage string, recorde
 		archiveRun = run
 	}
 	if archiveRun != nil {
+		summary.pressureBallast(archiveRun)
 		var rows [2]struct {
 			started, joined, empty, complete, digest bool
 			workComplete, scanComplete               bool
@@ -154,6 +155,55 @@ func retainExecutionFailureDiagnostic(root productionRoot, stage string, recorde
 		}
 	}
 	return nil
+}
+
+// The epoch-four owner retains the fixed pressure prefix even after restore.
+// Copy only joined scalar state; never resample the volume or repair a row.
+func (w *executionFailureSummary) pressureBallast(run *ExecutionEpochOneRun) {
+	var rows [4]executionPressureBallastObservation
+	var quiet executionPressureBallastSettlement
+	quietComplete := false
+	available := false
+	select {
+	case <-run.done:
+		run.mu.Lock()
+		joined, inspection := run.result.RootJoined, run.inspection
+		run.mu.Unlock()
+		if joined && inspection != nil {
+			inspection.mu.Lock()
+			rows = inspection.pressure.ballast
+			quiet, quietComplete = inspection.pressure.quiet, inspection.pressure.quietComplete
+			inspection.mu.Unlock()
+			available = true
+		}
+	default:
+	}
+	_, _ = fmt.Fprintf(w, "pressure_ballast_available=%t\n", available)
+	if available {
+		_, _ = fmt.Fprintf(w, "pressure_quiet_complete=%t samples=%d used_changes=%d min_used=%d max_used=%d max_used_step=%d min_free_blocks=%d max_free_blocks=%d\n",
+			quietComplete, quiet.Samples, quiet.UsedChanges, quiet.MinUsed, quiet.MaxUsed, quiet.MaxUsedStep, quiet.MinFreeBlocks, quiet.MaxFreeBlocks)
+		if quiet.Samples != 0 {
+			for i, sample := range []executionPressureBallastSample{quiet.First, quiet.Last} {
+				_, _ = fmt.Fprintf(w, "pressure_quiet_endpoint=%s used=%d available=%d allocated=%d free_blocks=%d\n",
+					[]string{"first", "last"}[i], sample.Used, sample.Available, sample.Allocated, sample.FreeBlocks)
+			}
+		}
+		for i, row := range rows {
+			before, after := row.Mutation.Before, row.Mutation.After
+			_, _ = fmt.Fprintf(w, "pressure_ballast_index=%d attempted=%t complete=%t fence_present=%t before_used=%d before_available=%d before_allocated=%d after_used=%d after_available=%d after_allocated=%d\n",
+				i, row.Attempted, row.Complete, !row.Mutation.Fence.IsZero(), before.Used, before.Available, before.Allocated, after.Used, after.Available, after.Allocated)
+			settlement := row.Mutation.Settlement
+			_, _ = fmt.Fprintf(w, "pressure_settlement_index=%d samples=%d used_changes=%d min_used=%d max_used=%d max_used_step=%d min_free_blocks=%d max_free_blocks=%d before_free_blocks=%d after_free_blocks=%d\n",
+				i, settlement.Samples, settlement.UsedChanges, settlement.MinUsed, settlement.MaxUsed, settlement.MaxUsedStep, settlement.MinFreeBlocks, settlement.MaxFreeBlocks, before.FreeBlocks, after.FreeBlocks)
+			if settlement.Samples == 0 {
+				continue
+			}
+			for j, sample := range []executionPressureBallastSample{settlement.First, settlement.Last} {
+				_, _ = fmt.Fprintf(w, "pressure_settlement_endpoint_index=%d endpoint=%s used=%d available=%d allocated=%d free_blocks=%d\n",
+					i, []string{"first", "last"}[j], sample.Used, sample.Available, sample.Allocated, sample.FreeBlocks)
+			}
+		}
+	}
 }
 
 // Borrow only a joined buffer; all three process logs share one retention cap.

@@ -322,7 +322,7 @@ func TestRestoreReplayOwnedExportCoverage(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer func() { _ = prepared.close() }()
-	if prepared.census.Definitions != 716 || prepared.census.Records == 0 {
+	if prepared.census.Definitions != 717 || prepared.census.Records == 0 {
 		t.Fatalf("actual owned export census changed: %+v", prepared.census)
 	}
 	for {
@@ -373,7 +373,7 @@ func TestRestoreReplayOwnedExportFixture(t *testing.T) {
 	path := filepath.Join(output, DatabaseName)
 	if err := runSurreal(ctx, runtime.Surreal.Path, []string{
 		"export", "--endpoint", cliEndpoint(runtime.Endpoint), "--namespace", "phebs", "--database", "phebs", "--log", "none", path,
-	}); err != nil {
+	}, runtime.Pass); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.Chmod(path, 0o600); err != nil {

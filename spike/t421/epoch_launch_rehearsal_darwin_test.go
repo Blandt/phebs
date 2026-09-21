@@ -148,8 +148,8 @@ func TestExecutionEpochOneOptionalRealStartRehearsal(t *testing.T) {
 		allowance += 4 * time.Hour // Original phase-eight deadline spans owned death and epoch four.
 	}
 	if pressure {
-		allowance += time.Hour
-	} // Three unchanged twenty-minute phases.
+		allowance += 65 * time.Minute
+	} // One prospective 25-minute phase plus two unchanged twenty-minute phases.
 	ctx, cancel := context.WithTimeout(t.Context(), allowance)
 	defer cancel()
 	if onVolume {

@@ -11,7 +11,7 @@ var errExecutionReceiptTransition = errors.New("execution receipt transition obs
 func composeExecutionReaderTransition(plan Plan, measurement PhaseMeasurement, authority map[string]AuthorityPhaseResult,
 	observed epochRetentionObservation, events map[string]uint64,
 ) (ReaderTransition, error) {
-	if plan.Schema != PlanV3Schema || measurement.Phase != "physical_delta_b" ||
+	if !processAccountingPlanSemantics(plan.Schema) || measurement.Phase != "physical_delta_b" ||
 		observed.Schema != "t422-current-prior-observation-v1" || observed.PinnedAtUnixNano <= 0 ||
 		observed.ReleasedAtUnixNano <= observed.PinnedAtUnixNano || !observed.OldReaderHeldThroughReprobe ||
 		observed.Held != (epochRetentionSweep{Attempt: 1, Completeness: "exact"}) ||
@@ -57,7 +57,7 @@ func composeExecutionReaderTransition(plan Plan, measurement PhaseMeasurement, a
 func composeExecutionLifecycleTransition(plan Plan, measurement PhaseMeasurement, authority map[string]AuthorityPhaseResult,
 	cycle lifecycle.CycleObservation, events map[string]uint64,
 ) (LifecycleTransition, error) {
-	if plan.Schema != PlanV3Schema || measurement.Phase != "lifecycle_collection" || !pressureCycleValid(cycle, true) ||
+	if !processAccountingPlanSemantics(plan.Schema) || measurement.Phase != "lifecycle_collection" || !pressureCycleValid(cycle, true) ||
 		cycle.FenceAt.UnixMilli() <= 0 || cycle.Capacity.ObservedAt.UnixMilli() <= 0 {
 		return LifecycleTransition{}, errExecutionReceiptTransition
 	}

@@ -113,8 +113,8 @@ func TestExecutionSignedLauncherOptionalReadiness(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	supplied := productionRehearsalBuildSchema(t, buildCtx, inputs, builds, "t422-execute", PlanV3Schema)
-	executor, err := inputs.ProtectReferenceToolV3(buildCtx, bootstrap, "t422-execute", supplied)
+	supplied := productionRehearsalBuildSchema(t, buildCtx, inputs, builds, "t422-execute", PlanV4Schema)
+	executor, err := inputs.protectReferenceTool(buildCtx, bootstrap, "t422-execute", supplied, PlanV4Schema)
 	if err != nil {
 		t.Fatal("retained bootstrap executor", err)
 	}

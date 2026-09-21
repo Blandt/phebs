@@ -235,7 +235,7 @@ func validatePlanExecutionContract(plan Plan) error {
 			return err
 		}
 	}
-	if plan.Schema == PlanV3Schema {
+	if processAccountingPlanSemantics(plan.Schema) {
 		if err := applyProcessAccountingCorrection(&want); err != nil {
 			return err
 		}
@@ -249,6 +249,11 @@ func validatePlanExecutionContract(plan Plan) error {
 		}
 		if plan.SelectorHandoffCleanup != nil {
 			if err := applySelectorHandoffCleanupCorrection(&want); err != nil {
+				return err
+			}
+		}
+		if plan.Schema == PlanV4Schema {
+			if err := applyPressureContinuityCorrection(&want); err != nil {
 				return err
 			}
 		}

@@ -37,7 +37,7 @@ func (flow *ExecutionEpochOne) sampleAuthorWorkspaceLocked(ctx context.Context, 
 	}
 	if ctx == nil || ctx.Err() != nil || flow.workspace == nil || flow.workspaceBytes == nil ||
 		flow.epochs == nil || flow.epochs.author == nil || flow.controller == nil || flow.store == nil ||
-		flow.plan.Schema != PlanV3Schema || len(flow.plan.PhaseDeadlines) != 15 || point > 1 {
+		!processAccountingPlanSemantics(flow.plan.Schema) || len(flow.plan.PhaseDeadlines) != 15 || point > 1 {
 		return fail()
 	}
 	confirm := func() bool {
@@ -100,7 +100,7 @@ func (reader *executionEpochInspection) sampleEarlyFinish(ctx context.Context) (
 		return errEpochInspection
 	}
 	row := &reader.earlyFinishSamples.Phases[phase]
-	if ctx == nil || ctx.Err() != nil || reader.err != nil || reader.plan.Schema != PlanV3Schema || !reader.finalUsed || run.control == nil ||
+	if ctx == nil || ctx.Err() != nil || reader.err != nil || !processAccountingPlanSemantics(reader.plan.Schema) || !reader.finalUsed || run.control == nil ||
 		run.flow.authorBytePoint != 2 || row.Attempts != 0 ||
 		phase == 1 && reader.earlyFinishSamples.Phases[0].Completed != 1 ||
 		phase == 0 && reader.plan.SelectorHandoffCleanup != nil && reader.selectorCleanupPhase != "cold" {
