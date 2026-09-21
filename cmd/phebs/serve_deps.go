@@ -121,8 +121,8 @@ func (d *serveDeps) deferFunc(fn func(retErr *error)) {
 }
 
 func (d *serveDeps) runDeferred(retErr *error) {
-	for i := len(d.deferred) - 1; i >= 0; i-- {
-		d.deferred[i](retErr)
+	for _, fn := range d.deferred {
+		defer fn(retErr)
 	}
 }
 
