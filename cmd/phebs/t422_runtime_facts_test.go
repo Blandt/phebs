@@ -9,6 +9,7 @@ import (
 	"go/parser"
 	"go/token"
 	"io"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -192,36 +193,44 @@ func TestT422RuntimeFactsSelectedAttempts(t *testing.T) {
 }
 
 // Source binding supplements the codec checks: the actual serve constructors
-// must consume these same named values, not a separate probe-only copy.
+// must consume these same named values, not a separate probe-only copy. The
+// serve startup wiring lives in main.go and the serve_*.go phase files.
 func TestT422RuntimeFactsSchedulerConstruction(t *testing.T) {
-	file, err := parser.ParseFile(token.NewFileSet(), "main.go", nil, 0)
+	sources, err := filepath.Glob("serve_*.go")
 	if err != nil {
 		t.Fatal(err)
 	}
+	sources = append([]string{"main.go"}, sources...)
 	want := map[string]int{"observationIOConcurrency": 1, "observationCPUConcurrency": 1, "relationshipConcurrency": 1}
 	runnerStarts := 0
-	ast.Inspect(file, func(node ast.Node) bool {
-		if call, ok := node.(*ast.CallExpr); ok {
-			if function, ok := call.Fun.(*ast.Ident); ok && function.Name == "runStoreRunner" {
-				runnerStarts++
+	for _, source := range sources {
+		file, err := parser.ParseFile(token.NewFileSet(), source, nil, 0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		ast.Inspect(file, func(node ast.Node) bool {
+			if call, ok := node.(*ast.CallExpr); ok {
+				if function, ok := call.Fun.(*ast.Ident); ok && function.Name == "runStoreRunner" {
+					runnerStarts++
+				}
 			}
-		}
-		field, ok := node.(*ast.KeyValueExpr)
-		if !ok {
-			return true
-		}
-		key, ok := field.Key.(*ast.Ident)
-		if !ok || key.Name != "Concurrency" {
-			return true
-		}
-		value, ok := field.Value.(*ast.Ident)
-		if ok {
-			if _, present := want[value.Name]; present {
-				want[value.Name]--
+			field, ok := node.(*ast.KeyValueExpr)
+			if !ok {
+				return true
 			}
-		}
-		return true
-	})
+			key, ok := field.Key.(*ast.Ident)
+			if !ok || key.Name != "Concurrency" {
+				return true
+			}
+			value, ok := field.Value.(*ast.Ident)
+			if ok {
+				if _, present := want[value.Name]; present {
+					want[value.Name]--
+				}
+			}
+			return true
+		})
+	}
 	for name, remaining := range want {
 		if remaining != 0 {
 			t.Fatal("serve does not construct the observed class once", name, remaining)
