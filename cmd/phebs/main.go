@@ -2466,16 +2466,15 @@ func serve(ctx context.Context, args []string) (retErr error) {
 	}
 	handler := t422OwnerHTTPHandler(owners, newHTTPHandler(authService, apiHandler, mcpHandler, promhttp.Handler(), http.FileServerFS(dist), cfg.Server), semanticLaunch)
 
+	// Keep the server-wide WriteTimeout at zero: it is an absolute response
+	// deadline and would terminate legitimate SSE and MCP streams. Those
+	// handlers retain their own bounded work deadlines.
 	srv := &http.Server{
 		Addr: cfg.Server.Addr, Handler: handler,
 		ReadHeaderTimeout: 10 * time.Second,
-		// Slow-client bounds (slowloris-class): the API and MCP handlers
-		// take small JSON bodies and short responses; nothing here expects
-		// a large request upload or a response stream longer than a minute.
-		ReadTimeout:  15 * time.Second,
-		WriteTimeout: 60 * time.Second,
-		IdleTimeout:  120 * time.Second,
-		BaseContext:  t421ExactReadServerBaseContext(ctx, exactReads),
+		ReadTimeout:       15 * time.Second,
+		IdleTimeout:       120 * time.Second,
+		BaseContext:       t421ExactReadServerBaseContext(ctx, exactReads),
 	}
 	shutdownErr := make(chan error, 1)
 	runBackground(func() {
