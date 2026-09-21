@@ -46,7 +46,7 @@ func TestIdleClaimNativeTransactionMetrics(t *testing.T) {
 	if runtime.Surreal.Version != "3.2.0" {
 		t.Fatalf("unexpected native version %q", runtime.Surreal.Version)
 	}
-	s, err := Open(ctx, runtime.Endpoint, "root", "root", idleClaimMetricsScope, idleClaimMetricsScope)
+	s, err := Open(ctx, runtime.Endpoint, "root", runtime.Pass, idleClaimMetricsScope, idleClaimMetricsScope)
 	if err != nil {
 		t.Fatalf("open neutral store: %v", err)
 	}
@@ -64,7 +64,7 @@ func TestIdleClaimNativeTransactionMetrics(t *testing.T) {
 	endpoint := "http://" + strings.TrimPrefix(runtime.Endpoint, "ws://") + "/metrics"
 	snapshot := func(stage string) idleClaimMetricSnapshot {
 		t.Helper()
-		value, err := readIdleClaimMetrics(ctx, client, endpoint)
+		value, err := readIdleClaimMetrics(ctx, client, endpoint, runtime.Pass)
 		if err != nil {
 			t.Fatalf("%s metrics unavailable: %v\n%s", stage, err, value.raw)
 		}
@@ -124,13 +124,13 @@ type idleClaimMetricSnapshot struct {
 	raw                       string
 }
 
-func readIdleClaimMetrics(ctx context.Context, client *http.Client, endpoint string) (idleClaimMetricSnapshot, error) {
+func readIdleClaimMetrics(ctx context.Context, client *http.Client, endpoint, pass string) (idleClaimMetricSnapshot, error) {
 	var out idleClaimMetricSnapshot
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
 		return out, err
 	}
-	request.SetBasicAuth("root", "root")
+	request.SetBasicAuth("root", pass)
 	response, err := client.Do(request)
 	if err != nil {
 		return out, err
@@ -245,7 +245,7 @@ func TestIdleClaimMetricsScopeAndUnavailable(t *testing.T) {
 				_, _ = io.WriteString(w, test.body)
 			}))
 			defer server.Close()
-			got, err := readIdleClaimMetrics(t.Context(), server.Client(), server.URL)
+			got, err := readIdleClaimMetrics(t.Context(), server.Client(), server.URL, "root")
 			if (err != nil) != test.wantError {
 				t.Fatalf("error=%v", err)
 			}
