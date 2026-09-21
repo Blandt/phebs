@@ -91,7 +91,7 @@ func TestRestoreAccountingHTTPPrefix(t *testing.T) {
 				_, _ = io.WriteString(w, "["+first+","+ok+"]")
 			}))
 			defer server.Close()
-			err = executeRestoreReplay(t.Context(), prepared, t.TempDir(), strings.Replace(server.URL, "http://", "ws://", 1), DatabaseIdentity{Namespace: "phebs", Database: "phebs"}, owner)
+			err = executeRestoreReplay(t.Context(), prepared, t.TempDir(), strings.Replace(server.URL, "http://", "ws://", 1), "root", DatabaseIdentity{Namespace: "phebs", Database: "phebs"}, owner)
 			wantCalls := failAt
 			if failAt == 0 {
 				wantCalls = 5
@@ -205,7 +205,7 @@ func TestRestoreAccountingResponseClosure(t *testing.T) {
 				}}
 				return &http.Response{StatusCode: http.StatusOK, Body: body}, nil
 			})
-			err := submitRestoreReplayRequest(ctx, &http.Client{Transport: transport}, "http://127.0.0.1:1/import",
+			err := submitRestoreReplayRequest(ctx, &http.Client{Transport: transport}, "http://127.0.0.1:1/import", "root",
 				DatabaseIdentity{Namespace: "phebs", Database: "phebs"}, strings.NewReader("closed native transaction"), 25, false, false, 1, owner)
 			prefix, _ := controller.Snapshot()
 			wantCalls := 1
@@ -251,7 +251,7 @@ func TestRestoreAccountingNativeReplay(t *testing.T) {
 	if runtime.Surreal.Version != "3.2.0" {
 		t.Fatal("unproven native replay engine")
 	}
-	if err := executeRestoreReplay(ctx, prepared, target, runtime.Endpoint, DatabaseIdentity{Namespace: "phebs", Database: "phebs"}, owner); err != nil {
+	if err := executeRestoreReplay(ctx, prepared, target, runtime.Endpoint, runtime.Pass, DatabaseIdentity{Namespace: "phebs", Database: "phebs"}, owner); err != nil {
 		t.Fatal(err)
 	}
 	prefix, err := controller.Snapshot()
@@ -274,7 +274,7 @@ func TestRestoreAccountingNativeReplay(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer func() { _ = db.Close(context.Background()) }()
-	if _, err := db.SignIn(ctx, surrealdb.Auth{Username: "root", Password: "root"}); err != nil {
+	if _, err := db.SignIn(ctx, surrealdb.Auth{Username: "root", Password: runtime.Pass}); err != nil {
 		t.Fatal(err)
 	}
 	if err := db.Use(ctx, "phebs", "phebs"); err != nil {

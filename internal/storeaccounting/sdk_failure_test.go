@@ -175,7 +175,7 @@ func TestStoreAccountingSDKFinishDiagnostics(t *testing.T) {
 			case "cancel_rpc":
 				err = SDKCancel(ctx, owner, tx)
 			case "local_reply":
-				conn := &SDKConnection{sdkNative: native, owner: owner, localStep: storeLocalSignIn}
+				conn := &SDKConnection{sdkNative: native, owner: owner, localStep: storeLocalSignIn, localAuth: storeLocalRootAuth("root")}
 				localDB, openErr := surrealdb.FromConnection(ctx, conn)
 				if openErr != nil {
 					t.Fatal(openErr)

@@ -205,7 +205,7 @@ func buildExecutionReturnedPackage(
 	}
 	seal.mu.Lock()
 	defer seal.mu.Unlock()
-	if ctx == nil || ctx.Err() != nil || seal.closed || seal.packageUsed || seal.key == nil || plan.Schema != PlanV3Schema {
+	if ctx == nil || ctx.Err() != nil || seal.closed || seal.packageUsed || seal.key == nil || !processAccountingPlanSemantics(plan.Schema) {
 		return nil, ReturnedPackageBinding{}, ErrExecutionEpochOne
 	}
 	seal.packageUsed = true
@@ -219,7 +219,7 @@ func executionSourceVerificationBytes(plan Plan, binding ExecutionFreezeBinding,
 // This serializer consumes digests, not an operational admission capability.
 // Both the admitted signer and the outer authenticated-byte verifier use it.
 func executionSourceVerificationBytesForFreeze(plan Plan, expectedPlanSHA256, freezeSHA256 string, revisions []RevisionResult) ([]byte, error) {
-	if plan.Schema != PlanV3Schema || len(revisions) != len(plan.Revisions.Physical) {
+	if !processAccountingPlanSemantics(plan.Schema) || len(revisions) != len(plan.Revisions.Physical) {
 		return nil, ErrExecutionEpochOne
 	}
 	rows := make([]executionSourceVerificationRevision, len(revisions))

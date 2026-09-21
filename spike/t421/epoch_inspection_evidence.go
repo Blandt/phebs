@@ -115,7 +115,7 @@ func (flow *ExecutionEpochOne) retainAcceptedAuthority(run *ExecutionEpochOneRun
 	run.mu.Lock()
 	defer run.mu.Unlock()
 	phases := flow.plan.PhaseOrder
-	if flow.closed || run.stopping || run.err != nil || flow.plan.Schema != PlanV3Schema ||
+	if flow.closed || run.stopping || run.err != nil || !processAccountingPlanSemantics(flow.plan.Schema) ||
 		!slices.Equal(phases, frozenPhaseOrder()) || len(flow.authorities) >= len(phases)-2 ||
 		value.Phase != phases[len(flow.authorities)+1] || value.Outcome != "passed" || !value.Current ||
 		!validDigest(value.ExtractionRootsSHA256) || len(value.ExtractionRoots) != len(flow.plan.ReceiptContract.ExtractionDomains) {

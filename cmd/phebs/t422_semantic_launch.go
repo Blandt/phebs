@@ -190,11 +190,19 @@ func readT422SemanticSocket(ctx context.Context, input *os.File, snapshot dispat
 	return decodeT422SemanticLaunch(raw, snapshot)
 }
 
-func (launch *t422SemanticLaunch) loadConfig(path string) (*config.Config, []byte, error) {
+func (launch *t422SemanticLaunch) loadConfig(path string, allowInsecurePerms bool) (*config.Config, []byte, error) {
 	if launch == nil {
-		return loadServerConfig(path)
+		return loadServerConfig(path, allowInsecurePerms)
+	}
+	if allowInsecurePerms {
+		return nil, nil, errT422SemanticLaunch
 	}
 	if len(path) > 4096 || !filepath.IsAbs(path) || filepath.Clean(path) != path {
+		return nil, nil, errT422SemanticLaunch
+	}
+	// Exact-mode semantic launch reads the file directly; loadServerConfig
+	// is not on this path, so enforce here while preserving its closed error.
+	if err := enforceConfigFilePermissions(path, false); err != nil {
 		return nil, nil, errT422SemanticLaunch
 	}
 	before, err := os.Lstat(path)

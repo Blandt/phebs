@@ -51,7 +51,7 @@ func TestSubmissionNativeWebSocketBootstrapProbe(t *testing.T) {
 			t.Errorf("close SDK control: %v", err)
 		}
 	})
-	bearer, err := control.SignIn(ctx, surrealdb.Auth{Username: "root", Password: "root"})
+	bearer, err := control.SignIn(ctx, surrealdb.Auth{Username: "root", Password: runtime.Pass})
 	if err != nil || bearer == "" {
 		t.Fatalf("control SignIn/token: %v", err)
 	}

@@ -26,7 +26,8 @@ import (
 // native export subset. There is no native CLI fallback after this boundary.
 // Selected restore uses the authenticated store owner for parent-acknowledged
 // whole-request attempts; ordinary restore retains its nil-owner path.
-func executeRestoreReplay(ctx context.Context, prepared *preparedRestoreReplay, target, endpoint string, database DatabaseIdentity, owner *storeaccounting.SDKOwner) (resultErr error) {
+// pass is the restore child's database-bound root password from its runtime.
+func executeRestoreReplay(ctx context.Context, prepared *preparedRestoreReplay, target, endpoint, pass string, database DatabaseIdentity, owner *storeaccounting.SDKOwner) (resultErr error) {
 	if prepared == nil {
 		return errors.New("native replay preparation is required")
 	}
@@ -76,7 +77,7 @@ func executeRestoreReplay(ctx context.Context, prepared *preparedRestoreReplay, 
 	client := &http.Client{Transport: transport,
 		CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 	address.Path = "/sql"
-	if err := bootstrapRestoreReplay(ctx, client, address.String(), owner); err != nil {
+	if err := bootstrapRestoreReplay(ctx, client, address.String(), pass, owner); err != nil {
 		return err
 	}
 	address.Path = "/import"
@@ -90,7 +91,7 @@ func executeRestoreReplay(ctx context.Context, prepared *preparedRestoreReplay, 
 		if err != nil {
 			return fmt.Errorf("prepare native import unit: %w", err)
 		}
-		err = submitRestoreReplayUnit(ctx, client, address.String(), database, file, unit, owner)
+		err = submitRestoreReplayUnit(ctx, client, address.String(), pass, database, file, unit, owner)
 		err = errors.Join(err, file.Close())
 		if sampleErr := custodybytes.Checkpoint(ctx); sampleErr != nil {
 			err = errors.Join(err, sampleErr)
@@ -109,21 +110,21 @@ func executeRestoreReplay(ctx context.Context, prepared *preparedRestoreReplay, 
 // Both source-owned metadata definitions are real writes, each in its own
 // explicit transaction with one submitted definition. They are not setup-
 // exempt work. No application tables or records are created by this bootstrap.
-func bootstrapRestoreReplay(ctx context.Context, client *http.Client, endpoint string, owner *storeaccounting.SDKOwner) error {
+func bootstrapRestoreReplay(ctx context.Context, client *http.Client, endpoint, pass string, owner *storeaccounting.SDKOwner) error {
 	for _, kind := range [...]string{"NAMESPACE", "DATABASE"} {
 		database := DatabaseIdentity{}
 		if kind == "DATABASE" {
 			database.Namespace = "phebs"
 		}
 		body := "BEGIN;\nDEFINE " + kind + " IF NOT EXISTS phebs;\nCOMMIT;"
-		if err := submitRestoreReplayRequest(ctx, client, endpoint, database, strings.NewReader(body), int64(len(body)), true, true, 1, owner); err != nil {
+		if err := submitRestoreReplayRequest(ctx, client, endpoint, pass, database, strings.NewReader(body), int64(len(body)), true, true, 1, owner); err != nil {
 			return fmt.Errorf("native import %s bootstrap: %w", kind, err)
 		}
 	}
 	return nil
 }
 
-func submitRestoreReplayUnit(ctx context.Context, client *http.Client, endpoint string, database DatabaseIdentity, file *os.File, unit restoreReplayUnit, owner *storeaccounting.SDKOwner) error {
+func submitRestoreReplayUnit(ctx context.Context, client *http.Client, endpoint, pass string, database DatabaseIdentity, file *os.File, unit restoreReplayUnit, owner *storeaccounting.SDKOwner) error {
 	prefix, suffix := "OPTION IMPORT; BEGIN;\n", "\nCOMMIT;"
 	if !unit.Definition {
 		prefix += "INSERT ["
@@ -143,7 +144,7 @@ func submitRestoreReplayUnit(ctx context.Context, client *http.Client, endpoint 
 	if unit.Definition {
 		rows = 1
 	}
-	if err := submitRestoreReplayRequest(ctx, client, endpoint, database, body, size, unit.Definition, false, rows, owner); err != nil {
+	if err := submitRestoreReplayRequest(ctx, client, endpoint, pass, database, body, size, unit.Definition, false, rows, owner); err != nil {
 		return err
 	}
 	if measured != nil {
@@ -156,14 +157,14 @@ func submitRestoreReplayUnit(ctx context.Context, client *http.Client, endpoint 
 	return nil
 }
 
-func submitRestoreReplayRequest(ctx context.Context, client *http.Client, endpoint string, database DatabaseIdentity, source io.Reader, size int64, definition, bootstrap bool, rows uint64, owner *storeaccounting.SDKOwner) error {
+func submitRestoreReplayRequest(ctx context.Context, client *http.Client, endpoint, pass string, database DatabaseIdentity, source io.Reader, size int64, definition, bootstrap bool, rows uint64, owner *storeaccounting.SDKOwner) error {
 	body := &restoreReplayRequestBody{reader: contextReader{ctx: ctx, reader: source}, done: make(chan struct{})}
 	request, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, body)
 	if err != nil {
 		return fmt.Errorf("create native import request: %w", err)
 	}
 	request.ContentLength = size
-	request.SetBasicAuth("root", "root")
+	request.SetBasicAuth("root", pass)
 	if database.Namespace != "" {
 		request.Header.Set("Surreal-NS", database.Namespace)
 	}

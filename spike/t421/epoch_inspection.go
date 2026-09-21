@@ -170,7 +170,7 @@ func (run *ExecutionEpochOneRun) newEpochInspection(ctx context.Context) (*execu
 		return nil, errEpochInspection
 	}
 	plan := run.flow.plan
-	if plan.Schema != PlanV3Schema {
+	if !processAccountingPlanSemantics(plan.Schema) {
 		return nil, errEpochInspection
 	}
 	projection, err := expectedStateProjectionForPhase(plan, "cold")
@@ -335,10 +335,10 @@ func (reader *executionEpochInspection) readRequest(ctx context.Context, path st
 	request.Header.Set(dispatchadmission.ProductionRequestHeader, token)
 	request.Header.Set("X-Phebs-T421-Exact-Reads", "source-free-v1")
 	request.Header.Set("X-Phebs-T421-Exact-Read-Ordinal", strconv.FormatUint(ordinal, 10))
-	if repositories || path == "/api/t421/final-authority" && reader.plan.Schema == PlanV3Schema && run.epoch.Epoch == 5 && reader.projection.Phase == "product_queries" {
+	if repositories || path == "/api/t421/final-authority" && processAccountingPlanSemantics(reader.plan.Schema) && run.epoch.Epoch == 5 && reader.projection.Phase == "product_queries" {
 		request.Header.Set("X-Phebs-T422-Query-Evidence", "bound-v1")
 	}
-	if path == "/api/t421/final-authority" && reader.plan.Schema == PlanV3Schema && run.epoch.Epoch == 5 &&
+	if path == "/api/t421/final-authority" && processAccountingPlanSemantics(reader.plan.Schema) && run.epoch.Epoch == 5 &&
 		reader.projection.Phase == "product_queries" && reader.productFinalCalls == 1 && reader.productQueriesComplete {
 		request.Header.Set("X-Phebs-T422-Query-Terminal", "complete-v1")
 	}
@@ -751,7 +751,7 @@ func (reader *executionEpochInspection) decodeFinal(raw []byte) (authority Autho
 	}
 	if phase == "archive_restore" {
 		physicalPlan, ok := namedPhysicalRevision(reader.plan.Revisions.Physical, physical)
-		if reader.run == nil || reader.run.epoch.Epoch != 5 || reader.plan.Schema != PlanV3Schema || reader.archiveManifest == nil ||
+		if reader.run == nil || reader.run.epoch.Epoch != 5 || !processAccountingPlanSemantics(reader.plan.Schema) || reader.archiveManifest == nil ||
 			reader.archivePrior.Phase != "pressure_75" || reader.archivePrior.Outcome != "passed" || !ok ||
 			!validDigest(authority.RelationshipProvenanceSHA256) || validateAuthorityCoverage(authority, physicalPlan, reader.plan) != nil ||
 			validateArchiveAuthorityContinuity(authority, reader.archivePrior, reader.plan) != nil {
@@ -762,7 +762,7 @@ func (reader *executionEpochInspection) decodeFinal(raw []byte) (authority Autho
 	if phase == "lifecycle_collection" {
 		prior := reader.archiveAuthority
 		prior.Phase = phase
-		if reader.run == nil || reader.run.epoch.Epoch != 5 || reader.plan.Schema != PlanV3Schema || !reader.restoredSamples.ArchiveComplete ||
+		if reader.run == nil || reader.run.epoch.Epoch != 5 || !processAccountingPlanSemantics(reader.plan.Schema) || !reader.restoredSamples.ArchiveComplete ||
 			reader.archiveAuthority.Phase != "archive_restore" || !reflect.DeepEqual(authority, prior) {
 			return authority, projection, errEpochInspection
 		}
@@ -771,7 +771,7 @@ func (reader *executionEpochInspection) decodeFinal(raw []byte) (authority Autho
 	if phase == "product_queries" {
 		prior := reader.collectionAuthority
 		prior.Phase = phase
-		if reader.run == nil || reader.run.epoch.Epoch != 5 || reader.plan.Schema != PlanV3Schema || !reader.restoredSamples.CollectionComplete ||
+		if reader.run == nil || reader.run.epoch.Epoch != 5 || !processAccountingPlanSemantics(reader.plan.Schema) || !reader.restoredSamples.CollectionComplete ||
 			reader.collectionAuthority.Phase != "lifecycle_collection" || !reflect.DeepEqual(authority, prior) {
 			return authority, projection, errEpochInspection
 		}

@@ -129,7 +129,7 @@ func TestLocalScopeInitializationWireAndFailure(t *testing.T) {
 			if test.remote {
 				state, err = Open(ctx, endpoint, "remote-user", "remote-pass", "remote-ns", "remote-db")
 			} else {
-				state, err = openLocalRoot(ctx, endpoint)
+				state, err = openLocalRoot(ctx, LocalRuntime{Endpoint: endpoint, Pass: "root"})
 			}
 			if err == nil || state != nil || !strings.Contains(err.Error(), test.stage) {
 				t.Fatalf("initialization=%v state=%v; want %s", err, state, test.stage)
@@ -225,7 +225,7 @@ func TestLocalScopeInitializationCanceled(t *testing.T) {
 	if err := initializeLocalScope(ctx, nil, nil); !errors.Is(err, context.Canceled) {
 		t.Fatalf("canceled before any submission: %v", err)
 	}
-	if _, err := openLocalRoot(ctx, "http://127.0.0.1:1"); err == nil {
+	if _, err := openLocalRoot(ctx, LocalRuntime{Endpoint: "http://127.0.0.1:1", Pass: "root"}); err == nil {
 		t.Fatal("local root constructor accepted a non-WebSocket endpoint")
 	}
 }
@@ -267,7 +267,7 @@ func TestLocalScopeNativeInitialization(t *testing.T) {
 	if err := state.UpsertRepo(ctx, Repo{Name: "neutral/local-scope", DefaultBranch: "main"}); err != nil {
 		t.Fatal(err)
 	}
-	repeated, err := openLocalRoot(ctx, runtime.Endpoint)
+	repeated, err := openLocalRoot(ctx, runtime)
 	if err != nil {
 		t.Fatal(err)
 	}

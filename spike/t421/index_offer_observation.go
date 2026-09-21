@@ -40,7 +40,7 @@ func (out ExecutionIndexObservation) coherent() bool {
 // The owner calls this only after native Wait joined every output pump. Stable
 // failed output may retain a positive prefix, but never a complete attestation.
 func observeExecutionIndexOffers(raw []byte, plan Plan, producer uint32, input [32]byte, joined, healthy bool) (out ExecutionIndexObservation, err error) {
-	if !joined || plan.Schema != PlanV3Schema || len(raw) > 64<<20 || input == ([32]byte{}) ||
+	if !joined || !processAccountingPlanSemantics(plan.Schema) || len(raw) > 64<<20 || input == ([32]byte{}) ||
 		producer < 2 || producer > 6 || !slices.Equal(plan.PhaseOrder, frozenPhaseOrder()) || len(plan.WorkEnvelope.Phases) != len(out.Phases) {
 		return out, errExecutionAttempts
 	}

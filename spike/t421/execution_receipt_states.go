@@ -12,7 +12,7 @@ var errExecutionReceiptStates = errors.New("execution receipt state observations
 func composeExecutionReceiptStates(plan Plan, freeze ExecutionFreeze, phases []PhaseResult,
 	measurements []PhaseMeasurement, authorities []AuthorityPhaseResult, servers []ExecutionEpochOneResult,
 ) ([]ExactPhaseEvidence, error) {
-	if plan.Schema != PlanV3Schema || validatePlan(plan, &plan.Revisions) != nil || len(servers) > 5 {
+	if !processAccountingPlanSemantics(plan.Schema) || validatePlan(plan, &plan.Revisions) != nil || len(servers) > 5 {
 		return nil, errExecutionReceiptStates
 	}
 	outcomes, stopped, err := validateReceiptPhases(phases, plan)

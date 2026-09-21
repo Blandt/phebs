@@ -96,7 +96,7 @@ func workspaceCheckpointMaximum(producer, phase uint32) uint64 {
 // The archive allowance is derived from the operation's closed call graph and
 // the existing phase-twelve store ceiling, never from a supplied byte total.
 func archiveCheckpointMaximum(plan Plan, producer uint32) (uint32, error) {
-	if plan.Schema != PlanV3Schema || len(plan.WorkEnvelope.Phases) != 15 || plan.WorkEnvelope.Phases[11].Phase != frozenPhaseOrder()[11] {
+	if !processAccountingPlanSemantics(plan.Schema) || len(plan.WorkEnvelope.Phases) != 15 || plan.WorkEnvelope.Phases[11].Phase != frozenPhaseOrder()[11] {
 		return 0, errExecutionAttempts
 	}
 	switch producer {
@@ -139,7 +139,7 @@ func observeWorkspaceByteEvent(line []byte, plan Plan, producer uint32, input st
 			}
 		}
 	}()
-	if plan.Schema != PlanV3Schema || producer != 2 && producer != 3 && producer != 4 && producer != 5 && producer != 6 && producer != 10 && producer != 11 || out.Unavailable || out.LimitExceeded {
+	if !processAccountingPlanSemantics(plan.Schema) || producer != 2 && producer != 3 && producer != 4 && producer != 5 && producer != 6 && producer != 10 && producer != 11 || out.Unavailable || out.LimitExceeded {
 		return true, errExecutionAttempts
 	}
 	if bytes.Contains(line, []byte("WBB")) {

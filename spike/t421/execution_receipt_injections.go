@@ -13,7 +13,7 @@ func composeExecutionPublicationInjection(plan Plan, measurement PhaseMeasuremen
 	authority map[string]AuthorityPhaseResult, observed executionTransitionObservations,
 	events map[string]uint64, times map[string]time.Time,
 ) (InjectionTransition, error) {
-	if plan.Schema != PlanV3Schema || measurement.Phase != "logical_delta_b" && measurement.Phase != "return_a" {
+	if !processAccountingPlanSemantics(plan.Schema) || measurement.Phase != "logical_delta_b" && measurement.Phase != "return_a" {
 		return InjectionTransition{}, errExecutionReceiptTransition
 	}
 	index := slices.IndexFunc(plan.FailurePoints, func(p FailurePoint) bool { return p.Phase == measurement.Phase })
@@ -121,7 +121,7 @@ func composeExecutionRecoveryInjection(plan Plan, freeze ExecutionFreeze, measur
 	authority map[string]AuthorityPhaseResult, observed executionTransitionObservations,
 	events map[string]uint64, times map[string]time.Time, beforeRoot, afterRoot ExecutionEpochOneResult,
 ) (InjectionTransition, error) {
-	if plan.Schema != PlanV3Schema || measurement.Phase != "stale_lease" && measurement.Phase != "process_restart" {
+	if !processAccountingPlanSemantics(plan.Schema) || measurement.Phase != "stale_lease" && measurement.Phase != "process_restart" {
 		return InjectionTransition{}, errExecutionReceiptTransition
 	}
 	index := slices.IndexFunc(plan.FailurePoints, func(p FailurePoint) bool { return p.Phase == measurement.Phase })

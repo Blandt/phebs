@@ -1718,8 +1718,9 @@ the interactive docs at `/api/docs`.
 **Auth:** application endpoints accept either the browser session cookie or
 `Authorization: Bearer <named-or-legacy-key>`. Authentication is not disabled
 by omitting `auth.api_key`. Always open: `/api/health`, `/api/version`,
-`/api/openapi*`, `/api/docs*`, auth status/enrollment/login/OIDC routes, and
-`/metrics`. `/api/webhook` uses its own HMAC trust boundary.
+`/api/openapi*`, `/api/docs*`, and auth status/enrollment/login/OIDC routes.
+`/metrics` requires authentication (a session cookie or a Bearer API key).
+`/api/webhook` uses its own HMAC trust boundary.
 
 
 | Endpoint                                                            | Method          | Purpose                                                                                        |

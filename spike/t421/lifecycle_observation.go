@@ -13,7 +13,7 @@ import (
 const maxExecutionLifecycleEvent = 1 << 10
 
 func lifecycleDeleteLimit(schema, owner string) uint64 {
-	if schema == PlanV3Schema {
+	if processAccountingPlanSemantics(schema) {
 		return uint64(lifecycle.SelectedCleanupDeleteLimit(owner))
 	}
 	return uint64(lifecycle.MaxDeletesPerTick)
@@ -117,7 +117,7 @@ func observeLifecycleEvent(line []byte, plan Plan, producer uint32, input string
 	if next.OwnerTurns > bound.LifecycleOwnerTurns.Maximum || next.Deleted > bound.LifecycleDeleted.Maximum ||
 		next.MaxDeleted > plan.WorkEnvelope.MaximumLifecycleDeletesPerTurn || event.Scanned > lifecycle.MaxCandidatesPerTick ||
 		uint64(event.Deleted) > lifecycleDeleteLimit(plan.Schema, event.Owner) ||
-		plan.Schema != PlanV3Schema && event.Deleted > event.Scanned {
+		!processAccountingPlanSemantics(plan.Schema) && event.Deleted > event.Scanned {
 		return true, errExecutionAttempts
 	}
 	return true, nil

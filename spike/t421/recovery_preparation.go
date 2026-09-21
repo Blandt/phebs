@@ -121,7 +121,7 @@ func recoveryPreparationReadBounds(plan Plan, row RecoveryPreparation) (CounterB
 	// latest/latest/source/latest authority confirmations (sixteen controls).
 	files := 24 + 4*domainCount + partitions + row.PreparationCompletionWrites
 	readsPerAttempt := uint64(4)
-	if plan.Schema == PlanV3Schema {
+	if processAccountingPlanSemantics(plan.Schema) {
 		// The enqueue census adds one charged read per native attempt.
 		// Retained V1/V2 interpretation remains byte/version exact.
 		readsPerAttempt = 5

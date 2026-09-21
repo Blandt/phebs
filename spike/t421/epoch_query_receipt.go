@@ -21,7 +21,7 @@ func (run *ExecutionEpochOneRun) recordProductQueryEvidence(ctx context.Context)
 	defer run.mu.Unlock()
 	if run.stopping || run.err != nil || run.epoch.Epoch != 5 || !run.healthy || !run.warm || !run.productExecutionUsed ||
 		run.restoredExecutionDone == nil || reader.run != run || reader.err != nil || reader.productQueryEvidence != nil ||
-		reader.plan.Schema != PlanV3Schema || run.flow.plan.Schema != PlanV3Schema || reader.plan.Correction == nil ||
+		!processAccountingPlanSemantics(reader.plan.Schema) || !processAccountingPlanSemantics(run.flow.plan.Schema) || reader.plan.Correction == nil ||
 		!strings.HasSuffix(reader.plan.Correction.ReadAccountingPolicy, ";"+queryResultUnitsV3) ||
 		run.control.Context().Err() != nil || run.control.RequestToken() != "" {
 		return ErrExecutionEpochOne

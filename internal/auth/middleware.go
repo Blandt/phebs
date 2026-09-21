@@ -92,7 +92,7 @@ func (s *Service) authenticateBearer(ctx context.Context, token string) (Princip
 			return Principal{}, fmt.Errorf("touch API key: %w", err)
 		}
 	}
-	if key.UserID == "" && key.ID == legacyKeyID {
+	if key.ID == legacyKeyID && (key.UserID == "" || key.UserID == store.LegacyAPIKeyUserID) {
 		return Principal{APIKeyID: key.ID, AuthMethod: "api_key", IsAdmin: true}, nil
 	}
 	user, err := s.store.GetUserByID(ctx, key.UserID)

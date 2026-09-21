@@ -355,10 +355,22 @@ func TestT422SemanticConfigAndServeBinding(t *testing.T) {
 	if err := os.WriteFile(path, configRaw, 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if got, raw, err := launch.loadConfig(path); err != nil || !reflect.DeepEqual(got, cfg) || !bytes.Equal(raw, configRaw) {
+	if got, raw, err := launch.loadConfig(path, false); err != nil || !reflect.DeepEqual(got, cfg) || !bytes.Equal(raw, configRaw) {
 		t.Fatal("bound single-parse config differs", err)
 	}
-	if _, _, err := launch.loadConfig(filepath.Dir(path)); err == nil {
+	if _, _, err := launch.loadConfig(path, true); !errors.Is(err, errT422SemanticLaunch) {
+		t.Fatal("exact launch accepted unbound insecure-permissions override", err)
+	}
+	if err := os.Chmod(path, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := launch.loadConfig(path, false); !errors.Is(err, errT422SemanticLaunch) {
+		t.Fatal("exact launch exposed a non-generic permission refusal", err)
+	}
+	if err := os.Chmod(path, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := launch.loadConfig(filepath.Dir(path), false); err == nil {
 		t.Fatal("directory config accepted")
 	}
 	for _, test := range []struct {

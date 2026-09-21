@@ -60,19 +60,20 @@ type ScopedTeardownEvidence struct {
 	CleanupClosedEventOrdinal      uint64                `json:"cleanup_closed_event_ordinal"`
 }
 
-// Only the V3 outer wire projection suppresses historical fields. In particular,
-// a not-run V3 row must omit them even though every measurement is zero. Aliases
-// retain the exact original V1/V2 field order and representation.
+// Only the V3/V4 process-accounting wire projection suppresses historical
+// fields. In particular, a not-run row must omit them even though every
+// measurement is zero. Aliases retain the exact original V1/V2 field order and
+// representation.
 func (value Receipt) MarshalJSON() ([]byte, error) {
 	type plain Receipt
-	if value.Schema != ReceiptV3Schema {
+	if value.Schema != ReceiptV3Schema && value.Schema != ReceiptV4Schema {
 		return json.Marshal(plain(value))
 	}
 	measurements := make([]json.RawMessage, len(value.Measurements))
 	for index, measurement := range value.Measurements {
 		if measurement.ChildProcessRoles != nil || measurement.Metrics.ChildProcesses != 0 ||
 			measurement.Metrics.PeakRSSBytes != 0 || measurement.Metrics.ProcessMeasurementAvailable {
-			return nil, errors.New("V3 receipt contains legacy process measurements")
+			return nil, errors.New("process-accounting receipt contains legacy process measurements")
 		}
 		type metricFields ReceiptMetrics
 		metrics, err := json.Marshal(struct {
@@ -103,7 +104,7 @@ func (value Receipt) MarshalJSON() ([]byte, error) {
 		}
 	}
 	if value.Teardown.DescendantsStopped || value.Teardown.ChildrenRemaining != 0 || value.Teardown.DescendantStopErrors != 0 {
-		return nil, errors.New("V3 receipt contains global descendant teardown claims")
+		return nil, errors.New("process-accounting receipt contains global descendant teardown claims")
 	}
 	type teardownFields ReceiptTeardown
 	teardown, err := json.Marshal(struct {
@@ -123,43 +124,46 @@ func (value Receipt) MarshalJSON() ([]byte, error) {
 }
 
 func validateReceiptAccountingVersion(value Receipt, plan Plan) error {
-	wantSchema := map[string]string{PlanSchema: ReceiptSchema, PlanV2Schema: "t422-combined-convergence-receipt-v2", PlanV3Schema: ReceiptV3Schema}[plan.Schema]
+	wantSchema := map[string]string{
+		PlanSchema: ReceiptSchema, PlanV2Schema: "t422-combined-convergence-receipt-v2",
+		PlanV3Schema: ReceiptV3Schema, PlanV4Schema: ReceiptV4Schema,
+	}[plan.Schema]
 	if wantSchema == "" || value.Schema != wantSchema || value.Schema != plan.ReceiptContract.Schema ||
-		plan.Schema == PlanV3Schema && (value.Schema != ReceiptV3Schema || plan.ProcessAccounting == nil || plan.WorkEnvelope.Schema != WorkEnvelopeV3Schema) ||
-		plan.Schema != PlanV3Schema && value.Schema == ReceiptV3Schema {
+		processAccountingPlanSemantics(plan.Schema) && (plan.ProcessAccounting == nil || plan.WorkEnvelope.Schema != WorkEnvelopeV3Schema) ||
+		!processAccountingPlanSemantics(plan.Schema) && (value.Schema == ReceiptV3Schema || value.Schema == ReceiptV4Schema) {
 		return errors.New("receipt process-accounting version is invalid")
 	}
 	for _, measurement := range value.Measurements {
 		metrics := measurement.Metrics
-		if plan.Schema == PlanV3Schema {
+		if processAccountingPlanSemantics(plan.Schema) {
 			if measurement.ChildProcessRoles != nil || metrics.ChildProcesses != 0 || metrics.PeakRSSBytes != 0 || metrics.ProcessMeasurementAvailable {
-				return errors.New("V3 receipt retains legacy process measurements")
+				return errors.New("process-accounting receipt retains legacy process measurements")
 			}
 		} else if measurement.DispatchAccounting != nil || measurement.NativeObservation != nil ||
 			metrics.ControlledDispatchAttempts != 0 || metrics.DispatchMeasurementAvailable ||
 			metrics.ObservedRSSHighWaterBytes != 0 || metrics.NativeMeasurementAvailable {
-			return errors.New("historical receipt retains V3 process measurements")
+			return errors.New("historical receipt retains process-accounting measurements")
 		}
 	}
-	if plan.Schema == PlanV3Schema {
+	if processAccountingPlanSemantics(plan.Schema) {
 		if value.Teardown.Scoped == nil || value.Teardown.DescendantsStopped || value.Teardown.ChildrenRemaining != 0 || value.Teardown.DescendantStopErrors != 0 {
-			return errors.New("V3 receipt teardown scope is invalid")
+			return errors.New("process-accounting receipt teardown scope is invalid")
 		}
 	} else if value.Teardown.Scoped != nil {
-		return errors.New("historical receipt retains V3 teardown evidence")
+		return errors.New("historical receipt retains process-accounting teardown evidence")
 	}
 	return nil
 }
 
 func receiptRSSMetric(metrics ReceiptMetrics, schema string) (string, uint64) {
-	if schema == PlanV3Schema {
+	if processAccountingPlanSemantics(schema) {
 		return "observed_rss_high_water_bytes", uint64(metrics.ObservedRSSHighWaterBytes)
 	}
 	return "peak_rss_bytes", uint64(metrics.PeakRSSBytes)
 }
 
 func receiptRSSStopCode(schema string) string {
-	if schema == PlanV3Schema {
+	if processAccountingPlanSemantics(schema) {
 		return "observed_rss_ceiling"
 	}
 	return "peak_rss_ceiling"
@@ -181,7 +185,7 @@ func hasUnavailableStoreMetrics(values []string) bool {
 }
 
 func validUnavailableMetricsForPlan(values []string, schema string) bool {
-	if schema != PlanV3Schema {
+	if !processAccountingPlanSemantics(schema) {
 		return validUnavailableMetrics(values)
 	}
 	if !slices.IsSorted(values) {
