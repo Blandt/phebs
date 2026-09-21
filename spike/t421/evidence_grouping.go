@@ -2,8 +2,8 @@ package t421
 
 import "strconv"
 
-// V3 alone uses the versioned store-bound extraction policy. The facts and
-// production reservations are unchanged; only chunk framing and IDs differ.
+// The V3/V4 family uses the versioned store-bound extraction policy. The facts
+// and production reservations are unchanged; only chunk framing and IDs differ.
 const storeBoundEvidenceGroupingPolicy = "extraction-policy=sha256(utf8(phebs-extraction-evidence-chunks-169-v1)+NUL+candidate-policy);durable-reuse-binding;169-facts-per-chunk;3*169+3=510<=512-submitted-operands;ordinary-256-and-retained-V1-V2-exact;new-policy-never-reuses-old-run;bytes=frozen-256-bytes+framing(169)-framing(256);framing=sum(131+decimal-digits(zero-based-sequence));same-ordered-facts-and-fixed-length-sha256-identities;no-admission-bound-change"
 
 func storeBoundExtractionDomains() []ExtractionDomainProfile {

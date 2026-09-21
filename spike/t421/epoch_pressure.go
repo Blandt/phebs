@@ -16,11 +16,21 @@ import (
 // existing fixed mutation, never capacity targets or workspace-byte estimates.
 type executionPressureBallastSample struct {
 	Used, Available, Allocated uint64
+	FreeBlocks                 uint64 // Raw Fstatfs Bfree; diagnostic only, never an admission input.
+}
+
+// Bounded private observations, not a history of changes between samples.
+type executionPressureBallastSettlement struct {
+	Samples, UsedChanges          uint64
+	First, Last                   executionPressureBallastSample
+	MinUsed, MaxUsed, MaxUsedStep uint64
+	MinFreeBlocks, MaxFreeBlocks  uint64
 }
 
 type executionPressureBallastMutation struct {
 	Before, After executionPressureBallastSample
 	Fence         time.Time
+	Settlement    executionPressureBallastSettlement
 }
 
 type executionPressureBallastObservation struct {
@@ -41,6 +51,8 @@ type epochPressureObservations struct {
 	sampleOrdinal                uint8
 	samples                      ExecutionPressureSamples
 	ballast                      [4]executionPressureBallastObservation
+	quiet                        executionPressureBallastSettlement
+	quietComplete                bool
 	prePressureWorkspace         custodybytes.Sample
 	prePressureWorkspaceObserved bool
 }
@@ -50,6 +62,9 @@ func checkpointPressureEpochBounds(plan Plan) (epochOneLimits, error) {
 		return epochOneLimits{}, err
 	}
 	deadlines := frozenPhaseDeadlines()
+	if len(deadlines) > 8 {
+		deadlines[8].DeadlineMS = pressure80V3DeadlineMS
+	}
 	var lifetime time.Duration
 	for i := 7; i <= 10; i++ {
 		if plan.PhaseDeadlines[i] != deadlines[i] {
@@ -277,4 +292,10 @@ func (reader *executionEpochInspection) retainPressureBallast(index uint32, muta
 	reader.pressure.ballast[index] = executionPressureBallastObservation{
 		Mutation: mutation, Attempted: true, Complete: err == nil,
 	}
+}
+
+func (reader *executionEpochInspection) retainPressureQuiet(observation executionPressureBallastSettlement, err error) {
+	reader.mu.Lock()
+	defer reader.mu.Unlock()
+	reader.pressure.quiet, reader.pressure.quietComplete = observation, err == nil
 }

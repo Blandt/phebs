@@ -64,6 +64,262 @@ sequence.
 
 ## Now
 
+**T42.2n pressure-continuation correction, 2026-09-17:** exact `03c26e90`
+passed prerequisite gates and exact review, then its signed readiness run
+passed through `pressure_90` and stopped before mutating the `pressure_75`
+ballast. The retained inode stayed at the prior 45,732,614,144-byte size. The
+guard had required the whole filesystem-capacity sample to remain identical
+across owned database/lifecycle work. The correction keeps exact ballast and
+inode custody but refreshes `Used/Available` for both later targets and final
+removal while retaining current target/headroom checks. The named continuation
+regression pins capacity drift plus both directions of ballast-allocation
+drift. Two independent-review attempts at `295aa529` remain partial because the
+production file timed out; their final-removal, test-triage and symmetric-drift
+findings are corrected. The focused regression passes twenty normal and ten
+race repetitions; the complete pressure selector passes in 77.761/908.723
+seconds normally/under race, and static/documentation gates pass. Each of three
+fixed continuation/removal checks now performs one scalar comparison instead
+of three—six removed and three remain—with no new I/O, lock, timer, retry,
+child or allocation. One broader normal package attempt hit the unchanged full
+V3 receipt constructor's default ten-minute alarm; race did not start, and the
+pressure race selector alone exceeds that default. Exact retained roots are
+`/private/tmp/t422-signed-readiness-3045607136`,
+`/private/tmp/t422-readiness-03c26e90.sXcevi`, and
+`/private/tmp/phebs-t422-3525296018`; `/dev/disk5s1` remains mounted at
+`/private/tmp/phebs-t422-3525296018/t422-pressure-3601212463/mount`, and no
+process survives. A corrected immutable commit, complete review,
+longer-allowance package gates and a fresh visible-terminal readiness matrix
+remain before T42.2n acceptance; seal and ceremony stay gated.
+
+**T42.2n pressure-failure custody disposition, 2026-09-17:** Ben explicitly
+authorized cleanup before the next rehearsal. Compact failure logs,
+authorization handoff and public signing records remain at
+`/private/tmp/t422-retained-failure-03c26e90.Lh6Tct`; the 392-KiB directory
+contains no private key. The exact failed image detached normally without
+force, and its operational root, clean detached checkout and disposable
+signer/bootstrap custody were removed after clearing only the protected
+bootstrap's `uchg` flags. No matching process, worktree or mount remains;
+205,212,064 KiB, approximately 195.7 GiB, is free. The failed result, incomplete
+full race gate and fresh visible-terminal readiness matrix remain open; cleanup
+authorizes no retry, acceptance, seal or ceremony.
+
+**T42.2n APFS shrink-settlement correction, 2026-09-18:** exact clean
+`f7986acb` signed readiness passed through `pressure_90` and stopped in
+`pressure_75` only after its single shrink reached the exact
+30,281,199,616-byte logical/allocated target while matching APFS capacity
+remained stale beyond the five-second settlement bound. The retained volume
+later reported the exact 75-percent target. The correction extends only the
+existing strict read-only settlement window to thirty seconds at the unchanged
+50-millisecond cadence, with no repeated mutation or relaxed custody,
+authority, target, phase-deadline, admission or ordinary-runtime behavior. The
+failed mount remains retained and no process survives. Focused gates,
+independent review, outstanding complete acceptance and a fresh visible-terminal
+readiness run remain required; no retry, cleanup, acceptance, seal or ceremony
+is authorized.
+
+**T42.2n failed shrink custody disposition, 2026-09-18:** Ben authorized
+cleanup while reserving rehearsal execution for his terminal. Verified compact
+failure/healthy logs, authorization handoff and public signing records remain
+at `/private/tmp/t422-retained-failure-f7986acb.ei9oU4` with no private key.
+The image detached normally without force; the exact operational, checkout and
+signer/bootstrap roots were removed after clearing only known bootstrap
+`uchg` flags. No matching process, worktree, image or mount remains and
+206,050,272 KiB, approximately 196.5 GiB, is free. Review and complete
+normal/race package gates remain open; Ben must start the final exact-candidate
+signed readiness command in his terminal.
+
+**T42.2n exact-candidate package and review closure, 2026-09-18:** exact clean
+`d682aa58b56a7fa6aa031da2058548e63a494bd3` passed the complete normal package
+in 3,417.373 seconds and, after one honestly retained 10,800.883-second failed
+race attempt, the unchanged complete race package in 17,466.461 seconds under
+the corrected allowance. The intervening failed cancellation selector passed
+twenty focused race repetitions. Normal/race log SHA-256 values are
+`748d88183448734ea34e26007bd225e9522a2ae3ef1485bfd36db6e63d5d5b6b` and
+`b94590d736e3287118d471c6999484829503071a47ba0ad37a05743dafca0d72`.
+No matching child or port-65499 listener survives. Focused OCR review bound the
+exact production patch after the direct repository attempt timed out, completed
+with zero findings, and retained JSON at
+`sha256:77ac3ac9d5f770e9793891cd63f055e894c51ce8120f4a8e10e3ea898478aa33`.
+Module, compile-only, vet, pinned lint, documentation, glossary, format, shell
+and whitespace gates pass. The final complete signed readiness matrix remains
+user-terminal-only and mandatory; until it passes with exact clean teardown,
+the branch is not mergeable and no acceptance, seal, freeze or ceremony is
+authorized.
+
+**T42.2n thirty-second readiness failure, 2026-09-18:** the user-terminal
+`d4318be7` readiness attempt failed in 7,056.693 package seconds at
+`pressure_75` with 31,000 ms recorded. No matching rehearsal process or
+port-65499 listener remains; the mounted image and private logs are retained.
+Post-stop volume use is 61,476,372 bytes below its frozen target, despite
+rounding to 75 percent. The previous exact-settlement/delayed-accounting-only
+diagnosis is withdrawn; the failed in-run samples were not saved. The private
+diagnostic now preserves the existing four ballast records, with failed and
+unattempted status, from the joined epoch-four owner. No pressure or receipt
+predicate is relaxed; receipt capacity contiguity remains a separate open
+constraint. Candidate gates, independent review and user-terminal readiness
+remain required. No merge, retry, cleanup, seal or ceremony has occurred.
+The diagnostic-only patch's focused normal/race, static/docs and one-file OCR
+checks pass; full changed-source package/readiness gates have not been rerun.
+Resolve pressure reconciliation and receipt continuity before the next full
+terminal rehearsal.
+
+**T42.2n sampled-drift diagnostic continuation, 2026-09-18:** native pressure
+acceptance and receipt continuity share the same non-ballast-stability premise.
+The retained post-stop residual fell 61,472,768 bytes relative to the aligned
+anchor; both native predicates reject that sample, but in-run movement remains
+unrecovered. Existing samples now retain extrema, first/last, change count and
+largest observed step, plus raw `Bfree`, without another sample or relaxed rule.
+This narrows a later diagnostic but does not prove release granularity or owner.
+Any contract relaxation needs prospective supersession. Pin the terminal cwd
+before the next bootstrap; do not start another full run, cleanup or merge from
+these diagnostic changes alone.
+Focused normal/race and static/docs checks pass; one low output ambiguity is
+fixed and OCR re-reviewed. The settlement-loop OCR review timed out and is not
+approval. Full OCR coverage, contract resolution and readiness remain open.
+
+**T42.2n authorized disk disposition, 2026-09-19:** the failed `d4318be7`
+image detached normally and its exact operational, detached-checkout and
+signer/bootstrap roots were removed. Verified compact private evidence remains
+at `/private/tmp/t422-retained-failure-d4318be7.mcOMaH`, without the ephemeral
+key; the prior DB/APFS state is no longer available for inspection. Approximately
+90.73 GiB was recovered, leaving 196.07 GiB free. Other worktrees and evidence
+remain untouched. Cleanup is not signed teardown/readiness; existing review,
+contract and candidate-gate blockers remain and no rehearsal or merge occurred.
+
+**T42.2n sampled quiet-suffix gate, 2026-09-19:** the isolated 96-GiB APFS
+selector passed four 150-second/3,001-sample windows with zero non-ballast or
+`Bfree` movement and passed the frozen 80/90/75 mutations. This rules out an
+untouched-volume lag in that sampled interval, not the real store layout. The
+retained failed run performed 33,769 owned lifecycle deletions before pressure;
+prospective V3 now requires a 150-second, 4,096-byte-tolerance quiet suffix
+after that cleanup and before the first ballast mutation, retaining exact
+receipt continuity and one-shot mutation predicates. Only pressure-80 moves to
+25 minutes and only its ordinary-watcher admission grows by 100 attempts;
+historical V1/V2 and ordinary runtime remain unchanged. Focused checks pass;
+static review and fresh signed readiness still block merge and T42.2o.
+
+**T42.2n live-layout stabilization correction, 2026-09-19:** the exact
+`64f2f455` readiness attempt reached pressure-80 after passing phases zero
+through seven, but its live store/APFS accounting made 74 changes over 12,288
+bytes during 10,255 samples, returned to its initial value, and exhausted the
+25-minute phase before any ballast mutation. That stop gives no evidence for a
+longer deadline. Prospective V3 now uses a 150-second anchored
+endpoint-stability check with the same 4,096-byte tolerance; intermediate
+movement remains diagnostic, every sample stays inside the frozen pre-pressure
+envelope, and a persistent shift still refuses. Frozen geometry, mutation
+predicates, receipt continuity, deadlines, V1/V2 and ordinary runtime remain
+unchanged. The failed image stays in custody; focused, exact-tree,
+independent-review and fresh readiness gates remain open.
+
+**T42.2n `64f2f455` custody disposition, 2026-09-19:** authorized cleanup
+preserved a checksum-bound compact private record at
+`/private/tmp/t422-retained-failure-64f2f455.e8RZlS`, then detached the exact
+image normally and removed only its operational, signer, wrapper and clean
+worktree roots. No private key, matching process, listener, mount or device
+remains; 65.28 GiB was recovered and unrelated custody was untouched. The
+first ordinary detach had refused harmlessly while the audit source lock was
+still open; no force was used. Disposal is not readiness or signed teardown.
+The anchored exact-commit rehearsal and remaining merge gates stay open.
+
+**T42.2p prospective V4 pressure continuity, 2026-09-19:** Ben accepted a
+65,536-byte signed per-boundary allowance for both fresh available-capacity and
+linked-data-allocation endpoints at 80-to-90 and 90-to-75. It is a selected
+16-block policy margin informed by one retained 12,288-byte sampled range and
+one retained 8,192-byte boundary movement, not a measured physical bound or a
+causal attribution to Phebs, SurrealKV, APFS or another host actor. The separate
+61,472,768-byte persistent release remains a refusal. V4 keeps targets and
+one-shot add/shrink checks at 4,096 bytes, keeps ballast/data allocation equality
+exact, and applies the signed 65,536-byte bound to recovery removal's volume
+delta. The anchored quiet gate, envelope, authority, ordering and deadlines stay
+unchanged; no endpoint is carried forward and no drift credit accumulates.
+Plan/freeze/receipt/pressure-transition domains advance to V4/V4/V4/V2 only
+after a complete explicit-V3 routing audit, while V1/V2/V3 bytes remain exact.
+T42.2p implementation and review now precede renewed T42.2n exact-tree
+acceptance; T42.2o retains its seal/freeze duties but may target only V4. No
+further rehearsal, merge, seal, freeze or ceremony is authorized by this
+posture.
+
+**T42.2q source-free classification shadow, 2026-09-20:** Ben authorized the
+cheapest calibration test against retained ceremony history as a separate
+offline track. It consumes only digest-authenticated returned bundles named by
+an independently reviewed allowlist, projects closed source-free episodes, and
+sends only the bounded decision-point tuple to exact `jev-1.13.0`. Final
+outcomes, decisions and human labels stay local. The two scores distinguish an
+observation that itself establishes terminal failure from a transient signal
+that nevertheless exposes a harness repair requirement. Predictions are
+advisory and cannot alter ceremony control, evidence, custody or authority.
+The retained inventory has 30 package candidates, while the live corpus may
+contain fewer decodable, episode-bearing receipt groups. It is enough for a
+held-out usefulness screen, but its statistical independence is not
+established and it cannot support an automation-safe calibration claim. Review
+of initial exact commit `eff7f78d04618d86c4c415f7d903c8a6b863e2d0` blocked arbitrary-
+episode egress, stale content joins, composite-axis
+scoring, hidden abstentions, unenforced temporal splits, overbroad V32 dedupe,
+late output preflight and a file-open race; the correction is implemented and
+independent review of exact source commit `7a00e24f759136dbb664eccd6de899bc986beb00`
+found only the stale 20/10 split and undocumented hard-kill sentinel. Both are
+corrected, and documentation re-review reports all severity counts zero.
+T42.2p review, renewed T42.2n acceptance and T42.2o V4 seal/freeze sequencing
+are unchanged.
+
+The frozen live screen authenticated 29 bundles and projected 46 episodes from
+25 receipt groups. Exact `jev-1.13.0` scores classified every episode as
+`review` under the frozen local thresholds: zero benign, terminal, or repair
+candidates. All 22 HTTP-409 episodes were also review-only. The fixed no-action
+gate therefore has zero coverage and cannot reach its required five
+benign-candidate receipt groups for any human labels.
+The operational result is `shadow_no_go`; human calibration metrics were not
+performed because they cannot rescue that gate. Calibration, accuracy,
+false-benign safety, and a confidence bound remain unestablished. Any later
+threshold or question contract requires a separately frozen experiment and a
+fresh untouched holdout.
+
+**T42.2r offline error-site census, 2026-09-20:** the per-run population across
+the whole ceremony program remains only dozens and is not calibratable.
+The next non-gating experiment moves to the cheap pre-flight boundary: a typed,
+offline census of Phebs-owned 4xx/5xx constructors reachable from the four
+polled status/progress roots. Its first census finds 50 statically resolved
+sites plus 37 explicit unresolved boundaries. Those gaps block completeness
+and calibration; the resolved set does not justify paid Jev classification or
+a volume claim. Static `unnameable_inline` and policy-fixed `real_fault` rows
+need no model. Any later model output remains an advisory human worklist and
+cannot edit `progressRetryConflictDetail` or influence a ceremony. T42.2p
+review, renewed T42.2n acceptance and T42.2o V4 seal/freeze sequencing remain
+unchanged.
+
+**T42.2s source-hunk hazard-routing shadow, 2026-09-20:** the next independent
+experiment moves to the high-volume pre-flight surface. One exact clean
+base/HEAD pair is projected into bounded Go/shell hunks; uncertain shapes stay
+local for review, and a separately reviewed commit-and-content allowlist is
+required before the dormant classifier can recompute any source. Its closed
+prospective payload contains only language, coarse artifact role, change kind,
+and exact bounded before/after source excerpts, evaluated by six independent
+hazard Nouls. Jev emits probabilities only and cannot select or execute gates.
+Any local routing remains additive to mandatory deterministic checks. Source
+egress is not authorized by implementation: an independently reviewed exact
+schema, question digest, volume, allowlist, and explicit TM-10/TM-15 acceptance
+must precede a live call. Evaluation is grouped by independent change lineage,
+not hunk count, and can claim only incremental pre-identifier catches and cost.
+The T42.2p/T42.2n/T42.2o integration and freeze sequence is unchanged.
+
+**T42.2n session-fixture review correction, 2026-09-17:** the isolated child
+fixture passed focused and complete package normal/race gates. Exact-commit
+review found one low future-rename hole in its child-selector evidence, so the
+child now emits a fixed marker only after all membership assertions and the
+parent requires that marker from the bounded joined output. Corrected focused
+and complete package gates pass. Static/documentation checks, immutable-source
+re-review and the signed native readiness matrix remain open; no seal or
+ceremony follows.
+
+**T42.2n terminal machine-gate continuation, 2026-09-16:** the exact
+`f229374a` command race suite passed. The custody package then failed because
+its membership fixture inspected the inherited Terminal session and received
+`EPERM` for a protected `login` process. A test-only correction gives that
+fixture its own session using the existing custody helper; production refusal
+semantics remain unchanged. Preserve the failed gate and completed passes.
+Focused verification, independent review and the remaining exact-source matrix
+precede acceptance; signed/native readiness and V3 sealing remain open.
+
 **T42.2n archive diagnostic continuation, 2026-09-16:** the exact `2340ca7c`
 signed readiness attempt reached archive publication and failed before restore.
 The backup child's output was not retained; the specific rejected predicate

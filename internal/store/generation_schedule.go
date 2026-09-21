@@ -396,7 +396,7 @@ func OpenLocalGenerationChunkReader(
 			_ = db.Close(context.Background())
 		}
 	}()
-	if _, err := db.SignIn(ctx, surrealdb.Auth{Username: "root", Password: "root"}); err != nil {
+	if _, err := db.SignIn(ctx, surrealdb.Auth{Username: "root", Password: runtime.Pass}); err != nil {
 		return nil, fmt.Errorf("sign in local generation chunk reader: %w", err)
 	}
 	if err := db.Use(ctx, "phebs", "phebs"); err != nil {

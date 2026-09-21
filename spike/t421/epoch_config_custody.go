@@ -103,7 +103,7 @@ func PrepareExecutionEpochConfigs(ctx context.Context, author *ExecutionAuthorCu
 		return nil, ErrExecutionEpochConfigs
 	}
 	var plan Plan
-	if json.Unmarshal(raw, &plan) != nil || plan.Schema != PlanV3Schema || validatePlan(plan, &plan.Revisions) != nil || ctx.Err() != nil {
+	if json.Unmarshal(raw, &plan) != nil || !processAccountingPlanSemantics(plan.Schema) || validatePlan(plan, &plan.Revisions) != nil || ctx.Err() != nil {
 		return nil, ErrExecutionEpochConfigs
 	}
 	// DecodePlan already admitted these protected bytes in the author issuer;

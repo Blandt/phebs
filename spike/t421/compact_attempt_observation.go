@@ -30,7 +30,7 @@ func observeCompactAttempt(line []byte, plan Plan, producer uint32, input string
 	depth := uint64(line[3] - '0')
 	runtime := frozenExecutionRuntime(plan)
 	generationMaxAttempts := runtime.GenerationMaxAttempts
-	if plan.Schema == PlanV3Schema {
+	if processAccountingPlanSemantics(plan.Schema) {
 		generationMaxAttempts = runtime.SelectedChunkAcceptedAttempts
 	}
 	var starts, retries uint64

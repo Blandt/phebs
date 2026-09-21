@@ -29,6 +29,9 @@ const zoektOfferCall = `
 // The injected hook uses only imports already present in the pinned Apache-2.0
 // source. It shares the standard logger's native file object without changing
 // logger configuration. A token is written before the actual go-git offer.
+// The embedded V3 label is retained recipe content. V4 deliberately reuses
+// these exact tool bytes so the pressure-only amendment cannot change V3 tool
+// identity.
 const zoektOfferHook = `
 
 // t422IndexOffers is the Phebs V3-only native input-offer build instrumentation.
@@ -84,11 +87,11 @@ func transformZoektOffers(source []byte) ([]byte, error) {
 }
 
 // Prepared only inside fresh, private build scratch. Protected source/modules
-// stay byte-exact; V3 alone derives a scratch-local versioned replacement.
+// stay byte-exact; the V3/V4 family derives a scratch-local replacement.
 func referenceToolBuildArgs(ctx context.Context, role, schema, sourceRoot, moduleCache, workspace, output, packagePath string) (string, []string, func() error, error) {
 	args := []string{"build", "-trimpath", "-pgo=off", "-buildvcs=true", "-p=1"}
 	check := func() error { return nil }
-	if role == "zoekt-git-index" && schema == PlanV3Schema {
+	if role == "zoekt-git-index" && processAccountingPlanSemantics(schema) {
 		directory, path, verify, err := prepareZoektOfferBuild(ctx, sourceRoot, moduleCache, workspace)
 		if err != nil {
 			return "", nil, nil, err

@@ -12,7 +12,7 @@ func composeExecutionRevisionResults(
 	outcomes map[string]string,
 	authored []ExecutionAuthorResult,
 ) ([]RevisionResult, error) {
-	if plan.Schema != PlanV3Schema || validatePlan(plan, &plan.Revisions) != nil || len(authored) > 3 {
+	if !processAccountingPlanSemantics(plan.Schema) || validatePlan(plan, &plan.Revisions) != nil || len(authored) > 3 {
 		return nil, errExecutionRevisionResults
 	}
 	physicalPhases := [...]string{"cold", "physical_delta_b", "return_a"}

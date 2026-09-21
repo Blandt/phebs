@@ -15,7 +15,8 @@ import (
 
 const (
 	pressureBallastSettleCadence = 50 * time.Millisecond
-	pressureBallastSettleLimit   = 5 * time.Second
+	pressureBallastSettleLimit   = 30 * time.Second
+	pressureBallastQuietWindow   = 150 * time.Second
 )
 
 // The volume's existing mutex and mutation lease serialize the four fixed
@@ -88,7 +89,7 @@ func (b *executionPressureBallast) nextTarget(ctx context.Context, run *Executio
 	}
 	target := geometry.Targets[b.next]
 	out.Before, err = b.sample()
-	if err != nil || b.next > 0 && out.Before != b.last ||
+	if err != nil || b.next > 0 && !pressureBallastAllocationUnchanged(b.last, out.Before) ||
 		b.next == 0 && (out.Before.Used < geometry.MinimumPrePressureUsedBytes || out.Before.Used > geometry.MaximumPrePressureUsedBytes) {
 		run.mu.Unlock()
 		return out, errPressureVolume
@@ -120,7 +121,7 @@ func (b *executionPressureBallast) nextTarget(ctx context.Context, run *Executio
 		return out, nil
 	}
 	run.mu.Unlock()
-	out.After, err = b.settleShrink(ctx, run, phase, size, out.Before.Allocated, func(value executionPressureBallastSample) bool {
+	out.After, out.Settlement, err = b.settleShrink(ctx, run, phase, size, out.Before.Allocated, func(value executionPressureBallastSample) bool {
 		return value.Allocated == size && withinTolerance(value.Used, target.TargetUsedBytes, target.ToleranceBytes) &&
 			pressureBallastDeltaMatches(target.Action, out.Before, value)
 	})
@@ -151,12 +152,12 @@ func (b *executionPressureBallast) remove(ctx context.Context, run *ExecutionEpo
 	defer func() { b.failed = retErr != nil }()
 	var err error
 	out.Before, err = b.sample()
-	if err != nil || out.Before != b.last || resizeExecutionPressureBallast(ctx, b.file, out.Before.Allocated, 0) != nil {
+	if err != nil || !pressureBallastAllocationUnchanged(b.last, out.Before) || resizeExecutionPressureBallast(ctx, b.file, out.Before.Allocated, 0) != nil {
 		run.mu.Unlock()
 		return out, errPressureVolume
 	}
 	run.mu.Unlock()
-	out.After, err = b.settleShrink(ctx, run, 11, 0, out.Before.Allocated, func(value executionPressureBallastSample) bool {
+	out.After, out.Settlement, err = b.settleShrink(ctx, run, 11, 0, out.Before.Allocated, func(value executionPressureBallastSample) bool {
 		return value.Allocated == 0 && usedPercentCeiling(value.Used, 96<<30) <= 74 &&
 			pressureBallastDeltaMatches("remove", out.Before, value)
 	})
@@ -248,7 +249,7 @@ func (b *executionPressureBallast) settleShrink(
 	phase uint32,
 	expectedLogical, priorAllocated uint64,
 	accept func(executionPressureBallastSample) bool,
-) (executionPressureBallastSample, error) {
+) (executionPressureBallastSample, executionPressureBallastSettlement, error) {
 	return settleExecutionPressureBallast(ctx, expectedLogical, priorAllocated, func(current context.Context) (executionPressureBallastSample, uint64, error) {
 		value, logical, err := b.observe()
 		run.mu.Lock()
@@ -261,6 +262,77 @@ func (b *executionPressureBallast) settleShrink(
 	}, accept)
 }
 
+// waitQuiet requires one sampled stabilization interval after the real
+// pre-pressure cleanup. The owning phase deadline remains the hard wall. It
+// mutates nothing and retains the same custody and authority checks as a
+// shrink observation.
+func (b *executionPressureBallast) waitQuiet(ctx context.Context, run *ExecutionEpochOneRun, phase uint32) (executionPressureBallastSettlement, error) {
+	if b == nil || b.volume == nil || run == nil || run.flow == nil || phase != 9 {
+		return executionPressureBallastSettlement{}, errPressureVolume
+	}
+	limits := run.flow.plan.SafetyEnvelope
+	return waitExecutionPressureBallastQuiet(ctx, pressureBallastQuietWindow, 4096,
+		limits.MinimumPrePressureUsedBytes, limits.MaximumPrePressureUsedBytes,
+		func(current context.Context) (executionPressureBallastSample, uint64, error) {
+			b.volume.mu.Lock()
+			defer b.volume.mu.Unlock()
+			if b.next != 0 || b.failed || b.removed {
+				return executionPressureBallastSample{}, 0, errPressureVolume
+			}
+			value, logical, err := b.observe()
+			run.mu.Lock()
+			authorizeErr := b.authorize(current, run, phase)
+			run.mu.Unlock()
+			if err != nil || authorizeErr != nil {
+				return value, logical, errPressureVolume
+			}
+			return value, logical, nil
+		})
+}
+
+// waitExecutionPressureBallastQuiet anchors the first valid non-ballast Used
+// sample, then returns only after the stabilization interval and a valid sample
+// within tolerance of that anchor. Intermediate movement remains in the
+// bounded diagnostic aggregate. The caller's context is the only wall.
+func waitExecutionPressureBallastQuiet(
+	ctx context.Context,
+	quiet time.Duration,
+	tolerance uint64,
+	minimumUsed uint64,
+	maximumUsed uint64,
+	observe func(context.Context) (executionPressureBallastSample, uint64, error),
+) (executionPressureBallastSettlement, error) {
+	var observations executionPressureBallastSettlement
+	if ctx == nil || ctx.Err() != nil || quiet <= 0 || tolerance == 0 || minimumUsed == 0 || minimumUsed >= maximumUsed || maximumUsed > 96<<30 || observe == nil {
+		return observations, errPressureVolume
+	}
+	var anchorAt time.Time
+	var allocated, anchor uint64
+	ticker := time.NewTicker(pressureBallastSettleCadence)
+	defer ticker.Stop()
+	for {
+		value, logical, err := observe(ctx)
+		if err != nil || ctx.Err() != nil || value.Used < minimumUsed || value.Used > maximumUsed || value.Used < value.Allocated || logical != value.Allocated || value.Allocated > 80<<30 || value.Allocated%4096 != 0 {
+			return observations, errPressureVolume
+		}
+		other := value.Used - value.Allocated
+		if observations.Samples == 0 {
+			anchorAt, allocated, anchor = time.Now(), value.Allocated, other
+		} else if value.Allocated != allocated {
+			return observations, errPressureVolume
+		}
+		observations.observe(value)
+		if time.Since(anchorAt) >= quiet && withinTolerance(other, anchor, tolerance) {
+			return observations, nil
+		}
+		select {
+		case <-ctx.Done():
+			return observations, errPressureVolume
+		case <-ticker.C:
+		}
+	}
+}
+
 // settleExecutionPressureBallast never repeats a mutation or widens a target.
 // Invalid custody fails immediately; only valid asynchronous allocation or
 // capacity accounting receives a short, context-clipped observation window.
@@ -270,10 +342,11 @@ func settleExecutionPressureBallast(
 	priorAllocated uint64,
 	observe func(context.Context) (executionPressureBallastSample, uint64, error),
 	accept func(executionPressureBallastSample) bool,
-) (executionPressureBallastSample, error) {
+) (executionPressureBallastSample, executionPressureBallastSettlement, error) {
+	var observations executionPressureBallastSettlement
 	if ctx == nil || ctx.Err() != nil || expectedLogical >= priorAllocated || priorAllocated > 80<<30 ||
 		expectedLogical%4096 != 0 || priorAllocated%4096 != 0 || observe == nil || accept == nil {
-		return executionPressureBallastSample{}, errPressureVolume
+		return executionPressureBallastSample{}, observations, errPressureVolume
 	}
 	check := func(current context.Context) (executionPressureBallastSample, bool, error) {
 		value, logical, err := observe(current)
@@ -281,11 +354,12 @@ func settleExecutionPressureBallast(
 			value.Allocated > priorAllocated || value.Allocated%4096 != 0 {
 			return value, false, errPressureVolume
 		}
+		observations.observe(value)
 		return value, accept(value), nil
 	}
 	value, settled, err := check(ctx)
 	if err != nil || settled {
-		return value, err
+		return value, observations, err
 	}
 	settlement, cancel := context.WithTimeout(ctx, pressureBallastSettleLimit)
 	defer cancel()
@@ -294,14 +368,31 @@ func settleExecutionPressureBallast(
 	for {
 		select {
 		case <-settlement.Done():
-			return value, errPressureVolume
+			return value, observations, errPressureVolume
 		case <-ticker.C:
 			value, settled, err = check(settlement)
 			if err != nil || settled {
-				return value, err
+				return value, observations, err
 			}
 		}
 	}
+}
+
+func (o *executionPressureBallastSettlement) observe(value executionPressureBallastSample) {
+	if o.Samples == 0 {
+		o.First = value
+		o.MinUsed, o.MaxUsed = value.Used, value.Used
+		o.MinFreeBlocks, o.MaxFreeBlocks = value.FreeBlocks, value.FreeBlocks
+	} else {
+		if value.Used != o.Last.Used {
+			o.UsedChanges++
+		}
+		o.MaxUsedStep = max(o.MaxUsedStep, max(value.Used, o.Last.Used)-min(value.Used, o.Last.Used))
+		o.MinUsed, o.MaxUsed = min(o.MinUsed, value.Used), max(o.MaxUsed, value.Used)
+		o.MinFreeBlocks, o.MaxFreeBlocks = min(o.MinFreeBlocks, value.FreeBlocks), max(o.MaxFreeBlocks, value.FreeBlocks)
+	}
+	o.Last = value
+	o.Samples++
 }
 
 func (b *executionPressureBallast) capacity() (executionPressureBallastSample, error) {
@@ -311,7 +402,7 @@ func (b *executionPressureBallast) capacity() (executionPressureBallastSample, e
 		return executionPressureBallastSample{}, errPressureVolume
 	}
 	available := stat.Bavail * 4096
-	return executionPressureBallastSample{Used: 96<<30 - available, Available: available}, nil
+	return executionPressureBallastSample{Used: 96<<30 - available, Available: available, FreeBlocks: stat.Bfree}, nil
 }
 
 func pressureBallastSize(before executionPressureBallastSample, target PressureTargetGeometry) (uint64, error) {
@@ -326,6 +417,11 @@ func pressureBallastSize(before executionPressureBallastSample, target PressureT
 		return 0, errPressureVolume
 	}
 	return size, nil
+}
+
+func pressureBallastAllocationUnchanged(prior, current executionPressureBallastSample) bool {
+	// Owned database work may change volume capacity between mutations.
+	return prior.Allocated == current.Allocated
 }
 
 // Forecast only the known ballast change using both measured byte units. Linked

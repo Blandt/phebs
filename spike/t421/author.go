@@ -27,6 +27,12 @@ func AuthorV3(ctx context.Context, destination, repositoryRoot, sourceCommit str
 	return authorPlan(ctx, destination, repositoryRoot, sourceCommit, BuildPlanV3WithLogicalStoreWork)
 }
 
+// AuthorV4 writes the pressure-continuity plan without changing either retained
+// authoring entry point or issuing execution authority.
+func AuthorV4(ctx context.Context, destination, repositoryRoot, sourceCommit string) (PlanIdentity, error) {
+	return authorPlan(ctx, destination, repositoryRoot, sourceCommit, BuildPlanV4)
+}
+
 func authorPlan(ctx context.Context, destination, repositoryRoot, sourceCommit string, build func(string) (Plan, error)) (PlanIdentity, error) {
 	commit, err := t4110.VerifyCleanCommit(ctx, repositoryRoot)
 	if err != nil {

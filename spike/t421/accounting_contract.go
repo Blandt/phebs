@@ -2,6 +2,8 @@ package t421
 
 import (
 	"errors"
+	"fmt"
+	"math"
 	"slices"
 	"strings"
 
@@ -9,15 +11,20 @@ import (
 )
 
 const (
-	MaxPlanV3AuthorBytes        = 192 << 10
-	ProcessAccountingSchema     = "t422-controlled-dispatch-accounting-v1"
-	WorkEnvelopeV3Schema        = "t422-phase-work-envelope-v3"
-	ReceiptV3Schema             = "t422-combined-convergence-receipt-v3"
-	ExecutionFreezeV3Schema     = "t422-combined-execution-freeze-v3"
-	ExecutionProfileV3Schema    = "t422-production-execution-profile-v3"
-	PhaseRuntimeBindingV3Schema = "t422-phase-runtime-binding-v3"
-	retainedPlanV2SHA256        = "sha256:2275b8cadca8f4e76a46db6d943380d1533a41da70a71c7009850e2c0229b422"
-	queryResultUnitsV3          = "Q-result-units-v3:authorization_decisions=distinct-consistent-logical-transport-verdicts-after-fresh-page-authorization;authority_snapshots=distinct-complete-F-authority-values-bracketing-all-pages;authorized_repositories=actual-query-admitted-repository-set-cardinality-not-returned-hit-count;not-native-authorization-or-snapshot-invocation-counts"
+	MaxPlanV3AuthorBytes          = 192 << 10
+	ProcessAccountingSchema       = "t422-controlled-dispatch-accounting-v1"
+	WorkEnvelopeV3Schema          = "t422-phase-work-envelope-v3"
+	ReceiptV3Schema               = "t422-combined-convergence-receipt-v3"
+	ReceiptV4Schema               = "t422-combined-convergence-receipt-v4"
+	ExecutionFreezeV3Schema       = "t422-combined-execution-freeze-v3"
+	ExecutionFreezeV4Schema       = "t422-combined-execution-freeze-v4"
+	ExecutionProfileV3Schema      = "t422-production-execution-profile-v3"
+	PhaseRuntimeBindingV3Schema   = "t422-phase-runtime-binding-v3"
+	InterphaseDriftToleranceBytes = uint64(65_536)
+	retainedPlanV2SHA256          = "sha256:2275b8cadca8f4e76a46db6d943380d1533a41da70a71c7009850e2c0229b422"
+	queryResultUnitsV3            = "Q-result-units-v3:authorization_decisions=distinct-consistent-logical-transport-verdicts-after-fresh-page-authorization;authority_snapshots=distinct-complete-F-authority-values-bracketing-all-pages;authorized_repositories=actual-query-admitted-repository-set-cardinality-not-returned-hit-count;not-native-authorization-or-snapshot-invocation-counts"
+	pressure80V3DeadlineMS        = uint64(25 * 60 * 1_000)
+	pressureContinuityPolicyV4    = "interphase_sampled_endpoint_drift_le_65536_v4"
 )
 
 // ProcessAccountingContract distinguishes admitted dispatch permissions from
@@ -55,9 +62,26 @@ func BuildPlanV3(sourceCommit string) (Plan, error) {
 	return plan, nil
 }
 
+// BuildPlanV4 preserves the complete V3 execution contract and changes only
+// the prospective pressure-continuity bindings. It neither seals nor admits an
+// execution.
+func BuildPlanV4(sourceCommit string) (Plan, error) {
+	plan, err := BuildPlanV3WithLogicalStoreWork(sourceCommit)
+	if err != nil {
+		return Plan{}, err
+	}
+	if err := applyPressureContinuityCorrection(&plan); err != nil {
+		return Plan{}, err
+	}
+	if err := validatePlan(plan, &plan.Revisions); err != nil {
+		return Plan{}, err
+	}
+	return plan, nil
+}
+
 func knownPlanSchema(schema string) bool {
 	switch schema {
-	case PlanSchema, PlanV2Schema, PlanV3Schema:
+	case PlanSchema, PlanV2Schema, PlanV3Schema, PlanV4Schema:
 		return true
 	default:
 		return false
@@ -65,9 +89,30 @@ func knownPlanSchema(schema string) bool {
 }
 
 // Callers validate the closed plan schema before interpreting its semantics.
-// V3 inherits V2's functional authority, never the superseded V1 behavior.
+// V3 and V4 inherit V2's functional authority, never the superseded V1 behavior.
 func correctedPlanSemantics(schema string) bool {
-	return schema == PlanV2Schema || schema == PlanV3Schema
+	return schema == PlanV2Schema || processAccountingPlanSemantics(schema)
+}
+
+func processAccountingPlanSemantics(schema string) bool {
+	return schema == PlanV3Schema || schema == PlanV4Schema
+}
+
+func applyPressureContinuityCorrection(plan *Plan) error {
+	if plan == nil || plan.Schema != PlanV3Schema || plan.ProcessAccounting == nil ||
+		plan.LogicalStoreWork == nil || plan.SelectorHandoffCleanup == nil ||
+		plan.ToolPolicy.ExecutionFreezeSchema != ExecutionFreezeV3Schema ||
+		plan.ReceiptContract.Schema != ReceiptV3Schema {
+		return errors.New("V4 pressure continuity requires the complete V3 execution contract")
+	}
+	if err := validatePlanExecutionContract(*plan); err != nil {
+		return fmt.Errorf("validate complete V3 pressure-continuity preimage: %w", err)
+	}
+	plan.Schema = PlanV4Schema
+	plan.ToolPolicy.ExecutionFreezeSchema = ExecutionFreezeV4Schema
+	plan.ReceiptContract.Schema = ReceiptV4Schema
+	plan.MeterPolicy.LifecycleSemantics += ";" + pressureContinuityPolicyV4
+	return nil
 }
 
 func applyProcessAccountingCorrection(plan *Plan) error {
@@ -86,6 +131,14 @@ func applyProcessAccountingCorrection(plan *Plan) error {
 		return errors.New("V3 dispatch budget phase inventory differs")
 	}
 	plan.Schema = PlanV3Schema
+	pressureIndex := slices.IndexFunc(plan.PhaseDeadlines, func(value PhaseDeadline) bool { return value.Phase == "pressure_80" })
+	if pressureIndex < 0 || plan.PhaseDeadlines[pressureIndex].DeadlineMS != uint64(20*60*1_000) {
+		return errors.New("V3 pressure-80 deadline source differs")
+	}
+	plan.PhaseDeadlines[pressureIndex].DeadlineMS = pressure80V3DeadlineMS
+	if err := extendPressure80DispatchBudget(&budgets[pressureIndex], pressure80V3DeadlineMS); err != nil {
+		return err
+	}
 	// Linked-path allocation is an accounting ceiling, not physical capacity.
 	// The pressure volume stays 96 GiB; retained V1/V2 keep their 96-GiB ceiling.
 	plan.SafetyEnvelope.MaximumDataAllocatedBytes = 128 << 30
@@ -187,6 +240,37 @@ func applyProcessAccountingCorrection(plan *Plan) error {
 			plan.StopRules[index].Trigger += "_with_complete_dispatch_and_store_submission_prefix_and_available_native_measurement;otherwise_preserve_overshoot_and_reduce"
 		}
 	}
+	return nil
+}
+
+// The longer selected phase admits only the ordinary three-second watcher
+// ticks implied by its deadline. No other command allowance changes.
+func extendPressure80DispatchBudget(budget *PhaseDispatchBudget, deadlineMS uint64) error {
+	if budget == nil || budget.Phase != "pressure_80" {
+		return errors.New("pressure-80 dispatch budget is absent")
+	}
+	termIndex := slices.IndexFunc(budget.Terms, func(value DispatchBudgetTerm) bool { return value.Name == "ordinary_watcher" })
+	roleIndex := slices.IndexFunc(budget.Roles, func(value RoleBound) bool { return value.Name == "git" })
+	if termIndex < 0 || roleIndex < 0 {
+		return errors.New("pressure-80 watcher budget is absent")
+	}
+	prior := budget.Terms[termIndex]
+	const intervalMS = uint64(3_000)
+	units := deadlineMS / intervalMS
+	if deadlineMS%intervalMS != 0 {
+		units++
+	}
+	next, err := dispatchBudgetTerm(prior.Role, prior.Name, prior.Unit, units, prior.AttemptsPerUnit, prior.MaximumUnitAttempts)
+	if err != nil || next.MaximumAttempts < prior.MaximumAttempts {
+		return errors.New("pressure-80 watcher budget is invalid")
+	}
+	delta := next.MaximumAttempts - prior.MaximumAttempts
+	if budget.MaximumAttempts > math.MaxUint64-delta || budget.Roles[roleIndex].Maximum > math.MaxUint64-delta {
+		return errors.New("pressure-80 watcher budget overflows")
+	}
+	budget.Terms[termIndex] = next
+	budget.MaximumAttempts += delta
+	budget.Roles[roleIndex].Maximum += delta
 	return nil
 }
 

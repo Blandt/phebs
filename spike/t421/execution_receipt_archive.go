@@ -23,7 +23,7 @@ func composeExecutionArchiveTransition(plan Plan, measurement PhaseMeasurement, 
 	observed executionArchiveReceiptObservation, events map[string]uint64,
 ) (ArchiveTransition, error) {
 	refuse := func() (ArchiveTransition, error) { return ArchiveTransition{}, errExecutionReceiptTransition }
-	if plan.Schema != PlanV3Schema || measurement.Phase != "archive_restore" || validateEpochArchiveManifest(observed.Manifest) != nil ||
+	if !processAccountingPlanSemantics(plan.Schema) || measurement.Phase != "archive_restore" || validateEpochArchiveManifest(observed.Manifest) != nil ||
 		!observed.InstallationDestroyed || !observed.RestoreTargetEmpty || !observed.ScratchSourceAbsent {
 		return refuse()
 	}

@@ -247,8 +247,19 @@ func stopExecutionInner(command *exec.Cmd, waited <-chan error, writer *os.File,
 	}
 	closeErr := closeExecutionFile(writer)
 	signalErr := signalProductionStop(command.Process)
-	_, _, err := finishExecutionProcessSession(command.Process.Pid, waited, false, nil, executionFinishDeadline(outerDeadline))
+	_, _, err := finishExecutionProcessSession(command.Process.Pid, waited, false, nil, executionAbortDeadline(outerDeadline))
 	return errors.Join(ErrExecutionLauncher, closeErr, signalErr, err)
+}
+
+func executionAbortDeadline(outerDeadline time.Time) time.Time {
+	// The inner may spend its full one-minute abort context and five-second
+	// command WaitDelay plus six-second forced-session unwind before returning;
+	// keep a scheduling margin outside those existing bounds.
+	grace := time.Now().Add(time.Minute + 20*time.Second)
+	if outerDeadline.Before(grace) {
+		return outerDeadline
+	}
+	return grace
 }
 
 func executionFinishDeadline(outerDeadline time.Time) time.Time {

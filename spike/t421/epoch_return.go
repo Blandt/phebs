@@ -15,7 +15,7 @@ type epochReturnPrior struct {
 
 func returnEpochBounds(plan Plan) (epochOneLimits, error) {
 	deadlines := frozenPhaseDeadlines()
-	if plan.Schema != PlanV3Schema || len(plan.PhaseDeadlines) != len(deadlines) || plan.PhaseDeadlines[5] != deadlines[5] ||
+	if !processAccountingPlanSemantics(plan.Schema) || len(plan.PhaseDeadlines) != len(deadlines) || plan.PhaseDeadlines[5] != deadlines[5] ||
 		plan.SafetyEnvelope.ServerHealthDeadlineMS != frozenSafetyEnvelope().ServerHealthDeadlineMS {
 		return epochOneLimits{}, ErrExecutionEpochOne
 	}
