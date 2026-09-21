@@ -215,6 +215,7 @@ ci-race: verify-go verify-surreal
 
 ci-ui: verify-node verify-go
 	cd ui && npm ci
+	cd ui && npm run gen:api:check
 	cd ui && npm test
 	cd ui && npm run lint
 	cd ui && npm run build
