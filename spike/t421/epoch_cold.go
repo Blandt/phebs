@@ -24,7 +24,7 @@ func epochOneBounds(plan Plan, mode epochOneMode) (epochOneLimits, error) {
 	if mode == epochOneStartup {
 		return epochOneLimits{lifetime: 20 * time.Minute, health: 5 * time.Minute, outputBytes: 1 << 20, controlPairs: 3}, nil
 	}
-	if mode != epochOneCold && mode != epochOneColdWarm && mode != epochOnePhysicalB || plan.Schema != PlanV3Schema {
+	if mode != epochOneCold && mode != epochOneColdWarm && mode != epochOnePhysicalB || !processAccountingPlanSemantics(plan.Schema) {
 		return epochOneLimits{}, ErrExecutionEpochOne
 	}
 	// The constructor already validates the private plan. Recheck the exact

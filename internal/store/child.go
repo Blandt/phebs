@@ -11,6 +11,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -22,6 +23,10 @@ import (
 	"github.com/bmeddeb/phebs/internal/dispatchadmission"
 	"github.com/bmeddeb/phebs/internal/executableidentity"
 	"github.com/bmeddeb/phebs/internal/storeaccounting"
+	"github.com/gofrs/flock"
+	surrealdb "github.com/surrealdb/surrealdb.go"
+	"github.com/surrealdb/surrealdb.go/pkg/connection"
+	"github.com/surrealdb/surrealdb.go/pkg/connection/gorillaws"
 )
 
 const (
@@ -29,6 +34,22 @@ const (
 	localRuntimeName   = ".surreal-runtime.json"
 	maxRuntimeBytes    = 16 << 10
 )
+
+// localChildPassName is the persistent, mode-0600 record binding the
+// supervised engine's root password to one database directory's lifetime.
+// Unlike the live-backup rendezvous it is never removed on child stop.
+const localChildPassName = ".surreal-child-pass"
+
+const (
+	localChildPassSchema = "phebs-surreal-child-pass-v1"
+	maxChildPassBytes    = 1 << 10
+)
+
+// legacyRootPass is the root password of databases initialized before the
+// supervised child bound its password to the database directory's lifetime
+// (the old `--pass root` argv era). It is the only non-random password the
+// child-pass file and the runtime descriptor ever carry.
+const legacyRootPass = "root"
 
 // SurrealIdentity binds operational commands to the exact executable used by
 // the supervised child. Path is kept only in the private runtime descriptor;
@@ -42,11 +63,15 @@ type SurrealIdentity struct {
 // LocalRuntime is the lifecycle-bound rendezvous for `phebs backup`. The file
 // is mode 0600 under the data directory and is removed before the child stops.
 // Token prevents an old process cleanup from deleting a successor descriptor.
+// Pass carries the database-bound root password: it is never placed on the
+// child argv (world-readable via ps) and only reaches the child through the
+// closed SURREAL_PASS environment channel.
 type LocalRuntime struct {
 	Schema       string          `json:"schema"`
 	Token        string          `json:"token"`
 	PID          int             `json:"pid"`
 	Endpoint     string          `json:"endpoint"`
+	Pass         string          `json:"pass"`
 	ConfigSHA256 string          `json:"config_sha256,omitempty"`
 	Surreal      SurrealIdentity `json:"surreal"`
 }
@@ -255,6 +280,506 @@ func startEngine(ctx context.Context, engine string) (runtime LocalRuntime, stop
 	return runtime, owned.stop, nil
 }
 
+// newSurrealChildPass generates a fresh supervised-engine root password: 32
+// bytes from crypto/rand, hex-encoded to 64 characters. The password never
+// appears on the child argv.
+func newSurrealChildPass() (string, error) {
+	passBytes := make([]byte, 32)
+	if _, err := rand.Read(passBytes); err != nil {
+		return "", fmt.Errorf("create surreal child password: %w", err)
+	}
+	return hex.EncodeToString(passBytes), nil
+}
+
+// surrealChildArgs builds the supervised engine's argv. The root password is
+// intentionally absent: it reaches the child only through the SURREAL_PASS
+// environment entry, since the command line is world-readable through ps.
+func surrealChildArgs(addr, engine string) []string {
+	return []string{
+		"start",
+		"--bind", addr,
+		"--user", "root",
+		"--log", "warn",
+		engine,
+	}
+}
+
+// childPassFile is the persistent, mode-0600 record binding the supervised
+// engine's root password to one database directory's lifetime. SurrealDB
+// only initializes the root user when none exists and never rotates a stored
+// root password, so every start of an existing database must sign in with the
+// password used at initialization; the live-backup rendezvous cannot serve
+// this because it is removed before the child stops.
+type childPassFile struct {
+	Schema string `json:"schema"`
+	Pass   string `json:"pass"`
+}
+
+// validChildPass reports whether pass is a supervised-engine root password:
+// 32 random bytes hex-encoded to 64 characters, or the literal legacy root
+// password kept for databases initialized before the password was bound to
+// the database directory. Anything else is refused fail-closed, like every
+// other inconsistent credential field.
+func validChildPass(pass string) bool {
+	if pass == legacyRootPass {
+		return true
+	}
+	if len(pass) != 64 {
+		return false
+	}
+	for i := 0; i < len(pass); i++ {
+		c := pass[i]
+		if (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F') {
+			continue
+		}
+		return false
+	}
+	return true
+}
+
+// surrealKVDataDir returns the database directory for a surrealkv engine spec
+// of the form "surrealkv:<dataDir>/db", or "" for engines with no persistent
+// database (the memory test seam). Only surrealkv children bind their root
+// password to a directory lifetime.
+func surrealKVDataDir(engine string) string {
+	rest, ok := strings.CutPrefix(engine, "surrealkv:")
+	if !ok || rest == "" {
+		return ""
+	}
+	return filepath.Dir(rest)
+}
+
+// dbDirHasNoEntries reports whether dataDir's database directory holds no
+// entries at all. An empty directory is proven uninitialized, so startup
+// may safely initialize it with a freshly published credential. Any entry
+// may belong to a database initialized with an unknown password, so a
+// non-empty directory never proves freshness.
+func dbDirHasNoEntries(dataDir string) (bool, error) {
+	path := filepath.Join(dataDir, "db")
+	info, err := os.Lstat(path)
+	if err != nil {
+		return false, fmt.Errorf("inspect database directory: %w", err)
+	}
+	if !info.IsDir() {
+		return false, errors.New("database path is not a directory")
+	}
+	dir, err := os.Open(path)
+	if err != nil {
+		return false, fmt.Errorf("inspect database directory: %w", err)
+	}
+	defer func() { _ = dir.Close() }()
+	// Only emptiness matters; do not inventory and sort the entire directory
+	// while holding the credential lock.
+	_, err = dir.Readdirnames(1)
+	if errors.Is(err, io.EOF) {
+		return true, nil
+	}
+	if err != nil {
+		return false, fmt.Errorf("inspect database directory entry: %w", err)
+	}
+	return false, nil
+}
+
+// childPassLockName is the stable per-data-directory lock serializing every
+// child-password resolution (existing-file reads and first-start creation).
+// The file is created once and never unlinked: unlinking and recreating it
+// would let two processes hold locks on different inodes at the same time.
+// Kernel lock release makes crashes safe. This reuses the repo's existing
+// gofrs/flock dependency and the focusedindex lock pattern.
+const childPassLockName = ".surreal-child-pass.lock"
+
+// childPassTempPattern is the temp-file name pattern for atomic credential
+// publication inside the data directory. Temp names are unique per attempt,
+// so a stale temp from a crashed writer can never collide with a live
+// publication.
+const childPassTempPattern = ".surreal-child-pass.tmp.*"
+
+// errChildPassLegacyVerify reports that dataDir holds a database but no child
+// password file. The database may genuinely predate the password binding (the
+// historical root/root era) or its credential may have been lost out of band;
+// a missing password file alone proves neither, so the caller must verify by
+// signing in before persisting or returning any password.
+var errChildPassLegacyVerify = errors.New(
+	"child password file is missing for an existing database: verify the legacy root password by sign-in",
+)
+
+// acquireChildPassLock takes the exclusive per-directory credential lock,
+// waiting until ctx ends. The returned func releases it. The lock file is
+// never unlinked or recreated while held.
+func acquireChildPassLock(ctx context.Context, dataDir string) (func(), error) {
+	lock := flock.New(filepath.Join(dataDir, childPassLockName), flock.SetPermissions(0o600))
+	acquired, err := lock.TryLockContext(ctx, 10*time.Millisecond)
+	if err != nil {
+		_ = lock.Close()
+		return nil, fmt.Errorf("acquire child password lock: %w", err)
+	}
+	if !acquired {
+		_ = lock.Close()
+		return nil, errors.New("acquire child password lock: lock wait exceeded context")
+	}
+	return func() {
+		_ = lock.Unlock()
+		_ = lock.Close()
+	}, nil
+}
+
+// childPassSyncSeam is the test seam for child-password durability.
+// Production always uses real fsyncs and no pause; tests install hooks to
+// freeze publication mid-flight, record fsync ordering, or inject sync
+// failures. Hooks are process-wide: tests that install them must not run in
+// parallel. A nil hook selects the production behavior.
+type childPassSyncSeam struct {
+	// pauseBeforeFileSync runs after a credential file is fully written and
+	// before it is synced. Tests block here to freeze publication.
+	pauseBeforeFileSync func()
+	// syncFile fsyncs a fully-written credential file (temp or adopted).
+	syncFile func(*os.File) error
+	// syncDir fsyncs the data directory after the rename publishes the name.
+	syncDir func(dataDir string) error
+}
+
+var childPassSeam = struct {
+	sync.RWMutex
+	seam childPassSyncSeam
+}{}
+
+func childPassSeamSnapshot() childPassSyncSeam {
+	childPassSeam.RLock()
+	defer childPassSeam.RUnlock()
+	return childPassSeam.seam
+}
+
+// setChildPassSyncSeam installs seam for tests and returns a restore func
+// that reinstalls the previous hooks.
+func setChildPassSyncSeam(seam childPassSyncSeam) func() {
+	childPassSeam.Lock()
+	previous := childPassSeam.seam
+	childPassSeam.seam = seam
+	childPassSeam.Unlock()
+	return func() {
+		childPassSeam.Lock()
+		childPassSeam.seam = previous
+		childPassSeam.Unlock()
+	}
+}
+
+// resolveChildPass returns the root password the supervised engine must use
+// for dataDir's database. Every resolution — existing-file reads and
+// first-start creation alike — runs under the stable per-directory
+// cross-process lock, so no resolution can observe a half-published
+// credential and no two first starts can publish competing ones. The first
+// start for a directory persists its password in a mode-0600 file beside the
+// database — a fresh random password, or the legacy root password once a
+// running child proves the database predates this binding by signing in with
+// it — and every later start reuses the persisted value, so sign-in keeps
+// working across restarts, upgrades, and restore's stop-and-reopen
+// validation. A precreated but empty database directory holds no initialized
+// root user, so it is proven uninitialized and takes the fresh path: the
+// published password is persisted before the child may start it, and the
+// engine initializes its root with that password. SurrealDB only initializes
+// the root user when none exists and never rotates a stored root password.
+// An empty dataDir means a volatile engine with no database lifetime to bind
+// to; those starts keep a fresh random password without taking the lock.
+func resolveChildPass(ctx context.Context, dataDir string) (string, error) {
+	if ctx == nil {
+		return "", errors.New("resolve child password: context is nil")
+	}
+	if dataDir == "" {
+		return newSurrealChildPass()
+	}
+	release, err := acquireChildPassLock(ctx, dataDir)
+	if err != nil {
+		return "", err
+	}
+	defer release()
+	if file, record, err := openChildPassFile(dataDir); err == nil {
+		return adoptChildPassFile(dataDir, file, record.Pass)
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return "", err
+	}
+	empty, err := dbDirHasNoEntries(dataDir)
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return "", err
+	}
+	if err == nil && !empty {
+		// Directory entries prove neither an initialized root nor legacy
+		// credentials. The caller must probe without supplying credentials
+		// that could initialize a new root.
+		return "", errChildPassLegacyVerify
+	}
+	pass, err := newSurrealChildPass()
+	if err != nil {
+		return "", err
+	}
+	if err := publishChildPass(dataDir, pass); err != nil {
+		return "", err
+	}
+	return pass, nil
+}
+
+// openChildPassFile opens and validates the persistent child password for
+// dataDir, failing closed on any unsafe or inconsistent file. A missing file
+// surfaces as os.ErrNotExist, which the caller treats as first start. The
+// caller owns the returned file.
+func openChildPassFile(dataDir string) (*os.File, childPassFile, error) {
+	var record childPassFile
+	path := filepath.Join(dataDir, localChildPassName)
+	info, err := os.Lstat(path)
+	if err != nil {
+		return nil, record, err
+	}
+	if !info.Mode().IsRegular() || info.Mode().Perm()&0o077 != 0 || info.Size() > maxChildPassBytes {
+		return nil, record, errors.New("read child password: file is unsafe")
+	}
+	file, err := os.Open(path)
+	if err != nil {
+		return nil, record, fmt.Errorf("open child password: %w", err)
+	}
+	data, err := io.ReadAll(io.LimitReader(file, maxChildPassBytes+1))
+	if err != nil || len(data) > maxChildPassBytes {
+		_ = file.Close()
+		return nil, record, errors.New("read child password: file exceeds its limit")
+	}
+	decoder := json.NewDecoder(strings.NewReader(string(data)))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&record); err != nil {
+		_ = file.Close()
+		return nil, record, fmt.Errorf("decode child password: %w", err)
+	}
+	if err := decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
+		_ = file.Close()
+		return nil, record, errors.New("decode child password: trailing content")
+	}
+	if record.Schema != localChildPassSchema || !validChildPass(record.Pass) {
+		_ = file.Close()
+		return nil, record, errors.New("child password file is inconsistent")
+	}
+	return file, record, nil
+}
+
+// readChildPassFile reads the persistent child password for dataDir, failing
+// closed on any unsafe or inconsistent file. A missing file surfaces as
+// os.ErrNotExist.
+func readChildPassFile(dataDir string) (string, error) {
+	file, record, err := openChildPassFile(dataDir)
+	if err != nil {
+		return "", err
+	}
+	_ = file.Close()
+	return record.Pass, nil
+}
+
+// adoptChildPassFile durably adopts an already-open, validated credential
+// file: the file and its directory are re-synced under the credential lock
+// before the password may start a child, then the file is closed. This covers
+// a previous writer that published complete bytes but died before finishing
+// its syncs. A sync failure preserves the credential and refuses startup.
+func adoptChildPassFile(dataDir string, file *os.File, pass string) (string, error) {
+	seam := childPassSeamSnapshot()
+	if seam.pauseBeforeFileSync != nil {
+		seam.pauseBeforeFileSync()
+	}
+	syncFile := seam.syncFile
+	if syncFile == nil {
+		syncFile = (*os.File).Sync
+	}
+	syncErr := syncFile(file)
+	closeErr := file.Close()
+	if syncErr != nil {
+		return "", fmt.Errorf("sync adopted child password: %w", syncErr)
+	}
+	if closeErr != nil {
+		return "", fmt.Errorf("close adopted child password: %w", closeErr)
+	}
+	if err := syncChildPassDir(dataDir, seam); err != nil {
+		return "", err
+	}
+	return pass, nil
+}
+
+// publishChildPass durably publishes pass as dataDir's child password. The
+// caller must hold the credential lock and must have established that no
+// credential file exists yet: an existing credential is never replaced. The
+// final name appears only through the rename of a fully-written, synced temp
+// file, followed by a directory fsync, so a crash can never leave a torn
+// final credential and only complete, durable credentials reach child
+// startup. Any failure removes only the unpublished temp file and refuses
+// startup; once renamed, the final credential is never deleted here — an
+// uncertain directory sync preserves it and refuses, leaving durable adoption
+// to the next resolution.
+func publishChildPass(dataDir, pass string) error {
+	if !validChildPass(pass) {
+		return errors.New("publish child password: password is invalid")
+	}
+	encoded, err := json.Marshal(childPassFile{Schema: localChildPassSchema, Pass: pass})
+	if err != nil {
+		return fmt.Errorf("encode child password: %w", err)
+	}
+	encoded = append(encoded, '\n')
+	seam := childPassSeamSnapshot()
+	// os.CreateTemp creates the temp file mode 0600.
+	tmp, err := os.CreateTemp(dataDir, childPassTempPattern)
+	if err != nil {
+		return fmt.Errorf("create child password temp file: %w", err)
+	}
+	tmpName := tmp.Name()
+	removeTemp := func() { _ = os.Remove(tmpName) }
+	if _, err := tmp.Write(encoded); err != nil {
+		_ = tmp.Close()
+		removeTemp()
+		return fmt.Errorf("write child password: %w", err)
+	}
+	if seam.pauseBeforeFileSync != nil {
+		seam.pauseBeforeFileSync()
+	}
+	syncFile := seam.syncFile
+	if syncFile == nil {
+		syncFile = (*os.File).Sync
+	}
+	if err := syncFile(tmp); err != nil {
+		_ = tmp.Close()
+		removeTemp()
+		return fmt.Errorf("sync child password: %w", err)
+	}
+	if err := tmp.Close(); err != nil {
+		removeTemp()
+		return fmt.Errorf("close child password: %w", err)
+	}
+	if err := os.Rename(tmpName, filepath.Join(dataDir, localChildPassName)); err != nil {
+		removeTemp()
+		return fmt.Errorf("publish child password: %w", err)
+	}
+	if err := syncChildPassDir(dataDir, seam); err != nil {
+		return err
+	}
+	return nil
+}
+
+// syncChildPassDir fsyncs the data directory so a just-renamed credential
+// name is durable. Fsyncing the file alone does not make the directory entry
+// durable on Linux.
+func syncChildPassDir(dataDir string, seam childPassSyncSeam) error {
+	syncDir := seam.syncDir
+	if syncDir == nil {
+		syncDir = fsyncDir
+	}
+	if err := syncDir(dataDir); err != nil {
+		return fmt.Errorf("sync child password directory: %w", err)
+	}
+	return nil
+}
+
+// fsyncDir fsyncs the directory itself.
+func fsyncDir(dataDir string) error {
+	dir, err := os.Open(dataDir)
+	if err != nil {
+		return fmt.Errorf("open directory for sync: %w", err)
+	}
+	defer func() { _ = dir.Close() }()
+	if err := dir.Sync(); err != nil {
+		return fmt.Errorf("sync directory: %w", err)
+	}
+	return nil
+}
+
+// verifyAndAdoptLegacyChildPass proves a database without a password file is
+// genuinely pre-binding: it signs in to the running child at addr with the
+// historical root password. On success the legacy password is published — or
+// a concurrently published credential is adopted — under the credential lock.
+// On sign-in failure the database holds an unknown password, so startup is
+// refused without persisting anything: an already-initialized random-password
+// database is never locked out by a regenerated password.
+func verifyAndAdoptLegacyChildPass(ctx context.Context, dataDir, addr string) (string, error) {
+	if err := probeChildRootSignIn(ctx, addr, legacyRootPass); err != nil {
+		return "", fmt.Errorf("refusing child startup: database has no password file and legacy root sign-in failed: %w", err)
+	}
+	release, err := acquireChildPassLock(ctx, dataDir)
+	if err != nil {
+		return "", err
+	}
+	defer release()
+	if file, record, err := openChildPassFile(dataDir); err == nil {
+		return adoptChildPassFile(dataDir, file, record.Pass)
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return "", err
+	}
+	if err := publishChildPass(dataDir, legacyRootPass); err != nil {
+		return "", err
+	}
+	return legacyRootPass, nil
+}
+
+// probeChildRootSignIn dials the supervised child at addr and attempts one
+// root sign-in with pass. It performs no scope initialization or schema work;
+// the connection is closed before returning.
+func probeChildRootSignIn(ctx context.Context, addr, pass string) error {
+	if ctx == nil {
+		return errors.New("probe child sign-in: context is nil")
+	}
+	u, err := url.ParseRequestURI("ws://" + addr)
+	if err != nil {
+		return fmt.Errorf("probe child sign-in: %w", err)
+	}
+	config := connection.NewConfig(u)
+	if err := config.Validate(); err != nil {
+		return fmt.Errorf("probe child sign-in: invalid connection config: %w", err)
+	}
+	conn := gorillaws.New(config)
+	db, err := surrealdb.FromConnection(ctx, conn)
+	if err != nil {
+		return fmt.Errorf("probe child sign-in: connect: %w", err)
+	}
+	defer func() { _ = db.Close(ctx) }()
+	if _, err := db.SignIn(ctx, surrealdb.Auth{Username: "root", Password: pass}); err != nil {
+		return fmt.Errorf("probe child sign-in: %w", err)
+	}
+	return nil
+}
+
+// errLegacyVerifySelectedOwner reports that legacy child-password
+// verification was refused because the process runs in selected-owner mode:
+// every SDK call there goes through the authenticated process owner, and
+// the legacy probe's raw owner-less connection would bypass the owner's
+// final-send, strict-reply, failure-latching, and completion checks.
+// Ordinary (non-selected) legacy migration is unaffected.
+var errLegacyVerifySelectedOwner = errors.New(
+	"refusing legacy child-password verification in selected-owner mode: legacy migration is unsupported with an authenticated process SDK owner",
+)
+
+// childProcessOwner reports the process's authenticated SDK owner for
+// legacy-verification admission. Production always consults the dispatch
+// admission state through processStoreCallOwner; tests install an override
+// to prove selected-owner refusal. Overrides are process-wide: tests that
+// install one must not run in parallel.
+var childProcessOwner = processStoreCallOwner
+
+// setChildProcessOwner installs lookup as the process-owner source for
+// legacy-verification admission and returns a func restoring the previous
+// source.
+func setChildProcessOwner(lookup func() (*storeCallOwner, error)) func() {
+	previous := childProcessOwner
+	childProcessOwner = lookup
+	return func() { childProcessOwner = previous }
+}
+
+// legacyChildCommand omits every credential-initialization input. With auth
+// enabled, an existing root can sign in but a rootless database cannot acquire
+// a throwaway root. Ignore ambient Surreal startup controls for this probe,
+// especially USER/PASS, UNAUTHENTICATED, IMPORT_FILE and default namespace/db.
+// Successful legacy verification retains this same ordinary child.
+func legacyChildCommand(ctx context.Context, binary, addr, engine string) *exec.Cmd {
+	cmd := exec.CommandContext(ctx, binary, "start", "--bind", addr,
+		"--no-defaults", "--log", "warn", engine)
+	environment := os.Environ()
+	cmd.Env = make([]string, 0, len(environment))
+	for _, entry := range environment {
+		if !strings.HasPrefix(entry, "SURREAL_") {
+			cmd.Env = append(cmd.Env, entry)
+		}
+	}
+	return cmd
+}
+
 func startOwnedEngine(ctx context.Context, engine string) (runtime LocalRuntime, owned *localEngine, err error) {
 	identity, err := findSurrealBinary(true)
 	if err != nil {
@@ -274,16 +799,53 @@ func startOwnedEngine(ctx context.Context, engine string) (runtime LocalRuntime,
 
 	// Detach the child command from the caller's (signal) context: on Ctrl-C
 	// the DB must outlive the HTTP drain and in-flight terminal job writes.
+	//
+	// The root password is bound to the database directory's lifetime and
+	// travels only via the SURREAL_PASS environment entry, never on argv:
+	// the child command line is world-readable through ps. The first start
+	// for a directory persists its password in a mode-0600 file and every
+	// later start reuses it, because SurrealDB only initializes the root
+	// user when none exists and never rotates a stored password. Under the
+	// production dispatch bootstrap the entry is admitted through the closed
+	// extra-environment channel; without a bootstrap the command keeps its
+	// ordinary environment.
+	dataDir := surrealKVDataDir(engine)
+	pass, err := resolveChildPass(ctx, dataDir)
+	legacyVerify := errors.Is(err, errChildPassLegacyVerify)
+	if err != nil && !legacyVerify {
+		return LocalRuntime{}, nil, err
+	}
+	if legacyVerify {
+		// Selected-owner mode authenticates the child through the process
+		// SDK owner; the legacy probe needs a raw, owner-less connection,
+		// so legacy verification is refused before the child starts rather
+		// than bypassing the owner. Ordinary non-selected legacy migration
+		// is unaffected.
+		owner, ownerErr := childProcessOwner()
+		if ownerErr != nil {
+			return LocalRuntime{}, nil, ownerErr
+		}
+		if owner != nil {
+			return LocalRuntime{}, nil, errLegacyVerifySelectedOwner
+		}
+	}
 	cmdCtx := context.WithoutCancel(ctx)
-	cmd := exec.CommandContext(cmdCtx, identity.Path, "start",
-		"--bind", addr,
-		"--user", "root", "--pass", "root",
-		"--log", "warn",
-		engine,
-	)
+	cmd := exec.CommandContext(cmdCtx, identity.Path, surrealChildArgs(addr, engine)...)
+	cmd.Env = append(os.Environ(), dispatchadmission.SurrealPassEnvKey+"="+pass)
+	extraEnv := []string{dispatchadmission.SurrealPassEnvKey + "=" + pass}
+	if legacyVerify {
+		cmd = legacyChildCommand(cmdCtx, identity.Path, addr, engine)
+		extraEnv = nil
+		// Ordinary dispatch accepts the already-sanitized command. Every
+		// installed exact runtime refuses a credential-free engine start,
+		// even if it has no SDK owner; its admission contract is unchanged.
+	}
 	cmd.Stderr = os.Stderr
 	cmd.Cancel = func() error { return cmd.Process.Signal(os.Interrupt) }
-	handle, err := dispatchadmission.StartProduction(ctx, dispatchadmission.SiteSurrealEngine, cmd)
+	handle, err := dispatchadmission.StartProductionWithEnv(
+		ctx, dispatchadmission.SiteSurrealEngine, cmd,
+		extraEnv,
+	)
 	if err != nil {
 		return LocalRuntime{}, nil, fmt.Errorf("start surreal child: %w", err)
 	}
@@ -293,6 +855,16 @@ func startOwnedEngine(ctx context.Context, engine string) (runtime LocalRuntime,
 		owned.stop()
 		return LocalRuntime{}, nil, err
 	}
+	if legacyVerify {
+		// Prove the database genuinely predates the password binding before
+		// its password may be persisted or used. A failed probe refuses
+		// startup without writing anything, so an already-initialized
+		// random-password database is never locked out by a regenerated one.
+		if pass, err = verifyAndAdoptLegacyChildPass(ctx, dataDir, addr); err != nil {
+			owned.stop()
+			return LocalRuntime{}, nil, err
+		}
+	}
 	tokenBytes := make([]byte, 16)
 	if _, err := rand.Read(tokenBytes); err != nil {
 		owned.stop()
@@ -300,7 +872,7 @@ func startOwnedEngine(ctx context.Context, engine string) (runtime LocalRuntime,
 	}
 	return LocalRuntime{
 		Schema: localRuntimeSchema, Token: hex.EncodeToString(tokenBytes), PID: cmd.Process.Pid,
-		Endpoint: "ws://" + addr, Surreal: identity,
+		Endpoint: "ws://" + addr, Pass: pass, Surreal: identity,
 	}, owned, nil
 }
 
@@ -468,6 +1040,7 @@ func ReadLocalRuntime(dataDir string) (LocalRuntime, error) {
 
 func validateRuntime(runtime LocalRuntime) error {
 	if runtime.Schema != localRuntimeSchema || len(runtime.Token) != 32 || runtime.PID <= 0 ||
+		!validChildPass(runtime.Pass) ||
 		runtime.Surreal.Path == "" ||
 		runtime.Surreal.Version == "" || !validSHA256(runtime.Surreal.SHA256) {
 		return errors.New("local runtime descriptor is inconsistent")

@@ -180,7 +180,7 @@ func selectorHandoffCleanupPhase(phase string, epoch, rows, summaries uint64) (S
 // returned native report and may not treat this bound as measured work.
 func SelectorHandoffCleanupForPhase(plan Plan, phase string) (SelectorHandoffCleanupPhase, bool) {
 	policy := plan.SelectorHandoffCleanup
-	if plan.Schema != PlanV3Schema || policy == nil || policy.Schema != SelectorHandoffCleanupSchema {
+	if !processAccountingPlanSemantics(plan.Schema) || policy == nil || policy.Schema != SelectorHandoffCleanupSchema {
 		return SelectorHandoffCleanupPhase{}, false
 	}
 	for _, row := range policy.Phases {

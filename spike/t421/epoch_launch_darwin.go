@@ -45,7 +45,7 @@ func (flow *ExecutionEpochOne) bindProfileTools(ctx context.Context, buf, focuse
 	defer author.mu.Unlock()
 	epochs.mu.Lock()
 	defer epochs.mu.Unlock()
-	if flow.plan.Schema != PlanV3Schema || flow.closed || flow.used || flow.authored || !flow.authorStarted.IsZero() ||
+	if !processAccountingPlanSemantics(flow.plan.Schema) || flow.closed || flow.used || flow.authored || !flow.authorStarted.IsZero() ||
 		flow.workspace != nil || flow.profileTools != ([2]*ExecutionToolCustody{}) ||
 		author.closed || author.err != nil || author.active || author.borrowedBy != nil || author.next != 0 ||
 		epochs.closed || epochs.err != nil || epochs.active || epochs.released != 0 || author.request.Builds == nil {
@@ -87,7 +87,7 @@ func (flow *ExecutionEpochOne) bindProfileSignerNamespace(ctx context.Context, s
 	defer author.mu.Unlock()
 	epochs.mu.Lock()
 	defer epochs.mu.Unlock()
-	if flow.plan.Schema != PlanV3Schema || flow.closed || flow.used || flow.authored || !flow.authorStarted.IsZero() ||
+	if !processAccountingPlanSemantics(flow.plan.Schema) || flow.closed || flow.used || flow.authored || !flow.authorStarted.IsZero() ||
 		flow.workspace != nil || flow.profileSignerNamespaceUsed || !validExecutionSelection(selection) ||
 		author.closed || author.err != nil || author.active || author.borrowedBy != nil || author.next != 0 ||
 		epochs.closed || epochs.err != nil || epochs.active || epochs.released != 0 {
@@ -102,9 +102,9 @@ func (flow *ExecutionEpochOne) bindProfileSignerNamespace(ctx context.Context, s
 	return nil
 }
 
-// authorAAdmitted is the sole V3 transition from verified private authority to
-// operational work. Binding transfer and reserved ordinal one are atomic with
-// entry into the existing direct AuthorA path.
+// authorAAdmitted is the sole V3/V4 transition from verified private authority
+// to operational work. Binding transfer and reserved ordinal one are atomic
+// with entry into the existing direct AuthorA path.
 func (flow *ExecutionEpochOne) authorAAdmitted(
 	ctx context.Context,
 	finalAdmissionDeadline time.Time,
@@ -123,8 +123,8 @@ func (flow *ExecutionEpochOne) authorAAdmitted(
 	flow.mu.Lock()
 	defer flow.mu.Unlock()
 	planRaw, planErr := MarshalCanonical(flow.plan)
-	if !flow.authorAReadyLocked(ctx) || flow.plan.Schema != PlanV3Schema || flow.executionFreezeBinding != nil ||
-		flow.executionEventOrdinals != nil || binding.freeze.Schema != ExecutionFreezeV3Schema ||
+	if !flow.authorAReadyLocked(ctx) || !processAccountingPlanSemantics(flow.plan.Schema) || flow.executionFreezeBinding != nil ||
+		flow.executionEventOrdinals != nil || binding.freeze.Schema != flow.plan.ToolPolicy.ExecutionFreezeSchema ||
 		binding.admissionEventOrdinal != 1 || !validDigest(binding.freezeSHA256) ||
 		planErr != nil || binding.planSHA256 != SHA256(planRaw) || !time.Now().Before(finalAdmissionDeadline) {
 		return ExecutionAuthorResult{}, ErrExecutionEpochOne

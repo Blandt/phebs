@@ -39,7 +39,7 @@ func (run *ExecutionEpochOneRun) joinedEmpty() bool {
 
 func logicalEpochBounds(plan Plan) (epochOneLimits, error) {
 	deadlines := frozenPhaseDeadlines()
-	if plan.Schema != PlanV3Schema || len(plan.PhaseDeadlines) != len(deadlines) || plan.PhaseDeadlines[4] != deadlines[4] ||
+	if !processAccountingPlanSemantics(plan.Schema) || len(plan.PhaseDeadlines) != len(deadlines) || plan.PhaseDeadlines[4] != deadlines[4] ||
 		plan.SafetyEnvelope.ServerHealthDeadlineMS != frozenSafetyEnvelope().ServerHealthDeadlineMS {
 		return epochOneLimits{}, ErrExecutionEpochOne
 	}

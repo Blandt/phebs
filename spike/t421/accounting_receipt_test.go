@@ -115,6 +115,41 @@ func TestAccountingReceiptV3WireOmitsHistoricalClaims(t *testing.T) {
 	}
 }
 
+func TestAccountingReceiptRetainedCanonicalBytes(t *testing.T) {
+	plans := lifecyclePolicyPlans(t)
+	tests := []struct {
+		plan    Plan
+		receipt Receipt
+		want    string
+	}{
+		{plans[0], Receipt{Schema: plans[0].ReceiptContract.Schema, Measurements: []PhaseMeasurement{{Phase: "not_run"}}},
+			"sha256:08bb91010d8e61789119db8ea642f90c2adeac3faddea76a51aef41c1e1a4fe4"},
+		{plans[1], Receipt{Schema: plans[1].ReceiptContract.Schema, Measurements: []PhaseMeasurement{{Phase: "not_run"}}},
+			"sha256:42ba6d82ce30de540b82e1dbd9587da9785acc3e575c50f92416b470c7eb2e22"},
+		{plans[2], Receipt{Schema: plans[2].ReceiptContract.Schema,
+			Measurements: []PhaseMeasurement{accountingTestMeasurement(plans[2], "cold"), {Phase: "warm_noop"}},
+			Teardown:     ReceiptTeardown{Scoped: &ScopedTeardownEvidence{Schema: ScopedTeardownSchema}}},
+			"sha256:0f43dc26b7f1f2a436243a7bc6f351fc884d6abb01cc93c3f20531daf85a0cb3"},
+	}
+	for _, test := range tests {
+		if err := validateReceiptAccountingVersion(test.receipt, test.plan); err != nil {
+			t.Fatal(err)
+		}
+		raw, err := MarshalCanonical(test.receipt)
+		if err != nil || SHA256(raw) != test.want {
+			t.Fatalf("retained %s canonical receipt changed: %s / %v", test.receipt.Schema, SHA256(raw), err)
+		}
+		var decoded Receipt
+		if err := json.Unmarshal(raw, &decoded); err != nil || !reflect.DeepEqual(decoded, test.receipt) {
+			t.Fatalf("retained %s canonical receipt decode changed: %v", test.receipt.Schema, err)
+		}
+		again, err := MarshalCanonical(decoded)
+		if err != nil || !bytes.Equal(again, raw) {
+			t.Fatalf("retained %s canonical receipt did not replay: %v", test.receipt.Schema, err)
+		}
+	}
+}
+
 func TestAccountingReceiptRejectsCrossVersionAndUnknownSchema(t *testing.T) {
 	for _, test := range []struct {
 		name   string

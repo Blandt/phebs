@@ -82,7 +82,7 @@ func (reader *executionEpochInspection) sampleRecoveryWorkspace(ctx context.Cont
 			reader.recoverySamples.Unavailable = true
 		}
 	}()
-	if ctx == nil || ctx.Err() != nil || reader.err != nil || reader.plan.Schema != PlanV3Schema ||
+	if ctx == nil || ctx.Err() != nil || reader.err != nil || !processAccountingPlanSemantics(reader.plan.Schema) ||
 		reader.run.control == nil || point != 0 && point != 2 && point != 3 && point != 6 ||
 		reader.recoverySamples.Unavailable || reader.recoverySamples.LimitExceeded || reader.recoverySamples.Points[point].Attempts != 0 {
 		return errEpochInspection
@@ -136,7 +136,7 @@ func (run *ExecutionEpochOneRun) sampleRecoveryParentLocked(ctx context.Context)
 		return ErrExecutionEpochOne
 	}
 	if flow.workspaceBytes == nil || flow.epochs == nil || flow.epochs.author == nil ||
-		flow.controller == nil || flow.store == nil || flow.plan.Schema != PlanV3Schema {
+		flow.controller == nil || flow.store == nil || !processAccountingPlanSemantics(flow.plan.Schema) {
 		return refuse()
 	}
 	confirm := func() bool {

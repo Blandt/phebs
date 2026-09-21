@@ -57,7 +57,7 @@ type ExecutionCorpusAuthor struct {
 	planPath        string
 }
 
-// NewExecutionCorpusAuthor accepts bounded canonical frozen V3 plan bytes,
+// NewExecutionCorpusAuthor accepts bounded canonical frozen V3/V4 plan bytes,
 // never caller-created expected identities. A live explicit author bootstrap
 // must already be installed. Its owning parent must bind the plan and new
 // source root before permitting any command; bootstrap alone is not that proof.
@@ -68,7 +68,7 @@ func NewExecutionCorpusAuthor(ctx context.Context, planBytes []byte, parent stri
 		return nil, ErrExecutionCorpusAuthor
 	}
 	plan, err := DecodePlan(planBytes)
-	if err != nil || plan.Schema != PlanV3Schema || ctx.Err() != nil {
+	if err != nil || !processAccountingPlanSemantics(plan.Schema) || ctx.Err() != nil {
 		return nil, ErrExecutionCorpusAuthor
 	}
 	source, err := newCorpusAuthorSource(ctx, plan)

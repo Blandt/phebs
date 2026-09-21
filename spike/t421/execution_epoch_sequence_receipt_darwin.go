@@ -14,7 +14,7 @@ func composeExecutionEpochSequenceReceiptEvidence(
 	sequence *executionEpochSequenceResult,
 ) (executionEpochSequenceReceiptEvidence, error) {
 	var out executionEpochSequenceReceiptEvidence
-	if sequence == nil || plan.Schema != PlanV3Schema || validatePlan(plan, &plan.Revisions) != nil ||
+	if sequence == nil || !processAccountingPlanSemantics(plan.Schema) || validatePlan(plan, &plan.Revisions) != nil ||
 		!slices.Equal(plan.PhaseOrder, frozenPhaseOrder()) || !joinedExecutionEpochResult(sequence.restore) ||
 		!sequence.teardown.Joined || !sequence.teardown.CleanupClosed || !sequence.teardown.CustodyAbsent {
 		return out, ErrExecutionEpochOne

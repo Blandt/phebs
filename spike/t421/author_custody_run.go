@@ -112,8 +112,8 @@ func (custody *ExecutionAuthorCustody) authorNext(ctx context.Context, controlle
 		return result, ErrExecutionAuthorCustody
 	}
 	custody.active = true
-	// PrepareExecutionAuthor accepts only a protected PlanV3. Historical v1
-	// remains a separately decoded exact wire, not this measured route.
+	// PrepareExecutionAuthor accepts only a protected PlanV3 or PlanV4.
+	// Historical V1/V2 remain separately decoded exact wires, outside this route.
 	request := ExecutionCorpusAuthorRequest{Schema: ExecutionCorpusAuthorObservedRequestSchema,
 		PlanPath: custody.planPath, PlanSHA256: custody.planSHA256, SourcePath: custody.roots[1].path,
 		SourceIdentity: custody.identity, Revision: custody.expected[index].Name, Previous: custody.previous}

@@ -205,7 +205,7 @@ func phaseRuntimeBindingSchema(plan Plan) string {
 		return PhaseRuntimeBindingSchema
 	case PlanV2Schema:
 		return PhaseRuntimeBindingV2Schema
-	case PlanV3Schema:
+	case PlanV3Schema, PlanV4Schema:
 		return PhaseRuntimeBindingV3Schema
 	default:
 		return ""
@@ -226,11 +226,11 @@ func expectedExecutionProfile(
 		!validExecutionSHA256(admission.serverEnvironmentSHA256) ||
 		admission.recoveryEnvironmentSHA256 == admission.serverEnvironmentSHA256 ||
 		!validExecutionSHA256(admission.rootVolumeBindingsSHA256) ||
-		plan.Schema == PlanV3Schema && !validExecutionHexSHA256(admission.signerNamespaceSHA256) ||
-		plan.Schema != PlanV3Schema && admission.signerNamespaceSHA256 != "" ||
+		processAccountingPlanSemantics(plan.Schema) && !validExecutionHexSHA256(admission.signerNamespaceSHA256) ||
+		!processAccountingPlanSemantics(plan.Schema) && admission.signerNamespaceSHA256 != "" ||
 		!admission.closedEnvironment ||
-		plan.Schema == PlanV3Schema && (!admission.verifiedBeforeOperationalWork || admission.verifiedBeforeWork) ||
-		plan.Schema != PlanV3Schema && (!admission.verifiedBeforeWork || admission.verifiedBeforeOperationalWork) {
+		processAccountingPlanSemantics(plan.Schema) && (!admission.verifiedBeforeOperationalWork || admission.verifiedBeforeWork) ||
+		!processAccountingPlanSemantics(plan.Schema) && (!admission.verifiedBeforeWork || admission.verifiedBeforeOperationalWork) {
 		return ExecutionProfile{}, errors.New("T42.2 execution profile lacks external pre-work admission")
 	}
 	profile, commandsSHA256, err := assembleExecutionProfile(plan, tools, host, admission)
@@ -262,9 +262,9 @@ func assembleExecutionProfile(
 	admission ExecutionProfileAdmissionBinding,
 ) (ExecutionProfile, string, error) {
 	accountingSHA256 := ""
-	if plan.Schema == PlanV3Schema {
+	if processAccountingPlanSemantics(plan.Schema) {
 		if plan.ProcessAccounting == nil {
-			return ExecutionProfile{}, "", errors.New("V3 execution profile lacks its process accounting contract")
+			return ExecutionProfile{}, "", errors.New("execution profile lacks its process accounting contract")
 		}
 		var err error
 		accountingSHA256, err = canonicalSHA256(plan.ProcessAccounting)
@@ -305,7 +305,7 @@ func assembleExecutionProfile(
 		Roots:                    frozenExecutionRoots(host, admission.rootVolumeBindingsSHA256),
 		Epochs:                   epochs,
 	}
-	if plan.Schema == PlanV3Schema {
+	if processAccountingPlanSemantics(plan.Schema) {
 		applyV3ExecutionProfile(&profile)
 	}
 	profile.InvocationSHA256, err = executionInvocationSHA256(profile, tools)
@@ -350,7 +350,7 @@ func frozenExecutionCommands() []ExecutionCommandProfile {
 }
 
 func frozenExecutionEnvironment(plan Plan, admission ExecutionProfileAdmissionBinding) ExecutionEnvironmentProfile {
-	if plan.Schema == PlanV3Schema {
+	if processAccountingPlanSemantics(plan.Schema) {
 		return ExecutionEnvironmentProfile{
 			Schema: "t422-closed-execution-environment-v3", Policy: "closed-exact-name-and-value-set-v1",
 			Canonicalization: "sort-by-name;role-tokenize-private-paths;sha256-length-framed-name-value-records-v1",
@@ -420,7 +420,7 @@ func frozenExecutionConfig(plan Plan, bytesSHA256 string) ExecutionConfigProfile
 		value.Schema = "t422-execution-config-projection-v2"
 		value.Policy = "ordered-epoch-config-bytes-set-and-closed-semantic-projection-v2"
 	}
-	if plan.Schema == PlanV3Schema {
+	if processAccountingPlanSemantics(plan.Schema) {
 		value.CompatibilityPosture = "unavailable-no-validation-zero-budget-v1"
 	}
 	return value
@@ -443,7 +443,7 @@ func frozenExecutionRuntime(plan Plan) ExecutionRuntimeProfile {
 		MaximumLifecycleDeletesPerTurn: plan.WorkEnvelope.MaximumLifecycleDeletesPerTurn,
 		MaximumAggregatePartitions:     plan.WorkEnvelope.MaximumAggregatePartitions,
 	}
-	if plan.Schema == PlanV3Schema {
+	if processAccountingPlanSemantics(plan.Schema) {
 		value.Schema = "t422-production-runtime-constants-v2"
 		value.SelectedChunkAcceptedAttempts = value.GenerationMaxAttempts
 		value.GenerationMaxAttempts = 0
@@ -522,7 +522,7 @@ func executionPhaseRecipeSHA256(plan Plan) string {
 	phaseStatesSHA256, _ := canonicalSHA256(plan.PhaseStates)
 	phaseDeadlinesSHA256, _ := canonicalSHA256(plan.PhaseDeadlines)
 	failurePointsSHA256, _ := canonicalSHA256(plan.FailurePoints)
-	if plan.Schema == PlanV3Schema {
+	if processAccountingPlanSemantics(plan.Schema) {
 		accountingSHA256, err := canonicalSHA256(plan.ProcessAccounting)
 		if err != nil || plan.ProcessAccounting == nil {
 			return ""

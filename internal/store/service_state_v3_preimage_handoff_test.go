@@ -306,7 +306,7 @@ func TestServiceStateV3PreimageHandoffNative(t *testing.T) {
 		t.Fatal(err)
 	}
 	selectedCtx, sdkOwner, controller := storeAccountingFixture(t, 40, 2)
-	accounted, err := openExistingLocalWithOwner(selectedCtx, runtime.Endpoint, "root", "root", "phebs", "phebs", sdkOwner)
+	accounted, err := openExistingLocalWithOwner(selectedCtx, runtime.Endpoint, "root", runtime.Pass, "phebs", "phebs", sdkOwner)
 	if err != nil {
 		t.Fatal(err)
 	}

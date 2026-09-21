@@ -63,7 +63,11 @@ func TestAccountingV3CanonicalContract(t *testing.T) {
 			t.Fatalf("V3 retained historical process field %s", key)
 		}
 	}
-	if plan.ProcessAccounting.NativeHistory != "not_established" ||
+	pressureIndex := slices.IndexFunc(plan.PhaseDeadlines, func(value PhaseDeadline) bool { return value.Phase == "pressure_80" })
+	budgetIndex := slices.IndexFunc(plan.ProcessAccounting.DispatchBudgets, func(value PhaseDispatchBudget) bool { return value.Phase == "pressure_80" })
+	if pressureIndex < 0 || budgetIndex < 0 || plan.PhaseDeadlines[pressureIndex].DeadlineMS != pressure80V3DeadlineMS ||
+		plan.ProcessAccounting.DispatchBudgets[budgetIndex].MaximumAttempts != 501 ||
+		plan.ProcessAccounting.NativeHistory != "not_established" ||
 		plan.ProcessAccounting.NativeMeasurementKind != "sampled_observation" ||
 		plan.ProcessAccounting.SupersedesSHA256 != retainedPlanV2SHA256 ||
 		plan.Correction.SupersedesSHA256 != retainedPlanSHA256 ||

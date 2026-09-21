@@ -2,6 +2,8 @@ package store
 
 import (
 	"context"
+	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
@@ -138,7 +140,7 @@ func TestLocalRuntimeDescriptorOwnershipAndCleanup(t *testing.T) {
 	dataDir := t.TempDir()
 	runtime := LocalRuntime{
 		Schema: localRuntimeSchema, Token: strings.Repeat("a", 32), PID: os.Getpid(),
-		Endpoint: "ws://127.0.0.1:32123", ConfigSHA256: "sha256:" + strings.Repeat("c", 64),
+		Endpoint: "ws://127.0.0.1:32123", Pass: strings.Repeat("d", 64), ConfigSHA256: "sha256:" + strings.Repeat("c", 64),
 		Surreal: SurrealIdentity{
 			Path: "/private/test/surreal", Version: "3.2.0", SHA256: "sha256:" + strings.Repeat("b", 64),
 		},
@@ -172,7 +174,7 @@ func TestLocalRuntimeDescriptorRefusesCorruptPredecessor(t *testing.T) {
 	}
 	runtime := LocalRuntime{
 		Schema: localRuntimeSchema, Token: strings.Repeat("a", 32), PID: os.Getpid(),
-		Endpoint: "ws://127.0.0.1:32123", ConfigSHA256: "sha256:" + strings.Repeat("c", 64),
+		Endpoint: "ws://127.0.0.1:32123", Pass: strings.Repeat("d", 64), ConfigSHA256: "sha256:" + strings.Repeat("c", 64),
 		Surreal: SurrealIdentity{
 			Path: "/private/test/surreal", Version: "3.2.0", SHA256: "sha256:" + strings.Repeat("b", 64),
 		},
@@ -191,13 +193,252 @@ func TestOpenLocalRefusesCorruptDescriptorBeforeStartingChild(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dataDir, localRuntimeName), []byte("{}\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := OpenLocal(context.Background(), dataDir); err == nil || !strings.Contains(err.Error(), "cannot be trusted") {
+	// The refusal happens before any child starts, so the error path owns
+	// nothing; still own the store on the unexpected-success path, where
+	// the assertion below fatals before any explicit close could run.
+	unexpected, err := OpenLocal(context.Background(), dataDir)
+	ownTestStore(t, unexpected)
+	if err == nil || !strings.Contains(err.Error(), "cannot be trusted") {
 		t.Fatalf("OpenLocal error = %v", err)
 	}
 }
 
 func TestOpenLocalWithConfigRefusesInvalidDigestBeforeStartingChild(t *testing.T) {
-	if _, err := OpenLocalWithConfig(context.Background(), t.TempDir(), "bad"); err == nil || !strings.Contains(err.Error(), "config digest") {
+	unexpected, err := OpenLocalWithConfig(context.Background(), t.TempDir(), "bad")
+	ownTestStore(t, unexpected)
+	if err == nil || !strings.Contains(err.Error(), "config digest") {
 		t.Fatalf("OpenLocalWithConfig error = %v", err)
+	}
+}
+
+func TestNewSurrealChildPassIsRandom(t *testing.T) {
+	t.Parallel()
+	first, err := newSurrealChildPass()
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := newSurrealChildPass()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, pass := range []string{first, second} {
+		if len(pass) != 64 {
+			t.Fatalf("child password length = %d, want 64", len(pass))
+		}
+		raw, err := hex.DecodeString(pass)
+		if err != nil || len(raw) != 32 {
+			t.Fatalf("child password decodes to %d bytes: %v", len(raw), err)
+		}
+	}
+	if first == second {
+		t.Fatal("two generated child passwords are identical")
+	}
+}
+
+// TestResolveChildPassStableAcrossStarts is the regression for the P1 review
+// finding: the child password is bound to the database directory's lifetime,
+// not to each start. Reopening the same directory must reuse the persisted
+// password, while different directories get distinct passwords.
+func TestResolveChildPassStableAcrossStarts(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	dataDir := t.TempDir()
+	first, err := resolveChildPass(ctx, dataDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !validChildPass(first) || first == legacyRootPass {
+		t.Fatalf("fresh directory resolved to %q, want a fresh random password", first)
+	}
+	second, err := resolveChildPass(ctx, dataDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if second != first {
+		t.Fatal("reopening the same database directory changed the child password")
+	}
+	info, err := os.Stat(filepath.Join(dataDir, localChildPassName))
+	if err != nil || info.Mode().Perm() != 0o600 {
+		t.Fatalf("child password file mode = %v, %v", info, err)
+	}
+	other, err := resolveChildPass(ctx, t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if other == first {
+		t.Fatal("two database directories share a child password")
+	}
+}
+
+// TestResolveChildPassLegacyRootDatabase covers the upgrade path: a database
+// directory that already holds content without a persisted password may have
+// been initialized with the historical root/root credential, which SurrealDB
+// never rotates — but a missing password file alone never proves that, so
+// resolution now refuses to guess and reports errChildPassLegacyVerify. (An
+// empty database directory is proven uninitialized and takes the fresh path
+// instead.) The caller (startOwnedEngine) verifies by signing in with the
+// legacy password against the running child before the legacy choice is
+// persisted; a database whose credential was lost out of band fails that
+// probe and refuses startup instead of being locked out by a regenerated
+// password.
+func TestResolveChildPassLegacyRootDatabase(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	dataDir := t.TempDir()
+	dbPath := filepath.Join(dataDir, "db")
+	if err := os.MkdirAll(dbPath, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	// Simulate a genuinely initialized database: any directory entry may
+	// belong to a database initialized with an unknown password, so the
+	// empty-directory fresh path does not apply.
+	if err := os.WriteFile(filepath.Join(dbPath, "MANIFEST-000001"), []byte("manifest"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := resolveChildPass(ctx, dataDir); !errors.Is(err, errChildPassLegacyVerify) {
+		t.Fatalf("resolveChildPass with missing file on existing database = %v, want errChildPassLegacyVerify", err)
+	}
+	// Once the legacy password is verified and published, later starts reuse
+	// it like any other persisted credential.
+	if err := publishChildPass(dataDir, legacyRootPass); err != nil {
+		t.Fatalf("publish verified legacy password: %v", err)
+	}
+	second, err := resolveChildPass(ctx, dataDir)
+	if err != nil || second != legacyRootPass {
+		t.Fatalf("legacy database second resolve = %q, %v; want the persisted legacy root password", second, err)
+	}
+	// The runtime descriptor must accept the persisted legacy password too.
+	runtime := LocalRuntime{
+		Schema: localRuntimeSchema, Token: strings.Repeat("a", 32), PID: os.Getpid(),
+		Endpoint: "ws://127.0.0.1:32123", Pass: legacyRootPass, ConfigSHA256: "sha256:" + strings.Repeat("c", 64),
+		Surreal: SurrealIdentity{
+			Path: "/private/test/surreal", Version: "3.2.0", SHA256: "sha256:" + strings.Repeat("b", 64),
+		},
+	}
+	if _, err := PublishLocalRuntime(t.TempDir(), runtime); err != nil {
+		t.Fatalf("publish descriptor with legacy root password: %v", err)
+	}
+}
+
+func TestResolveChildPassRefusesCorruptFile(t *testing.T) {
+	t.Parallel()
+	write := func(t *testing.T, dataDir string, mode os.FileMode, contents string) {
+		t.Helper()
+		path := filepath.Join(dataDir, localChildPassName)
+		if err := os.WriteFile(path, []byte(contents), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Chmod(path, mode); err != nil {
+			t.Fatal(err)
+		}
+	}
+	valid := `{"schema":"phebs-surreal-child-pass-v1","pass":"` + strings.Repeat("d", 64) + `"}` + "\n"
+	for name, setup := range map[string]func(t *testing.T, dataDir string){
+		"group-readable": func(t *testing.T, dataDir string) { write(t, dataDir, 0o640, valid) },
+		"bad json":       func(t *testing.T, dataDir string) { write(t, dataDir, 0o600, "{}\n") },
+		"wrong schema":   func(t *testing.T, dataDir string) { write(t, dataDir, 0o600, `{"schema":"other","pass":"root"}`+"\n") },
+		"bad password": func(t *testing.T, dataDir string) {
+			write(t, dataDir, 0o600, `{"schema":"phebs-surreal-child-pass-v1","pass":"short"}`+"\n")
+		},
+		"unknown field": func(t *testing.T, dataDir string) {
+			write(t, dataDir, 0o600, `{"schema":"phebs-surreal-child-pass-v1","pass":"root","extra":1}`+"\n")
+		},
+		"trailing data": func(t *testing.T, dataDir string) { write(t, dataDir, 0o600, valid+"{}\n") },
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			dataDir := t.TempDir()
+			setup(t, dataDir)
+			if _, err := resolveChildPass(context.Background(), dataDir); err == nil {
+				t.Fatalf("resolved child password from %s file", name)
+			}
+		})
+	}
+	// A directory in place of the file fails closed as well.
+	dataDir := t.TempDir()
+	if err := os.Mkdir(filepath.Join(dataDir, localChildPassName), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := resolveChildPass(context.Background(), dataDir); err == nil {
+		t.Fatal("resolved child password from a directory")
+	}
+}
+
+func TestSurrealKVDataDir(t *testing.T) {
+	t.Parallel()
+	if got := surrealKVDataDir("memory"); got != "" {
+		t.Fatalf("surrealKVDataDir(memory) = %q, want empty", got)
+	}
+	if got := surrealKVDataDir("surrealkv:/data/db"); got != "/data" {
+		t.Fatalf("surrealKVDataDir(surrealkv:/data/db) = %q, want /data", got)
+	}
+	if got := surrealKVDataDir("surrealkv:"); got != "" {
+		t.Fatalf("surrealKVDataDir(surrealkv:) = %q, want empty", got)
+	}
+}
+
+func TestSurrealChildArgsCarryNoPassword(t *testing.T) {
+	t.Parallel()
+	pass, err := newSurrealChildPass()
+	if err != nil {
+		t.Fatal(err)
+	}
+	args := surrealChildArgs("127.0.0.1:0", "memory")
+	seenUser := false
+	for index, arg := range args {
+		if arg == "--pass" {
+			t.Fatal("child argv carries --pass")
+		}
+		if arg == pass {
+			t.Fatal("child argv carries the generated password")
+		}
+		if arg == "--user" && index+1 < len(args) && args[index+1] == "root" {
+			seenUser = true
+		}
+	}
+	if !seenUser {
+		t.Fatalf("child argv missing --user root: %q", args)
+	}
+}
+
+func TestLocalRuntimeDescriptorRefusesBadPassword(t *testing.T) {
+	t.Parallel()
+	base := LocalRuntime{
+		Schema: localRuntimeSchema, Token: strings.Repeat("a", 32), PID: os.Getpid(),
+		Endpoint: "ws://127.0.0.1:32123", Pass: strings.Repeat("d", 64), ConfigSHA256: "sha256:" + strings.Repeat("c", 64),
+		Surreal: SurrealIdentity{
+			Path: "/private/test/surreal", Version: "3.2.0", SHA256: "sha256:" + strings.Repeat("b", 64),
+		},
+	}
+	for name, pass := range map[string]string{
+		"empty":   "",
+		"short":   "abc123",
+		"long":    strings.Repeat("d", 65),
+		"non-hex": strings.Repeat("z", 64),
+	} {
+		bad := base
+		bad.Pass = pass
+		if _, err := PublishLocalRuntime(t.TempDir(), bad); err == nil {
+			t.Fatalf("published descriptor with %s password", name)
+		}
+	}
+	// A descriptor already on disk with a malformed password is refused on read.
+	dataDir := t.TempDir()
+	bad := base
+	bad.Pass = "short"
+	encoded, err := json.Marshal(bad)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dataDir, localRuntimeName), append(encoded, '\n'), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ReadLocalRuntime(dataDir); err == nil {
+		t.Fatal("read descriptor with malformed password")
+	}
+	// A valid descriptor still cannot be published over the untrusted
+	// predecessor: the malformed file on disk blocks the next publisher.
+	if _, err := PublishLocalRuntime(dataDir, base); err == nil {
+		t.Fatal("published over an untrusted predecessor")
 	}
 }

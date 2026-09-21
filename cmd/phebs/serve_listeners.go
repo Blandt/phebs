@@ -14,9 +14,15 @@ func runServeListener(d *serveDeps, handler http.Handler) error {
 	ctx := d.ctx
 	cfg := d.cfg
 
+	// Keep the server-wide WriteTimeout at zero: it is an absolute response
+	// deadline and would terminate legitimate SSE and MCP streams. Those
+	// handlers retain their own bounded work deadlines.
 	srv := &http.Server{
-		Addr: cfg.Server.Addr, Handler: handler, ReadHeaderTimeout: 10 * time.Second,
-		BaseContext: t421ExactReadServerBaseContext(ctx, d.exactReads),
+		Addr: cfg.Server.Addr, Handler: handler,
+		ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout:       15 * time.Second,
+		IdleTimeout:       120 * time.Second,
+		BaseContext:       t421ExactReadServerBaseContext(ctx, d.exactReads),
 	}
 	shutdownErr := make(chan error, 1)
 	d.runBackground(func() {

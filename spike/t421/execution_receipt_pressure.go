@@ -5,6 +5,14 @@ import (
 	"time"
 )
 
+func pressureTransitionSchema(plan Plan) string {
+	suffix := "/pressure-v1"
+	if plan.Schema == PlanV4Schema {
+		suffix = "/pressure-v2"
+	}
+	return plan.ReceiptContract.TransitionSchema + suffix
+}
+
 // The pressure receipt retains actual mutation snapshots and exact workspace
 // points. Phase maxima are not substituted for either endpoint.
 func composeExecutionPressureTransitions(plan Plan, freeze ExecutionFreeze, outcomes map[string]string,
@@ -36,7 +44,7 @@ func composeExecutionPressureTransitions(plan Plan, freeze ExecutionFreeze, outc
 		if !fence.Equal(mutation.Mutation.Fence) || !observed.valid([]string{"pressure-80", "pressure-90", "pressure-75"}[index], fence) || capacity.Completeness != lifecycle.Exact || capacity.UsedPercent < 0 {
 			return nil, errExecutionReceiptTransition
 		}
-		value := PressureTransition{Schema: plan.ReceiptContract.TransitionSchema + "/pressure-v1", TargetUsedPercent: target.TargetUsedPercent,
+		value := PressureTransition{Schema: pressureTransitionSchema(plan), TargetUsedPercent: target.TargetUsedPercent,
 			Action: target.Action, ExpectedDisposition: target.ExpectedDisposition, ObservedDisposition: string(capacity.Pressure),
 			GateOutcome: "err_pressure_refusal", PriorGateSequenceSHA256: prior, ServerEpoch: serverEpoch,
 			VolumeAvailableBytesBefore: mutation.Mutation.Before.Available, VolumeAvailableBytesAfter: mutation.Mutation.After.Available,

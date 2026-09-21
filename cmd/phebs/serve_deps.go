@@ -128,14 +128,17 @@ func (d *serveDeps) runDeferred(retErr *error) {
 
 // serveFlags carries the parsed `phebs serve` flag values.
 type serveFlags struct {
-	configPath string
-	addr       string
-	positional []string
+	configPath         string
+	allowInsecurePerms bool
+	addr               string
+	positional         []string
 }
 
 func parseServeFlags(args []string) (*serveFlags, error) {
 	flags := flag.NewFlagSet("serve", flag.ContinueOnError)
 	cfgPath := flags.String("config", "", "path to config file (defaults apply if omitted)")
+	allowInsecurePerms := flags.Bool("allow-insecure-config-perms", false,
+		"warn instead of refusing a config file readable by group or others")
 	addr := flags.String("addr", "", "listen address (overrides config)")
 	if err := flags.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
@@ -143,7 +146,10 @@ func parseServeFlags(args []string) (*serveFlags, error) {
 		}
 		return nil, fmt.Errorf("%w: %w", errServeFlags, err)
 	}
-	return &serveFlags{configPath: *cfgPath, addr: *addr, positional: flags.Args()}, nil
+	return &serveFlags{
+		configPath: *cfgPath, allowInsecurePerms: *allowInsecurePerms,
+		addr: *addr, positional: flags.Args(),
+	}, nil
 }
 
 // serveOwners holds the admitted production-owner lifetime for serve. finish

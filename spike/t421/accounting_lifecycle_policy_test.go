@@ -62,10 +62,13 @@ func TestAccountingV3NormalLifecyclePolicy(t *testing.T) {
 		}
 		remaining := current.SafetyEnvelope
 		remaining.MaximumDataAllocatedBytes = prior.SafetyEnvelope.MaximumDataAllocatedBytes
-		if prior.MeterPolicy.LifecycleSemantics != frozenMeterPolicy().LifecycleSemantics ||
+		deadlines := append([]PhaseDeadline(nil), current.PhaseDeadlines...)
+		deadlines[8] = prior.PhaseDeadlines[8]
+		if current.PhaseDeadlines[8].DeadlineMS != pressure80V3DeadlineMS ||
+			prior.MeterPolicy.LifecycleSemantics != frozenMeterPolicy().LifecycleSemantics ||
 			!strings.HasPrefix(current.MeterPolicy.LifecycleSemantics, prior.MeterPolicy.LifecycleSemantics+";") ||
 			!reflect.DeepEqual(prior.SafetyEnvelope, remaining) ||
-			!reflect.DeepEqual(prior.PhaseDeadlines, current.PhaseDeadlines) {
+			!reflect.DeepEqual(prior.PhaseDeadlines, deadlines) {
 			t.Fatal("historical policy, metric units, safety bounds or deadlines changed")
 		}
 		if err := validatePlanExecutionContract(prior); err != nil {

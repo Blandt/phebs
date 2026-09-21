@@ -137,7 +137,7 @@ func TestStoreAccountingLocalFactoryActualSDKWire(t *testing.T) {
 			if test.existing {
 				state, err = openWithOwner(ctx, endpoint, "root", "root", "phebs", "phebs", owner)
 			} else {
-				state, err = openLocalRootWithOwner(ctx, endpoint, owner)
+				state, err = openLocalRootWithOwner(ctx, LocalRuntime{Endpoint: endpoint, Pass: "root"}, owner)
 			}
 			var queryError *surrealdb.QueryError
 			if state != nil || err == nil || test.failStep == 0 && !errors.As(err, &queryError) {
@@ -190,7 +190,10 @@ func TestStoreAccountingExistingLocalFactoryRejectsUnboundConfig(t *testing.T) {
 		{"query", "ws://127.0.0.1:1?", "root", "root", "phebs", "phebs"},
 		{"fragment", "ws://127.0.0.1:1#fragment", "root", "root", "phebs", "phebs"},
 		{"user", "ws://127.0.0.1:1", "other", "root", "phebs", "phebs"},
-		{"password", "ws://127.0.0.1:1", "root", "other", "phebs", "phebs"},
+		// The admission gate rejects only an empty password: the root
+		// password is random per engine start, so a wrong non-empty
+		// password is rejected by the engine itself at sign-in, not here.
+		{"password", "ws://127.0.0.1:1", "root", "", "phebs", "phebs"},
 		{"namespace", "ws://127.0.0.1:1", "root", "root", "other", "phebs"},
 		{"database", "ws://127.0.0.1:1", "root", "root", "phebs", "other"},
 	} {

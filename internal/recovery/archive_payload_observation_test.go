@@ -77,7 +77,7 @@ func TestArchiveDatabaseCommittedPayloadObservation(t *testing.T) {
 				_, _ = io.WriteString(writer, `[{"result":[],"status":"OK","time":"0ns","type":null},`+commit+"]")
 			}))
 			defer server.Close()
-			err = executeRestoreReplay(ctx, prepared, t.TempDir(), strings.Replace(server.URL, "http://", "ws://", 1), DatabaseIdentity{Namespace: "phebs", Database: "phebs"}, nil)
+			err = executeRestoreReplay(ctx, prepared, t.TempDir(), strings.Replace(server.URL, "http://", "ws://", 1), "root", DatabaseIdentity{Namespace: "phebs", Database: "phebs"}, nil)
 			if (err != nil) != failedCommit {
 				t.Fatalf("native replay = %v", err)
 			}

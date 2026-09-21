@@ -2630,7 +2630,7 @@ func testPressureTransitions(
 			t.Fatalf("pressure phase %q has no admitted runtime epoch", phase)
 		}
 		value := &PressureTransition{
-			Schema:            plan.ReceiptContract.TransitionSchema + "/pressure-v1",
+			Schema:            pressureTransitionSchema(plan),
 			TargetUsedPercent: target.TargetUsedPercent, Action: target.Action,
 			ExpectedDisposition: target.ExpectedDisposition, ObservedDisposition: target.ExpectedDisposition,
 			PriorGateSequenceSHA256: priorSequence, ServerEpoch: epoch,

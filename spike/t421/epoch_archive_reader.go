@@ -51,7 +51,7 @@ func (run *ExecutionEpochOneRun) newArchiveInspection(ctx context.Context) (*exe
 	plan := run.flow.plan
 	projection, err := expectedStateProjectionForPhase(plan, "archive_restore")
 	rows, totals, inventoryErr := correctedInspectionInventory(plan.Profile)
-	if plan.Schema != PlanV3Schema || err != nil || inventoryErr != nil || len(rows) != 15 || rows[11].Phase != "archive_restore" || rows[11].ServerEpoch != 5 ||
+	if !processAccountingPlanSemantics(plan.Schema) || err != nil || inventoryErr != nil || len(rows) != 15 || rows[11].Phase != "archive_restore" || rows[11].ServerEpoch != 5 ||
 		projection.PhysicalRevision != "a-return" || projection.LogicalRevision != "a-return" || projection.CatalogSource.SHA256 != run.epoch.CatalogSHA256 {
 		return nil, errEpochInspection
 	}

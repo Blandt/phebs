@@ -39,7 +39,7 @@ func restoredExecutionBounds(plan Plan) (epochOneLimits, error) {
 // author-start clock. This never grants another phase or refreshes a deadline.
 func archiveLifetimeDeadline(ctx context.Context, plan Plan, authorStarted, deadline time.Time) (time.Time, error) {
 	now := time.Now()
-	if ctx == nil || ctx.Err() != nil || plan.Schema != PlanV3Schema || authorStarted.IsZero() || authorStarted.After(now) ||
+	if ctx == nil || ctx.Err() != nil || !processAccountingPlanSemantics(plan.Schema) || authorStarted.IsZero() || authorStarted.After(now) ||
 		plan.SafetyEnvelope.MaximumTotalWallMS != frozenSafetyEnvelope().MaximumTotalWallMS {
 		return time.Time{}, ErrExecutionEpochOne
 	}

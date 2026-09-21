@@ -24,7 +24,7 @@ func TestExecutionDispatchFlowExactBudgetsAndTopology(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := dispatchadmission.Limits{Producers: 11, Sites: 120, Roles: 7, Phases: 15,
-		ActivePerProducer: 61, Attempts: 547195, WireBytes: 140090368, AckTimeout: 5 * time.Second}
+		ActivePerProducer: 61, Attempts: 547295, WireBytes: 140115968, AckTimeout: 5 * time.Second}
 	if config.Limits != want || len(config.Producers) != 11 || len(config.Phases) != 15 {
 		t.Fatalf("operational construction differs: %+v", config.Limits)
 	}

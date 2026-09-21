@@ -118,7 +118,7 @@ func (v *executionPressureVolume) observeProfileHost(ctx context.Context, flow *
 	defer author.mu.Unlock()
 	epochs.mu.Lock()
 	defer epochs.mu.Unlock()
-	if flow.plan.Schema != PlanV3Schema || flow.closed || flow.used || flow.authored || !flow.authorStarted.IsZero() ||
+	if !processAccountingPlanSemantics(flow.plan.Schema) || flow.closed || flow.used || flow.authored || !flow.authorStarted.IsZero() ||
 		flow.profileHostUsed || v.flow != flow || !v.borrowed || !v.ready || v.removed || flow.workspace == nil ||
 		flow.workspace.file != v.workspace.file || author.active || author.borrowedBy != nil || author.closed || author.err != nil || author.next != 0 ||
 		epochs.active || epochs.closed || epochs.err != nil || epochs.released != 0 || len(epochs.roots) != 4 ||

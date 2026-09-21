@@ -1829,6 +1829,7 @@ walk, child, retry, deadline or ordinary runtime work.
 
 | Area | Decision | Escape hatch |
 |---|---|---|
+| 2026-09-21 — Legacy API-key rollback writer fence | **Retain the reserved legacy-row identity and install the generation-named `api_key_legacy_identity_v1` event.** Every non-delete mutation of `api_key:legacy-config` must leave `user_id="legacy-config"`. The previous writer's exact startup UPSERT writes `user_id=''`, so it can neither clear a same-hash revocation nor recreate the row after deletion; its older `IF NOT EXISTS` schema replay does not remove this unknown event. Current revocation, touch, same-hash sync, rotation, deletion, explicit current-writer recreation, and guarded backup/restore retain their documented behavior. | The event is one additional definition in the existing API-key schema transaction: startup adds no SDK call, transaction, scan, row migration, cache, Go lock, goroutine, child, or retry, but that existing transaction returns one more definition result. Each API-key create or update evaluates a fixed event predicate and adds no store read or write; deletes bypass it. Native backup exports one additional fixed declaration; protected restore admits and replays that exact declaration as one additional unit, making the neutral full-owned census 717 definitions and 719 units without another record or scan. Real-engine regressions prove previous-writer refusal, current-writer recreation, and exact native export replay. |
 | 2026-09-12 — T42.2l complete profile-custody correction cost | At profile issue and final handoff, revalidate the borrowed signer image and both required mounted Buf/focused images through their existing custody APIs; detached observations alone are insufficient. | Each boundary adds one signer `Check` (held/path stat, symlink resolution and read-only-volume check) and two input-custody `Check` calls (bounded canonical-path, held/path metadata and volume checks), with no content hash, scan, FD, child or allocation proportional to repository size. |
 | 2026-09-12 — T42.2l complete profile-custody and inspection correction | The complete prospective V3 profile issuer requires both already reference-admitted Buf/focused holders and the one borrowed `ssh-keygen` holder, rechecking each through existing custody. Scoped pre-issuer APIs may still omit Buf/focused, but omission cannot issue or revalidate a complete profile. The superseded shell is never held or observed. In-process shallow copies of either private capability share its same synchronized spend-once state; they cannot duplicate authority, serialize, reload or reconstruct it. Joined inspection evidence requires `accepted_reports == next_ordinal - first_ordinal`, and every accepted final ordinal lies inside that exact span, so no consumed ordinal can lack its corresponding accepted report. | Removing shell custody removes its held FD, image acquisition/hash and metadata checks. The Buf/focused holders and checks already exist in the full profile path and add no new child, image, FD or hash; completeness adds fixed nonnil predicates and makes the existing six mounted tool-input checks unconditional. Ordinal equality is one bounded scalar comparison during post-join composition. Focused tests cover signer-only observation/refusal, missing each protected holder, shallow-copy shared-state spending and an ordinal hole. No ordinary request, sync, retry, publication, phase allowance or V1/V2 byte changes. |
 | 2026-09-12 — T42.2l joined receipt-metric composition | Prospective V3 first passes the existing complete plan/revision validation, then accepts only the final joined cleanup owner's complete cumulative dispatch/store prefixes, seven coherent complete producer records, thirteen accepted phase-inspection rows plus the interrupted phase-eight predecessor prefix, and five joined server-process observations in the fixed five-epoch topology. Nested cache, source/catalog census, unsupported-source, lifecycle, reuse and index-offer prefixes must remain coherent; index closure requires started=ended, failed≤ended and offered=settled, permits native zero-offer and failed-before-offer child histories, and refuses a positive offer without any started child. Inspection store-write attempts refuse because that stream owns no receipt write counter. It projects their authoritative fields into fifteen partial `ReceiptMetrics` rows: producer work and native workspace maxima cover phases two through fourteen; inspection control/member reads and its three source-bound logical-change observations cover the same phases; dispatch/store cover all phases; and sampled native process evidence covers phases two through fourteen. Phase eight adds both epoch-local inspection prefixes, requires the successor process census to subsume its predecessor and projects only that successor; workspace values use maxima, never sums. Successful Darwin teardown additionally projects its two-observation phase-fifteen workspace maximum. Phase one, phase fifteen's remaining families, phase wall/event ordinals, pressure volume/disk, other semantic/state-derived counters, teardown-native accounting and final receipt acceptance remain unavailable. | The existing bounded in-memory plan validator runs once. Composition then traverses eleven dispatch producers, 105 dispatch-role rows, seven store producers, fifteen store rows, fourteen inspection rows, each fixed producer's bounded nested fifteen-slot observations and sixteen owned producer-phase contributions, 105 workspace slots, and fourteen process-phase rows. Addition and totals use checked arithmetic; store per-transaction, frozen counter maxima, workspace/RSS ceilings, exact phase/epoch/logical-revision order, final-owner closure and phase-eight monotonicity refuse. Retained output contains fifteen metrics/coverage rows, fifteen newly allocated eight-role slices and one cloned class slice for each of thirteen projected native rows; bounded transient validation/metric lists do not survive the call. No source/store/file scan, sample, I/O, child, hash, timer, lock, retry, receipt, freeze or numerical allowance. Missing families remain coverage-false rather than zero evidence. |
@@ -2177,6 +2178,7 @@ walk, child, retry, deadline or ordinary runtime work.
 | 2026-09-04 — T42.1r6 production lifecycle-owner inventory correction | **Retain V1's historical fourteen-owner bytes, but require V2 pressure and lifecycle evidence to cover the production server's complete sorted sixteen-owner rotation.** T41.4's `catalog-v3-generations` and T41.8's `relationship-v3-namespaces` owners were already present in T42's bound main base but were omitted when the prospective work envelope copied the older T40 inventory. V2 now adds both exact/drained rows; `durable-jobs` remains the sole lower-bound owner. The lifecycle transition class is correspondingly `fresh-sixteen-owner-cycle`. | Plan construction adds two bounded strings and receipt validation adds two already-produced source-free status rows; production startup, lifecycle cadence/turns, capacity probes, deletion limits, locks, store/filesystem work, requests, children, caches, and schemas are unchanged. Compacting the already-versioned physical/logical R policy into an equivalent explicit grammar saves 108 bytes, leaving the corrected plan at 262,101 of 262,144 bytes without raising the cap. Missing either V3 owner fails closed. Pressure R, archive/restore R, lifecycle R, whole-phase sums, final ordinal, freeze, execution, release, and scale/SLO claims remain open. |
 | 2026-09-04 — T42.1r6 prepared-checkpoint hard-restart R accounting | **Bind V2's prepared checkpoint to one old-server hit snapshot and one new-server recovered snapshot; the reaper's store-owned Hit/requeue events are private synchronization, not extra reports.** The transition class is `prepared-checkpoint-hard-restart`. Exact control alone installs the runtime's default-nil checkpoint hook after the existing canonical result has been selected for reuse and before domain assembly. Each snapshot reads the prepared binding, exact target generation, domain plan, canonical result, completion control, exact root attempt, and current pointer, fenced by a current-schedule plus exact-chunk store read before and after those controls. V2 maps `Generation` to the immutable target extraction generation, `Plan` to its domain plan, `Schedule` to the preparation recovery schedule, and `Unit` plus selector bounds to the canonical result; the distinct recovery-schedule generation's binding must map back to that target and predecessor schedule. The epoch-three hit requires the prepared attempt-0 row at priority 0, active, running, and leased; its canonical result is durable, its completion file exists with exactly the selected bit clear, and its root and current pointer are absent. The live hit fingerprint deliberately excludes mutable `HeartbeatAt` while fencing every fixed row field and the opaque private lease-token identity. The epoch-four recovered snapshot is available only after the same attempt-0 chunk has been requeued at priority 2, reclaimed, completed successfully without a retry successor, restored the completion bit, installed the exact root/current pointer over the byte-identical result, and settled unleased with its row token cleared. The new-epoch controller privately compares the killed-token fingerprint carried by the reaper Hit with the recovered callback's new-claim fingerprint; the prepared hit may retain its fingerprint only in-process, and raw tokens never enter evidence. V2 also requires distinct old/new process identities, unchanged prepared target mapping and byte-identical protected return-A authority across the transition. Retained V1 bytes and semantics remain exact. | Each report is exactly `C/S/M/W=7/4/0/0`, so process-restart R totals `14/8/0/0`. The hit belongs to old server epoch three and recovery to new epoch four: epoch-three exact requests rise `11,530→11,531` and its transition `calls/C/S` rises `4/18/8→5/25/12`; epoch four rises `6,254→6,255` and `0/0/0→1/7/4`. The reader is synchronous, source-free, one-shot, nonpolling, uncached, child-free, member-free, and write-free; it decodes only seven bounded controls, metadata-checks one generation plus at most 64 domain directories, and executes four one-row store queries. The root/current absence attempts at the hit are charged. Each report acquires the existing per-plan assembly mutex once around completion/root/current inspection and releases it before the second store confirmation and any report or wait; this is no new lock class. Limit, malformed/moving state, hook, reaper synchronization, or report failure fails exact mode closed and invents no report. A hit failure returns before assembly and leaves the durable prepared checkpoint; a recovered-report failure occurs after truthful completion/root/current durability, cannot roll those facts back, and is surfaced through the scheduler report path. This slice adds only one default-inactive runtime nil branch on ordinary reused-result handling and no global hook, schema, persistent state, goroutine, lock class, cache, retry, or I/O; that nil path acquires no lock. The compact plan policy token is `p2C7S4`; shortening the zero-cost metadata label from `metadata=0` to `meta=0` is solely byte-cap compaction and changes no accounting semantics. This closes the production reader/hook and prospective receipt slice only: no controller, runner, hard kill, whole-phase sums, final ordinal, corrected-plan freeze, ceremony, execution, release, T42.2 authorization, or scale/SLO claim follows; pressure, archive/restore, and lifecycle R remain open. |
 | 2026-09-04 — T42.1r6 stale-lease schedule/result R accounting | **Bind the prepared stale-lease transition to one pre-reap snapshot and one post-completion snapshot instead of treating a requeue as recovery.** The transition class is `prepared-stale-lease-schedule-and-result`. Exact control alone installs the generation scheduler's default-nil pre-heartbeat gate so the selected attempt-0 chunk can become stale without a heartbeat race, and installs the store's optional observer immediately before and after its existing heartbeat-fenced durable stale requeue. The hit report runs before that mutation; the recovered report runs only after the same attempt-0 chunk is reclaimed and completes successfully. Each reader takes the prepared binding, exact target extraction generation, domain plan, and canonical partition result from disk, then reads the current schedule and target chunk twice from the store. The hit requires an active current schedule and an exact attempt-0 row at priority 0, running with its original claimant/lease and heartbeat older than the reaper cutoff. Recovery requires the settled all-success schedule and the same row at priority 2, done and unleased, with bounded stale-reap provenance. The recovery-schedule generation is a distinct prepared identity whose binding must map to the immutable target generation and predecessor schedule; the plan and result must belong to that target generation. Both snapshots require the unchanged target mapping and byte-identical return-A authority; requeue alone cannot satisfy recovery. Retained V1 bytes and validation remain exact. | Each report is exactly `C/S/M/W=4/4/0/0`, so stale-lease R is two reports totaling `8/8/0/0`; epoch three's shared exact-report maximum rises from 11,528 to 11,530. Reads are synchronous, source-free, one-shot, nonpolling, uncached, child-free, member-free, and write-free. They decode only the four bounded controls and metadata-check one generation plus at most 64 domain directories; a successful report executes exactly four one-row store queries, while any retry consumes the fixed ledger and refuses. Exact mode deliberately extends the stale window and runs bounded callbacks on the existing scheduler/reaper/completion paths; the recovered callback adds one bounded timeout context/timer after the completion transaction. The pre-reap observer failure prevents the guarded mutation; a post-reap observer failure cannot undo the already-durable requeue; recovery reporting is unreachable until successful completion. All failures terminate exact mode rather than inventing a report. Ordinary scheduling and reaping pay only default-inactive nil branches and add no global hook, store schema, ledger, persistent state, goroutine, lock class, or I/O. Process-restart, pressure, archive/restore, and lifecycle R, cumulative phase sums, final ordinal, corrected-plan freeze, runner execution, release, and any scale/SLO claim remain open; this does not authorize T42.2. |
+| 2026-09-16 — Optional API key expiry and revocable legacy config key | **Close the two API-key lifecycle gaps: key creation accepts an optional `expires_at` RFC3339 timestamp, and the legacy config-file key is revocable through the existing revoke endpoint.** A present `expires_at` must be a future timestamp; malformed input fails at JSON decode and a past timestamp is rejected outright, while an omitted or null value creates a key that never expires, so existing keys keep working unchanged — the `api_key` table is schemaless and the store already persisted the field, so no data migration is required. Expiry is enforced at validation time in `authenticateBearer` on both the named-key and legacy-fallback paths (already present on this base; pinned by tests). The legacy row now carries the reserved `user_id` `store.LegacyAPIKeyUserID` (`"legacy-config"`) instead of `''`, assigned on every startup sync, which heals pre-existing rows; `DELETE /api/auth/keys/legacy-config` revokes it when called by an administrator's browser session, while anyone else gets the same not-found response as for any out-of-scope key id, and ordinary user-scoped revocation is unchanged. `SetLegacyAPIKey` preserves an API revocation across restarts when the config hash is unchanged and clears it on rotation; removing `auth.api_key` still deletes the row. | Auth handler tests cover creation validation, expiry round-trip and enforcement, admin/non-admin legacy revocation, revocation persistence across service restart, rotation clearing, and unaffected user-scoped revocation; engine-gated store tests cover expiry persistence, the reserved identity, and revocation preservation. `gofmt`, `go vet`, `go build ./...`, and the `internal/auth` suite pass; store tests requiring the `surreal` binary skip where it is absent. |
 | 2026-09-04 — T42.1r6 relationship marker-recovery R accounting | **Bind return A's exact relationship-publication interruption and restart recovery to two transition-local filesystem snapshots, without pretending either snapshot is a final-authority pass.** Exact control alone reports the hit after the canonical marker owns a completely installed and directory-synced target generation but before `current.json` moves, and reports recovery only after `RecoverV3` has installed that same pointer, removed `publishing.json.tmp` and the marker, and completed the final repository-directory sync. Each reader takes current pointer, marker, exact target root, current-pointer confirmation, and marker confirmation. The hit requires the unchanged logical-B pointer, byte-identical canonical marker, marker-named target root, absent named stage, and absent marker temporary; recovery requires the same target root, unchanged return-A pointer, two absent marker observations, and an absent temporary. Metadata probes are zero-cost but fail closed. No selector, caller, application-member, or store read belongs to this relationship-local boundary: the selector remains B through startup recovery and advances only later, while the accepted final F proves complete return-A authority. V2's target records `Generation=marker.Pointer.GenerationDigest`, `Unit=marker.Pointer.RootDigest`, `Plan=binding.TargetGeneration`, and `Schedule=chunk.ScheduleDigest`; the hook separately validates the canonical binding and `chunk.Generation == binding.ScheduleGeneration`. These are distinct identity roles: a fresh schedule may intentionally set its generation to the runtime target, while its row digest and the published relationship generation remain separate. V2's hit authority is the exact mixed current projection obtained from final return-A authority by substituting logical-B caller generation/root and relationship generation/root/provenance. Retained V1 validation and bytes remain exact. | Each report is exactly `C/S/M/W=5/0/0/0`, so return-A R is two reports totaling `10/0/0/0`; epoch three's shared exact-report maximum rises from 11,526 to 11,528. The reads are synchronous, one-shot, source-free, nonpolling, uncached, child-free, and write-free. The hit extends the existing relationship mutation lock, publication-transition mutex, claimed schedule lease, and repository-token hold; its deliberate stop or report failure leaves the durable marker-owned target for recovery and terminates exact mode nonzero. The recovery report extends the existing exclusive startup mutation hold. A recovery-report failure occurs only after the recovered pointer and marker removal are durably synced, cannot roll back or recreate the marker, and fails startup closed; the next restart sees no marker and cannot duplicate the recovery report. Ordinary publication/recovery adds only default-inactive nil-hook branches and no ledger, allocation, I/O, goroutine, lock class, or persistent state. Other R classes, cumulative phase sums, final ordinal, corrected-plan freeze, runner execution, release, and any scale/SLO claim remain open; T42.2 remains next only after this slice and the rest of T42.1 close. |
 | 2026-09-04 — T42.1r6 logical activation R accounting | **Bind logical B's partial-activation residue and recovery to two exact event snapshots instead of inferring them from the final authority pass.** A default-inactive controller hook runs only after the frozen offset-9 service-member transaction commits, while that attempt-0 scheduler lease and the repository's single execution token remain held. The hit reader requires the prior selected runtime, running plan at `next_chunk=10`, active fully materialized schedule with nine succeeded/one running, and the exact leased target unit. The recovery reader requires the final selected runtime, the same immutable plan/schedule/unit identities, activated plan, settled all-success schedule, and the released/reclaimed stale-priority attempt-0 target done and unleased with internal failure provenance. Both points require the plan's physical search generation to equal the selected runtime. The unit shape is exact: a hit has a bounded claimant, lowercase 128-bit lease, ordered claim/heartbeat, and no defer/finish/error; a completion has a bounded claimant, ordered claim/finish, no defer/heartbeat/lease, and bounded retained error only for stale recovery. An activated plan with its final schedule lease still running is neither state. A final selector read rejects authority movement across either snapshot. V2 now requires exactly one same-attempt requeue for this stop path; V1 retains zero and remains byte-exact. The final activation-authority read accepts either clean attempt-0 completion or this exact stale-success residue and rejects mixed states. | Each snapshot performs five one-shot store reads—selected runtime, exact plan, immutable schedule, exact target unit, and selected-runtime confirmation—and no application-member visit or write. Logical R is therefore exactly two reports with report-scoped `C/S/M/W=0/10/0/0`; epoch two's shared exact-report maximum rises from 5,763 to 5,765. The forced V2 stop separately pays existing pipeline recovery outside that subtotal: one scheduler release transaction, one bounded claim-candidate read plus one later claim transaction, one replay plan point read returning zero member rows and changes, one completion transaction, and the controller's existing settled advance/no-op handoff. The replay also creates the existing per-claim heartbeat goroutine, ticker, and channel and emits configured lifecycle reports; its plan-point work normally finishes before a heartbeat write and adds no concurrency class. The reader retains only fixed source-free digests, uses no polling/cache/child/filesystem read, and returns before mutation. Ordinary service-state work adds one nil-hook branch after nonterminal chunks; no hook, ledger, allocation, query, write, lock class, or background work is installed. When exact control installs the synchronous hook, its bounded read/report I/O extends the existing shared filesystem-mutation lock, controller mutex, chunk lease, and repository-token hold; it receives the operation context and owns timeout/report failure because the target transaction is already durable. It does not retry the report or transaction; the later scheduler replay is idempotent and cannot re-report the hit. Other R classes, whole-phase cross-scope sums, final ordinal, replacement freeze, runner execution, release, and scale/SLO claims remain open. |
 | 2026-09-04 — T42.1r6 physical replacement R correction | **Replace the impossible V2 delete-A oracle with the production current/prior invariant.** One ordinary A-to-B pass makes B current and A durable prior. The runner pins A before B, binds the settled B/A root, runs one exact/drained lifecycle turn, synchronously opens and queries both generations, releases only A's separate generation pin, runs a second exact/drained lifecycle turn, and reprobes A through the still-held exact reader. Both turns scan and delete zero. Opening the exact A reader before B is forbidden because B publication legitimately changes A's hard-link ctime and the reader's full file-identity fence must reject that mutation. V1 bytes and validation remain exact. | Physical R is one report with `C/S/M/W=17+1+3+17+3/0/(2*physical.combined_physical_owners)/0`, hence `41/0/4,063,208/0` for the frozen profile. Each exact reader charges C17 and N decoded source-owner visits; the root charges C1 and each lifecycle turn C3. Two exact opens perform four complete shard-byte hash passes and retain two mmap/FD sets under the existing 256-shard-per-generation cap. Exact-reader construction is capped at ten minutes and a process-wide two-session admission held until `Close`; the single frozen R report must therefore run serially. Each bounded query serializes on its reader and performs pre/post full file-identity metadata fences. The dedicated R inventory binds that subtotal; epoch one's shared exact-report inventory rises from 11,529 to 11,530. Generic phase read caps remain unchanged so partial R closure cannot mask still-open inspector work. Other R classes remain nullable/open, and whole-phase cross-scope equality plus the final ordinal remain open. No ordinary path calls this reader; no second physical build, legacy-publication relabeling, freeze, execution, release, or scale/SLO claim follows. |
@@ -2863,6 +2865,14 @@ in [docs/ROADMAP.md](./docs/ROADMAP.md).
 
 | Date | Question | Resolution |
 |---|---|---|
+| 2026-09-17 | SurrealDB supervised-child empty database directory | **Treat a precreated but empty `db/` as a fresh initialization, never a legacy-verification candidate.** Review reproduced the defect natively: an empty `db/` directory entered legacy verification, the child started with an unpersisted throwaway password, SurrealDB initialized its root with that password, the historical root/root probe failed, and the password was discarded — every retry failed the same way. Credential resolution now inspects the `db/` directory under the credential lock: zero entries is proven uninitialized, so the fresh path publishes the credential (temp write, fsync, rename, directory fsync) before the child may start it, and the engine initializes its root with that persisted password. An interrupted initialization converges on restart because the credential is already durable. Any directory entry may belong to a database initialized with an unknown password, so a non-empty `db/` without a password file keeps the legacy-verification path: the sign-in probe runs, and a failed probe refuses startup without writing anything. A potentially-initializing password is never discarded. | Startup adds one directory entry listing inside the existing credential-lock hold on the missing-credential path only; no new lock acquisition, child, goroutine, schema, query/request, sync-tick, or retry cost beyond the retained legacy path. |
+| 2026-09-17 | SurrealDB supervised-child legacy verification in selected-owner mode | **Refuse legacy verification before the child starts when the process runs in selected-owner mode.** The legacy probe opened a raw owner-less WebSocket and signed in before `openLocalRoot` applied the authenticated process SDK owner, bypassing the owner's final-send, strict-reply, failure-latching, and completion checks. The selected startup constructor now refuses the legacy branch up front instead of probing around the owner. Ordinary non-selected legacy migration (sign-in probe, then publish-or-adopt under the credential lock) is unchanged. | No steady-state cost: the refusal is one process-owner lookup and branch on the legacy path only; no new lock, child, goroutine, connection, schema, query/request, sync-tick, or retry cost. |
+| 2026-09-17 | SurrealDB supervised-child credential publication race | **Serialize credential publication under a per-directory cross-process lock; publish atomically with file+directory durability; never guess legacy.** Review found a publication race: the old writer created the final `.surreal-child-pass` name before writing/syncing, so a concurrent start could read complete-but-unsynced JSON, start SurrealDB, then lose the file when the writer's sync failed and deleted it — leaving a random-password database with no password file, which then fell back to legacy root and failed auth. All credential resolutions (existing-file reads and first-start creation) now serialize under one stable per-data-directory `gofrs/flock` lock, reusing the repo's existing locking dependency and the focusedindex pattern; the lock file is created once and never unlinked or recreated. Publication writes a mode-0600 temp file in the same directory, fsyncs it, renames it over the final name, then fsyncs the containing directory — a file fsync alone does not make the directory entry durable on Linux — all before any password may start a child; an existing credential is never replaced. An existing credential is re-validated and re-synced (file and directory) under the lock before use, covering a previous writer that died after publishing complete bytes but before finishing its syncs. An uncertain publication or sync failure preserves the final credential and refuses startup; only owned, unpublished temp files are cleaned up. A missing password file on an existing database no longer proves a legacy database: startup verifies by signing in with the historical root password against the running child (started without root-initialization credentials; the correction below supersedes the earlier throwaway probe) and only then persists the legacy choice; a failed probe refuses startup without publishing a credential or applying phebs schema, so an already-initialized random-password database is never locked out by a regenerated password. Startup cost: one exclusive lock acquisition per fresh or sidecar-backed child start (uncontended in the common case, held only for bounded file I/O), plus on first start one temp write, two fsyncs (file and directory) and one rename; every later start re-syncs the credential file and directory (two fsyncs) under the lock before the password is used. No new child, schema, query/request, sync-tick, or persistent goroutine cost. A successful legacy verification takes the credential lock twice — once to discover the missing credential, once after the sign-in probe to publish or adopt it — and adds a temporary WebSocket connection, one root sign-in authentication exchange, and the probe connection's temporary SDK read/response/close goroutines and lifecycle work. A contended lock acquisition waits, retrying every 10 ms until the caller context ends. |
+| 2026-09-17 | PR6 non-initializing legacy credential probe and cleanup closure | **Never supply a potentially initializing throwaway password to an ambiguous database.** The empty-directory correction above was insufficient: a nonempty directory can still lack a root user. Ordinary legacy verification now omits both root credentials, adds `--no-defaults`, and removes inherited `SURREAL_*` startup controls, including authentication bypass and import scripts. An actual historical root sign-in alone permits durable legacy-password adoption. Rootless/unknown-password probes refuse without creating or rotating a root or applying phebs schema; native storage housekeeping may still change files. Selected SDK owners refuse before database-child launch, and the unchanged installed dispatch contract also refuses the absent credential entry, including ownerless admitted lifetimes. The missing-sidecar check reads at most one directory name rather than sorting a full inventory and rejects inspection errors/non-directory paths. Native tests own engines immediately and raw cleanup joins Wait after kill. Cost: fresh/sidecar-backed startup retains one credential-lock hold; successful ordinary legacy verification retains two, one transient WS/sign-in and SDK read/response/close goroutine lifecycle. This correction adds only an O(environment-size) transient filter on that legacy path; no extra native child, schema, query/request, sync tick, publication, cache, source/shard read, persistent goroutine, or running retry/no-op work. A startup retry repeats its branch and contended locking still retries every 10 ms until cancellation. |
+| 2026-09-17 | SurrealDB supervised-child root credential | **Per-start random root password; never on argv.** Each `surreal start` child gets its own 32-byte crypto/rand password (64 hex chars) instead of the fixed `--pass root` argv flag, which was world-readable via ps. The password reaches the child only through the `SURREAL_PASS` environment entry, admitted through the closed production-dispatch extra-environment channel (exact single `SURREAL_PASS=<value>` pair, SurrealDB sites only; every other site refuses extra entries). The same password is stored in the existing mode-0600 `.surreal-runtime.json` rendezvous and used for all SDK/CLI sign-ins, export/import, and native restore replay. The admission gate requires a non-empty password; wrong values are rejected by the engine at sign-in rather than by admission. Runtime schema stays v1; stale descriptors fail closed. |
+| 2026-09-17 | SurrealDB supervised-child root credential lifetime | **Database-bound root password; never on argv.** Review found the per-start password unworkable: SurrealDB only initializes the root user when none exists and never rotates a stored root password, so a fresh password per start could not sign in to an existing database (reopen, legacy root/root upgrade, and restore's stop-and-reopen validation all broke). The first start for a database directory now persists its password in a new mode-0600 `.surreal-child-pass` file beside the database (JSON, schema `phebs-surreal-child-pass-v1`, O_EXCL claim); every later start reuses the persisted value. A directory that already holds a database but no persisted password keeps the historical root password, persisted on first contact, so legacy root/root installations upgrade without a sign-in break. The volatile memory test seam keeps a fresh random password per start. The password still reaches the child only through the `SURREAL_PASS` environment entry and is still carried in the mode-0600 `.surreal-runtime.json` rendezvous for SDK/CLI sign-ins; the rendezvous keeps its removed-on-stop lifecycle and now also accepts the literal legacy root password. Credential files with unsafe mode, unknown fields, or malformed passwords fail closed. |
+| 2026-09-16 | HTTP hardening: security-headers middleware, /metrics behind auth, server timeouts | **Security-headers middleware default-on with `server.security_headers` config kill switch; `GET /metrics` moved behind auth; `http.Server` ReadTimeout 15s and IdleTimeout 120s.** Rationale: the security review found HTTP hardening gaps — no hardening response headers, a public metrics endpoint, and a server with no read/idle deadlines (slowloris-class exposure). The middleware wraps the whole handler so API, MCP, UI, and /metrics all get headers; operators who set headers at a reverse proxy can disable it. A server-wide `WriteTimeout` remains unset because it is an absolute response deadline and would terminate legitimate SSE and MCP streams; those handlers retain their own bounded work deadlines. Cost: four header writes per enabled response (X-Content-Type-Options, X-Frame-Options, Referrer-Policy, Content-Security-Policy). /metrics now incurs the existing authentication lookups plus occasional key-touch work on every scrape. CSP keeps `style-src 'unsafe-inline'` because React inline style attributes need it; fonts/images may use `data:` URIs. No HSTS is emitted since TLS terminates at the reverse proxy and a plaintext loopback default must never emit HSTS. |
+| 2026-09-21 | Config-file permission boundary | **Refuse explicitly named config files with any group/other permission bit by default; retain one loud ordinary-mode escape hatch, and reject that unbound override in exact T42.2 semantic launches.** `serve`, `backup`, and `restore` perform one file-mode stat before their existing bounded read; defaults and embedded bytes add no work. The exact path keeps its existing path/open/identity/digest binding and cannot weaken the sealed selection through a command-line permission override. No request, sync, retry, publication, cache, child, or corpus work is added. |
 | 2026-09-16 | serve() startup-phase extraction | **Extract the ~1,900-line `serve()` into an 87-line orchestrator plus named phase files (`serve_deps.go`, `serve_config.go`, `serve_store.go`, `serve_runners.go`, `serve_api.go`, `serve_listeners.go`) over a shared `serveDeps` struct; no behavior change.** Rationale: auditability and testability of startup wiring — each startup phase is a named function with an explicit signature and a documented place in the boot sequence instead of an anonymous inline block inside a monolithic `serve()`. Cost: bounded startup state, one `serveDeps` struct allocated once per `serve` invocation, plus one cleanup-closure slice (`serveDeps.deferred`) with explicit LIFO ordering via `runDeferred`; the 14 `deferFunc` registrations were verified 1:1 against the 14 original inline `defer` statements, preserving exact teardown order. Defer ordering is now explicit rather than implicit source order. No new goroutine, lock, schema, API, or product behavior is added. |
 | 2026-08-31 | T41.8 dark bucketed relationship publication | **Add a separate runtime-dark v3 relationship namespace; keep v1/v2 bytes and selection unchanged.** `relationship-publications-v3-shadow` replaces the hot monolithic root and one-file-per-service layout with an at-most-256-KiB control root, at most 256 deterministic repository buckets, and at most 512 ordered service ranges of at most 512 services each. One semantic projection is split into aligned at-most-512-claim fragments with at most eight fragments; accepted claims alone create service references, while proposal/conflict/rejected and unowned placement evidence remains in the repository buckets. The root binds the catalog root/logical/source identities and control revision, every accepted service's incarnation/desired generation, the exact state summary/revision, the full upstream authority including run IDs, and resolver/RPC/Kafka generation and root identities. Complete generation validation and current-fenced catalog/extraction pins precede a canonical marker that owns the exact stage across its same-parent generation rename; current selection moves only afterward. Recovery preserves a marker-owned stage, uses historical-safe catalog repair, reconstructs every audited pin before any destructive global reconcile, defers both complete-set reconciles whenever a regular generation lies outside the current-plus-rollback audit, removes only exact uncommitted marker temporaries, accepts canonical controls only, and preserves valid roots beside unrelated corrupt omission. A separate `relationship-v3-namespaces` owner keeps current plus one rollback generation, respects read leases, leaves marker-owned work to recovery, releases exact pins before bounded drain, and unions retained v3 roots into shared resolver/RPC/Kafka collection. Archive/restore validates and carries either namespace independently. T41.9 alone may select v3 at runtime. | Ordinary product requests, queries, sync ticks, retries/no-ops, relationship workers, and publication selection remain v2 and add no work. The first store upgrade performs one schema-marker read, an empty-table preflight/probe, the schema/index definitions, one marker transaction, and one verification read; later startups perform only the schema-marker read. Startup then holds the existing exclusive relationship-mutation lock across observation and relationship recovery, adding five bounded relationship/component namespace inventories, protected-generation audit reservations under the 16,000,000-work recovery fence, and separately fixed per-repository marker-validation ceilings. Completing a retained marker performs one catalog-reference repair plus bounded extraction-owner repair; the following protected-generation audit performs the same idempotent repairs once for each valid retained v3 root. Only a complete current/rollback audit with no extra readable generation reconciles at most 16,384 catalog references and the fixed owner set. That catalog reconcile issues one idempotent write per desired reference plus one bounded inventory/delete pass: a normal retained root receives the audit repair and reconcile write, while a marker-completed root also receives its preceding marker repair. Startup also adds the sixteenth lifecycle owner. An explicit v3 build decodes and validates each catalog member view once through one normalized catalog, visits the supplied accepted state set once, derives bounded state/placement maps, and walks RPC and Kafka postings once. It retains the existing 512-MiB pre-growth relationship-data charge, the already-bounded encoded catalog input/normalized view and maps, plus at most one 128-MiB member marshal inside the existing one-GiB worker class; when a prior generation is supplied, reuse comparison transiently holds one same-sized prior-member read beside that marshal. This is an admission model, not an RSS claim. A transition full-validates at most 769 files once, performs one catalog-reference operation plus bounded extraction-owner operations, writes the small marker/current controls, and may hold one at-most-20-GiB stage beside retained generations; a same-current publish retry instead full-validates the selected generation, removes its stage, and adds no pin or control write. An explicit current v3 service or repository lookup reads its pointer twice, cold-opens and hashes the at-most-256-KiB root once, and reads and hashes one required at-most-128-MiB member; warm reuse removes only the root read and hash. The cache has no separate entry-count cap: within the at-most-4,096-repository recovered namespace it retains one decoded current root per accessed repository plus replaced roots until their live leases drain, while explicit historical entries leave at their final lease release. Its single mutex covers map reservations, retirement, and reference counts only; root I/O and validation occur outside it. Historical cold fills coalesce, current cold misses may repeat the bounded root read, and pointer replacement invalidates one repository entry without a cache-wide scan. A full audit reads at most 769 files. Each v3 lifecycle turn holds the existing exclusive relationship-mutation lock through its namespace sweep, store unpins, and filesystem confirmation; inventories at most 4,096 repository directories and at most 20,000 direct entries for the selected repository; inspects at most 64 oldest retirement candidates; full-validates at most one admitted generation; and drains only its configured delete limit. Its retained-component union reads and validates at most 64 v3 roots before the existing bounded resolver/RPC/Kafka sweep and defers above 64. Archive adds one shadow-namespace presence lookup and no v3 generation or component read when the shadow namespace is absent, and deduplicates shared component bytes when both formats exist. When v3 is present, archive full-validates each current at-most-769-file generation, walks its exact resolver/RPC/Kafka publication trees, copies under the shared 20,000,000-entry and 1-TiB limits, then extracts and revalidates the completed archive once; restore extracts and validates once into a stage, installs it, and the owning restore path runs bounded relationship recovery before serving. No Git/source/corpus/shard read, external network call, child, new goroutine, new filesystem lock primitive, production cap, release/SLO, topology, migration-completion, decommission, or Epic-42 claim is added. |
 | 2026-08-31 | T41.7 authorized HTTP/MCP/UI v3 parity | **Add explicit product-parity seams over the verified segmented backend without selecting v3 at runtime.** One shared directory implementation projects v2 or an explicitly supplied v3 reader into the unchanged inventory/detail schemas consumed by HTTP, MCP, and the existing UI. Visibility authorization precedes repository, cursor, service, state, root, and member work and is rechecked before emission. Inventory cursors advance to a per-process HMAC-authenticated v2 envelope binding query/page size, principal/provider/permission/visible-repository context, catalog view/generation/revision, summary identity, seek key/incarnation, and the v3 immutable member range; tampering, restart, revocation, page/filter drift, re-add, or concurrent publication refuses continuation. A v3 page retains its verified root/member lease through response-size validation and the final authorization/authority fence. Detail preserves the selected 512-successor ceiling under the existing 1-MiB response. One preconstructed v3 scoped-search adapter reuses the existing visibility, immutable whole-generation reader, compiler, ranking, receipt, HTTP, SSE, MCP, and final-fence paths. The existing directory compares repository, catalog generation/revision, and state revision before rendering concurrently fetched detail; crossed authority keeps the inventory usable but refuses the detail, and a failed continuation offers a filter-preserving first-page route. No production constructor, config, capability, command, or UI route selects v3; T41.8 owns relationship buckets and T41.9 alone owns production selection. | Ordinary product traffic remains v2-selected. Constructing the shared directory reads one 32-byte random secret; each continuation hashes/signs or verifies one at-most-16-KiB token and includes page size in its existing query digest. Server construction selects one shared search interface and each search request adds one interface dispatch. A successful service search performs six repository point reads: the two outer authorization points plus runtime open, open-confirmation, pre-query, and final confirmation; the two outer points now resolve visibility without adding a catalog/state/member/shard read. An explicitly supplied dark v3 page retains T41.6's bounded query/member work and adds one final pointer/summary confirmation pair after response validation; detail adds the same final pair, while search applies the existing three runtime authority confirmations. Member-range binding hashes the root digest, one service-member descriptor, and seek identity in memory, and page/member leases delay bounded-cache eviction only through the final response fence. HTTP and MCP share the service/search boundary; the UI retains one page and at most one detail, performs four scalar authority comparisons, does not poll, and never accumulates 10,000 rows. No write, transaction, schema migration, worker, child, Git/source/corpus read, lifecycle turn, new lock, cache enlargement, production cap, release/SLO, topology, migration, or decommission claim is added. |
@@ -3928,3 +3938,729 @@ in [docs/ROADMAP.md](./docs/ROADMAP.md).
   attempt remains failed and its initiating cause unknown. This documentation
   record changes no implementation, cost, evidence byte, admission bound or
   deadline. No push, retry or broader custody cleanup is authorized here.
+
+- **2026-09-16 — T42.2n session-membership fixture isolation.** The exact
+  `f229374a` terminal matrix passed the command race suite in 1,138.463 seconds,
+  then failed `TestPrivateProcessSessionMembershipNamesMembers` with native
+  `EPERM` for PID 64684. The fixture inspected its inherited Terminal session;
+  a subsequent native observation identified that still-live PID as root-owned
+  `login`, started before the failed test. Preserve the failed package result.
+  Self-reexecute only the membership test through the existing
+  `runCustodyCombinedOutput` helper, require the child session ID to equal its
+  PID, and retain every coherent-record and self-membership assertion. This
+  adds one test-only child with a ten-second command context and the helper's
+  existing session cancellation/join checks; no readiness handshake or retry
+  is added. Production denial, lifetime, membership and zombie predicates stay
+  unchanged. Query/request, sync, startup/restart, retry/no-op, publication,
+  lock/cache, memory/disk and production child costs are unchanged. Fresh
+  affected gates and independent review remain required; this correction is
+  not a custody-package pass or signed/native readiness acceptance.
+
+- **2026-09-17 — T42.2n session-fixture completion witness.** Independent
+  review of exact `7323c6b8` found one low test-evidence gap: a later test-name
+  drift could make the child selector match nothing while still exiting zero.
+  Require one fixed completion marker written only after all child membership
+  assertions pass, and require the parent to observe it in the already-bounded
+  joined output. The correction adds one tiny test-only write and substring
+  check; it changes no production path, admission bound or custody deadline.
+  Twenty focused normal and ten focused race repetitions pass, followed by the
+  complete `spike/t4013/...` package in 115.356 seconds and its race package in
+  132.860 seconds. Fresh static/documentation gates, an immutable correction
+  commit and exact-source re-review remain required before native readiness.
+
+- **2026-09-17 — T42.2n refreshes owned capacity between pressure targets.**
+  Exact reviewed source `03c26e90` passed the complete prerequisite gates and
+  entered signed readiness. It passed preflight through `pressure_90`, then
+  stopped in `pressure_75` after 1.056 seconds before the ballast event. The
+  retained inode stayed at the preceding 45,732,614,144-byte logical and
+  allocated size, so this is a pre-mutation refusal rather than the earlier
+  asynchronous APFS shrink case. The private volume was still running owned
+  SurrealDB and lifecycle work between targets, but the ballast guard required
+  the complete filesystem `Used/Available/Allocated` sample to equal the prior
+  post-mutation sample. Preserve exact inode, path, owner, mode, link, FSID and
+  allocated-block continuity, while accepting refreshed filesystem capacity.
+  The existing fresh workspace sample, remaining-target headroom calculation,
+  target computation and post-mutation capacity/delta checks continue to use
+  the current values and fail closed. Ballast allocation drift still refuses.
+
+  The first exact review of `295aa529` was partial because the production file
+  timed out, but it found that final ballast removal still used the same whole-
+  sample comparison after owned `pressure_75` work. Route that third fixed
+  continuation through the same allocation-only guard, and split the regression
+  assertions so capacity and allocation drift failures remain distinguishable.
+  A second exact review was also partial because the production file timed out;
+  its one low test finding adds the symmetric ballast-growth refusal beside the
+  existing shrink refusal.
+  The first correction replaced the three-field equality at the two later
+  `nextTarget` continuations; the second did the same at final removal. Each of
+  the three sites now compares only `Allocated`: six scalar comparisons are
+  removed in aggregate and three remain. It adds no read, scan, hash, mutation,
+  timer, retry, lock, child, allocation, event, deadline or admission change.
+  Ordinary query/request, sync, startup/restart, retry/no-op and publication
+  paths remain unchanged. Twenty focused normal and ten focused race
+  repetitions pass; the corrected complete pressure selector passes in 77.761
+  seconds normally and 908.723 seconds under race. One broader normal package
+  attempt hit its inherited ten-minute alarm during the unchanged full V3
+  receipt constructor, without an assertion failure; its chained race command
+  did not start. The corrected pressure race selector alone exceeds that
+  default alarm, so complete normal/race package gates remain required with an
+  explicit longer allowance. Vet, all-package compilation, pinned lint,
+  documentation, glossary, module, formatting, shell and whitespace gates
+  pass. Preserve private evidence at
+  `/private/tmp/t422-signed-readiness-3045607136`, the clean detached checkout
+  and log root at `/private/tmp/t422-readiness-03c26e90.sXcevi`, and operational
+  custody at `/private/tmp/phebs-t422-3525296018`. `/dev/disk5s1` remains
+  mounted at
+  `/private/tmp/phebs-t422-3525296018/t422-pressure-3601212463/mount`. No
+  matching process survives and no unchanged retry is made. A corrected
+  immutable commit, complete independent review, the longer-allowance package
+  gates and a fresh visible-terminal readiness matrix remain required before
+  T42.2n acceptance.
+
+- **2026-09-17 — T42.2n pressure-failure custody disposition.** Ben
+  explicitly authorized cleanup before the next rehearsal. Preserve the
+  compact failure logs, authorization handoff and public signing records at
+  `/private/tmp/t422-retained-failure-03c26e90.Lh6Tct`; the 392-KiB retained
+  directory contains no ephemeral private key. Exact borrower and operation-
+  lock checks were quiet, `/dev/disk5s1` detached normally without force, and
+  the failed operational image/root, clean detached checkout and disposable
+  signer/bootstrap custody were removed. Cleanup cleared only `uchg` from the
+  identity-checked bootstrap after its protected copies resisted deletion.
+  No matching process, worktree or mount remains; available host space is
+  205,212,064 KiB, approximately 195.7 GiB. This supersedes only the retained-
+  custody statement above. The failed readiness result, incomplete full race
+  gate and requirement for one fresh visible-terminal readiness matrix remain;
+  no retry, acceptance, seal or ceremony follows from cleanup.
+
+- **2026-09-18 — T42.2n extends bounded APFS shrink settlement.** Exact clean
+  `f7986acb` signed readiness passed preflight through `pressure_90`, then its
+  single 90-to-75 ballast truncate reached the exact 30,281,199,616-byte
+  logical and allocated size but exhausted the five-second read-only settlement
+  window before `statfs` published the matching capacity. The retained volume
+  later reported the exact 75-percent target, bounding the stop to delayed APFS
+  capacity accounting rather than a failed mutation or authority drift. Extend
+  only the existing post-shrink observation window from five to thirty seconds
+  at the unchanged 50-millisecond cadence. The mutation remains single-shot;
+  every observation retains the same inode/path/owner/mode/link/FSID, logical
+  size, allocated-block, pressure-volume and epoch-four authority checks, and
+  cancellation, drift or expiry still fails closed with custody retained.
+
+  An already coherent shrink still adds no timer and only the existing
+  observation. A delayed shrink may now perform at most 600 read-only rechecks,
+  hence at most 1,200 across the two fixed shrink sites, under the existing
+  phase deadline. No mutation, request, source/content read, hash, child,
+  publication, schema, admission bound or ordinary-runtime work changes. The
+  failed operational custody remains mounted at
+  `/private/tmp/phebs-t422-3019370907/t422-pressure-3215086026/mount`; no
+  matching process survives and no retry or cleanup is authorized. Focused
+  gates, independent review, complete outstanding acceptance and a fresh
+  visible-terminal readiness run remain required.
+
+- **2026-09-18 — T42.2n failed shrink custody disposition.** Ben authorized
+  cleanup while reserving rehearsal execution for his terminal. Preserve the
+  compact failure log, healthy-launch log, authorization handoff and public
+  signing records at
+  `/private/tmp/t422-retained-failure-f7986acb.ei9oU4`; the verified 392-KiB
+  directory contains no ephemeral private key. `/dev/disk4` detached normally
+  without force, then the exact failed operational root, detached checkout and
+  signer/bootstrap roots were removed after clearing only the known bootstrap
+  `uchg` flags. No matching process, worktree, image or mount remains;
+  206,050,272 KiB, approximately 196.5 GiB, is free. This supersedes only the
+  retained-custody statement above. Review and complete normal/race package
+  gates remain prerequisites; the next signed readiness run must be started by
+  Ben in his terminal from the final exact candidate command.
+
+- **2026-09-18 — T42.2n exact-candidate package and review closure.** Exact
+  clean candidate `d682aa58b56a7fa6aa031da2058548e63a494bd3` passed the
+  complete normal `spike/t421` package in 3,417.373 seconds; its retained log
+  has `sha256:748d88183448734ea34e26007bd225e9522a2ae3ef1485bfd36db6e63d5d5b6b`.
+  The first complete race attempt did not pass: it reached the 10,800.883-
+  second package alarm after one cancellation fixture could not read its child-
+  PID setup file. That exact selector then passed twenty race repetitions in
+  42.159 seconds on the unchanged candidate. One unchanged complete race rerun
+  with a six-hour package allowance passed in 17,466.461 seconds; its retained
+  log has `sha256:b94590d736e3287118d471c6999484829503071a47ba0ad37a05743dafca0d72`.
+  No matching Go test, `t421.test`, SurrealDB process or port-65499 listener
+  survives.
+
+  The initial direct-repository OCR attempt is not counted because its sole
+  production-file review timed out during context compaction. A bounded
+  recovery review instead bound the exact production patch
+  `sha256:fca64eaa1ecff1a2d5a9c64517f830b077d211a4299abf8365bc11164a1800e1`
+  into one focused Go excerpt containing the changed constant and complete
+  unchanged settlement loop. OCR completed that selected item with zero
+  findings in 88.838 seconds; its retained JSON has
+  `sha256:77ac3ac9d5f770e9793891cd63f055e894c51ce8120f4a8e10e3ea898478aa33`.
+  Module verification, whole-repository compile-only, vet, repository-pinned
+  golangci-lint 2.12.2 with zero issues, documentation, glossary, formatting,
+  all five tracked shell syntax checks and whitespace pass. The thirty-second
+  window remains ceremony-only, performs at most the recorded 600 read-only
+  observations per shrink, and changes no ordinary steady-state work. A fresh
+  complete signed readiness matrix is still mandatory and must be started by
+  Ben in his terminal. Until it passes with exact clean teardown, T42.2n is
+  not accepted or mergeable; no seal, freeze or ceremony follows.
+
+- **2026-09-18 — T42.2n retains the failed pressure prefix.** Ben's exact
+  `d4318be78e6e7d63916e2d54cee7c318ef3836a3` terminal readiness attempt failed
+  in 7,056.693 package seconds. Its private phase record identifies
+  `pressure_75` with 31,000 ms recorded and an unavailable pressure volume;
+  archive/restore were not started. Readiness log
+  `sha256:e9171c4447b87203b7d7ca2513fd9bbfdde0f60a871cac6b872d44e7f2003fc5`
+  remains at `/private/tmp/t422-readiness-d4318be7.nHVP4l/readiness.log`;
+  private failure summary
+  `sha256:869ea207a83e55bad4d5e8b92c5d8540c504395d6870eee9633dc2c1aa741579`
+  remains in `/private/tmp/phebs-t422-3582347931`. No matching rehearsal child
+  or port-65499 listener survives, but its APFS image is still mounted and the
+  signer/bootstrap root `/private/tmp/t422-signed-readiness-275094697` is
+  retained. No retry, detach or evidence cleanup was performed.
+
+  Post-stop inspection found ballast logical and allocated bytes both
+  30,275,538,944 and volume used bytes 76,732,538,880, which is 61,476,372 bytes
+  below the frozen 76,794,015,252-byte target. Rounding to 75 percent does not
+  satisfy the 4,096-byte target tolerance. This is a post-stop observation,
+  not a recovered in-run sample. The earlier claim that the retained rounded
+  75-percent reading proved exact settlement and diagnosed only delayed APFS
+  accounting is withdrawn; the precise failing in-run predicate is unknown.
+  The thirty-second extension has not established readiness. The separate
+  receipt validator also still requires between-phase capacity contiguity;
+  the native continuation's acceptance of refreshed capacity does not waive
+  that requirement or establish a valid receipt.
+
+  Reuse the existing four retained ballast observations in the bounded private
+  failure summary. Copy them from the actual epoch-four owner only after its
+  `done` and root join, including after restore changes the current owner.
+  Retain attempted/completed/fence-present flags and raw before/after used,
+  available and allocated scalars without repairing or certifying a partial
+  row. Failure-only work adds one short run-lock snapshot, one non-nested
+  inspection-lock copy, and at most four formatted rows under the existing
+  64-KiB summary cap. It adds no volume sampling, content read, hash, child,
+  timer, mutation, cache, query/request, sync, startup, retry/no-op or publication
+  work to ordinary runtime. Pressure predicates, the frozen receipt contract,
+  deadlines, admission bounds and successful cleanup remain unchanged. Review
+  and applicable candidate gates remain necessary; no merge, readiness pass,
+  seal, freeze or ceremony follows from this diagnostic correction.
+
+  Diagnostic verification passed: the focused normal suite in 1.009 seconds
+  and twenty race repetitions in 6.082 seconds; module verification,
+  whole-repository compile-only, vet, pinned golangci-lint 2.12.2 with zero
+  issues, docs, glossary, changed-file formatting, five tracked shell syntax
+  checks and whitespace also passed. A repository-wide format scan reports
+  three unchanged baseline differences (`internal/codenav/testdata/repo/lib/rocket.go`,
+  `internal/codenav/testdata/repo/use/use.go`, and
+  `internal/extract/t40r1_kafka_measurement_test.go`), reproduced from the
+  pre-change HEAD and left untouched; this is not an all-file formatting pass.
+  Direct-repository OCR completed its one selected production diagnostic file
+  with zero findings and no failed/waived items in 565.422 seconds. The
+  unchanged reviewed production diff has
+  `sha256:9bcb3a3225b4f5fb1c5df11ca4d1abe914d2cc3cdbef45b4dc8732d28d69d01c`;
+  retained review JSON at `/private/tmp/t422-ocr-pressure-prefix-d4318be7.json`
+  has `sha256:42396dd78157cf74da0b019142b78fac95058830a1a423b16f5365ca5dbb342d`.
+  OCR's default scope excluded tests/docs; a separate independent read-only
+  pass checked the tests, evidence hashes, docs and steady-state cost without
+  findings. No full normal/race package or native readiness matrix was rerun
+  for this changed source; the previous source's package passes are not
+  relabeled as current-candidate evidence. Resolve pressure reconciliation and
+  receipt continuity before asking Ben for another full terminal rehearsal.
+
+- **2026-09-18 — T42.2n sampled pressure drift, not another timeout change.**
+  Ben's arithmetic audit identifies one shared non-ballast-stability assumption
+  in native mutation acceptance and receipt continuity; they are not separate
+  causes. The receipt requires exact interphase available/data continuity and
+  exact linked-data-versus-ballast deltas, while within-mutation volume deltas
+  retain 4,096-byte tolerance. These are sampled endpoint requirements, not
+  proof of continuous bit stability. Any relaxation must be a prospective
+  superseding contract, never a mutation of retained approval/freeze semantics.
+
+  The retained shrink size and 4,096-byte alignment pin the pre-shrink
+  non-ballast anchor to 46,518,472,704 bytes, with floor remainder 3,604.
+  Post-stop non-ballast is 46,456,999,936 bytes: a 61,472,768-byte decrease,
+  distinct from the 61,476,372-byte target shortfall recorded above. Both
+  native predicates reject that post-stop sample. They constrain the same
+  variable but are not identical: for non-ballast delta `d`, mutation requires
+  `abs(d) <= 4096` and target requires `abs(d - 3604) <= 4096`; the aligned
+  intersection is `d = 0` or `4096`. These facts do not reconstruct any lost
+  in-run sample or identify the releasing owner. The thirty-second window
+  cannot compensate for a persistent anchor change; it is not extended again.
+
+  The retained `receipt_composition` diagnostic, rather than the generic
+  returned-transport error alone, proves this run failed before package
+  construction/emission. That transport error also covers malformed headers,
+  lengths, truncated bodies and trailing bytes; it does not by itself prove
+  that no header arrived. The run produced no authenticated stopped package.
+
+  Retain fixed-size first/last, count, minimum/maximum Used, observed Used-change
+  count and largest adjacent Used difference from the existing settlement
+  observations. Include raw `Bfree` from the same existing `Fstatfs` result,
+  its sampled extrema and before/after values; admission continues to use the
+  existing `Bavail`-derived capacity. Only observations passing the unchanged
+  custody, logical-size and allocation-range checks enter the summary. A later
+  invalid observation remains separately visible in the raw mutation After;
+  it does not overwrite the summary's last valid sample. Neither extrema nor
+  adjacent sampled steps prove whether an underlying release was discrete:
+  gradual changes can cross the narrow band between 50-ms observations.
+  Stable sampled `Bfree` with changing `Bavail` isolates a difference between
+  those counters, not a unique cause. The non-atomic linked-file data gauge
+  cannot exclude unlinked-open files, deferred freeing or offsetting database
+  work; its after-ballast sample is not reached when native mutation fails.
+
+  Aggregation adds constant scalar work to each existing successful or failed
+  shrink observation and fixed-size state to the four retained mutation rows.
+  Only diagnostic serialization is failure-only. The volume lock remains held
+  as before; aggregation runs after the short authorization run lock is
+  released, with no new lock or lock nesting. The existing joined summary copy
+  and 64-KiB cap remain; no extra syscall, request, content read, hash, timer,
+  child, mutation, history buffer, cache or ordinary query/sync/startup/retry/
+  publication work is added. Public receipt fields, frozen targets, tolerance,
+  cadence, deadline and admission rules remain exact.
+
+  The reported deleted-cwd warning is not in the retained Go log and no shell
+  wrapper survives, so its emitting command is unknown. Future terminal
+  commands must first enter the surviving primary checkout before spawning a
+  bootstrap shell, explicitly enter the new detached worktree in a subshell,
+  and leave any worktree before authorized removal. No rehearsal, cleanup,
+  superseding contract or merge is performed by this diagnostic change.
+
+  Focused normal verification, including retained V1/V2 canonical bytes,
+  passed in 1.150 seconds; twenty race repetitions passed in 10.139 seconds.
+  Repository compile-only, vet, pinned golangci-lint 2.12.2 with zero issues,
+  docs, glossary, changed-file formatting and whitespace pass. The unchanged
+  baseline format exceptions above remain outside this patch. Independent
+  source/test/cost and documentation reads found no actionable issue. OCR
+  identified one low diagnostic ambiguity: unobserved first/last endpoints
+  looked like zero capacity. Zero-sample summaries now omit those endpoints,
+  and observed endpoints use a distinct key. Their exact final output diff
+  `sha256:46177c4dad68d81c6555a800a23972743ab044fa991f1fbb77999b18456a2740`
+  passed fresh one-file OCR review with zero findings in 127.692 seconds;
+  retained JSON `/private/tmp/t422-ocr-settlement-endpoints-4f049c18.json` has
+  `sha256:832c705407b8a8f589e7eef30beb259a176c720fcf70bf3f2e548e7c19e16f77`.
+  No full normal/race package or native readiness gate was rerun, and no
+  previous source's pass is relabeled for this candidate.
+
+  The initial three-file OCR run is only partial: two selected files completed,
+  while `pressure_ballast_darwin.go` reached its 1,200.138-second review limit.
+  Its initial comment filter also reported a provider error; the corrected
+  diagnostic output's separate complete review above is the usable re-review.
+  Retained partial JSON `/private/tmp/t422-ocr-settlement-stats-4f049c18.json`
+  has `sha256:aed7abd7484bee246de308494c6263fd36815fada94cff03a9437c9b5a1cd61c`.
+  Exit zero does not override its failed-item manifest. The unchanged type/loop
+  diff has `sha256:baf38a81c653d57874232457daf4f6ee8a0a51b8d9c90b5637802661839548e0`.
+  The independent source reviewer found no actionable issue, but the loop's
+  OCR coverage remains incomplete. No blind retry or merge approval follows.
+
+- **2026-09-19 — T42.2n failed readiness disk disposition.** Ben authorized
+  cleanup of the retained `d4318be7` run. Byte-verified logs, unsealed plan
+  input, authorization handoff and public signing records now remain privately
+  at `/private/tmp/t422-retained-failure-d4318be7.mcOMaH`, without its ephemeral
+  private key. After idle/holder checks and nonblocking custody locks,
+  `/dev/disk4` detached normally, without force. The exact failed operational
+  root, clean detached checkout and private signer/bootstrap roots were removed;
+  only the three verified bootstrap copy trees had `uchg` cleared. No matching
+  process, listener, image, mount or worktree registration remains. Host free
+  space increased approximately 90.73 GiB to 196.07 GiB; other worktrees,
+  unmerged validation lineages and prior evidence remain untouched. This
+  supersedes only the run's retained-custody statements above: deleting its
+  database/image prevents further DB/APFS inspection and is not successful
+  signed teardown. Full OCR coverage, contract resolution and candidate gates
+  remain open; no rehearsal, readiness pass, merge, seal or ceremony follows.
+
+- **2026-09-19 — T42.2n gates real pressure work on a sampled quiet suffix.**
+  The optional isolated 96-GiB APFS observation passed all four 150-second
+  windows at the production 50-ms cadence: 3,001 samples per window, zero
+  non-ballast `Used` changes, zero spread, zero largest step and unchanged
+  `Bfree`. The real 80/90/75 mutations and 90-to-75 settler all passed; the
+  shrink settled on its first sample. The run passed in 659.92 test seconds,
+  its log has
+  `sha256:3192a72df33daa1e3a8874b53e58fc1fb7160217570d15d9063057f7fb60018f`,
+  and exact cleanup returned the image. This rules out an untouched-volume
+  arrival lag in the sampled interval, but the single stand-in extent and
+  absent server/store do not exonerate the real many-file layout.
+
+  The retained `d4318be7` server log independently shows that pressure-80
+  normalization deleted 33,769 owned lifecycle units over 704 turns. Its last
+  reported deletion preceded the final drained owner cycle by about 127
+  seconds; the later 61,472,768-byte non-ballast decrease therefore belongs to
+  work outside the ballast mutation while the old contract assumed that term
+  stayed fixed. Preserve the frozen 80/90/75 geometry, 4,096-byte tolerance,
+  one-shot mutations, per-mutation delta checks and exact receipt continuity.
+  After the real pressure-80 cleanup is drained and requests are fenced, but
+  before the first ballast mutation, prospective V3 now requires one sampled
+  150-second suffix whose non-ballast `Used - Allocated` spread is at most
+  4,096 bytes. A larger movement restarts the suffix from that valid sample;
+  cancellation, phase expiry, custody/FSID/path/inode drift, ballast allocation
+  drift or authority drift refuses. Failure diagnostics retain only fixed
+  aggregate first/last/extrema/change scalars, not a sample history.
+
+  The measured pressure-80 phase used 1,040.987 seconds, leaving only about
+  nine seconds after a 150-second gate under the prior 20-minute wall.
+  Prospective V3 therefore gives only `pressure_80` a 25-minute deadline and
+  expands only its three-second ordinary-watcher dispatch term from 400 to 500
+  attempts (the phase total from 401 to 501). V1/V2 canonical bytes and
+  deadlines remain exact. The selected gate adds one ticker and at most 3,002
+  read-only custody/capacity/authority observations when already quiet; later
+  movement adds observations only until the existing phase wall. It adds no
+  mutation, request, store query, content read, hash, child, publication,
+  schema, cache or ordinary-runtime work. Focused normal and race regressions
+  pass. Static gates, exact review and the fresh signed readiness matrix remain
+  required before merge; this observation and correction are not readiness,
+  seal, freeze or ceremony evidence.
+
+- **2026-09-19 — T42.2n supersedes the quiet-range gate with anchored
+  stabilization.** The exact `64f2f455` signed readiness rehearsal passed
+  phases zero through seven, then used about 984 seconds of pressure-80 for 704
+  lifecycle-owner turns and the remaining 513 seconds for 10,255 native
+  samples. With the runner parked and before any ballast mutation, the live
+  store/APFS capacity changed 74 times over 12,288 bytes, but the first and
+  last non-ballast `Used` values were identical. The full-range quiet suffix
+  therefore exhausted the 25-minute phase wall. Extending that wall would be
+  unmeasured, and the serverless single-extent selector does not represent this
+  live many-file layout. The readiness wrapper remains retained at
+  `/private/tmp/t422-readiness-64f2f455.udRmMdUK`; its mounted operational
+  custody remains at `/private/tmp/phebs-t422-2644565447`. No retry or cleanup
+  follows. The private failure summary has
+  `sha256:dfdfe270e2949923a6aa650ff7e52d90b04d19e63c6d644a352741c530ad39d2`;
+  its joined server log has
+  `sha256:5aa4b644fd4292ee7159b714f271b28d798e7d4efbb6b1aaf331e1227fd155a4`.
+
+  The range rule was stricter than the frozen native and receipt predicates,
+  which compare exact sampled endpoints rather than every intermediate
+  filesystem-accounting value. Prospective V3 now anchors the first valid
+  post-cleanup non-ballast sample, waits at least 150 seconds, and accepts only
+  a later valid sample within the unchanged 4,096-byte tolerance of that
+  anchor. Intermediate excursions remain in the bounded diagnostic aggregate
+  but do not restart the interval; every sample must remain inside the frozen
+  pre-pressure `Used` envelope. A persistent anchor shift, out-of-envelope
+  sample, ballast-allocation drift, invalid custody or authority, cancellation,
+  or the phase wall still refuses. The 80/90/75 geometry, one-shot mutations,
+  per-mutation delta checks, exact interphase receipt continuity and V1/V2 bytes
+  remain unchanged. The canonical prospective-V3 policy advances from
+  `quiet_suffix_before_first_target-v2` to
+  `anchor_stability_before_first_target-v3`.
+
+  The gate places no 4,096-byte spread bound on an intermediate
+  filesystem-accounting excursion that stays inside the pre-pressure envelope
+  and later reconciles; it proves endpoint stability only, not continuous
+  quiet. The failed quiet-suffix-policy run is diagnostic evidence and supplies
+  no anchored-stability readiness credit.
+
+  The correction changes no ordinary runtime. The selected ceremony path keeps
+  one ticker, one observation at the existing 50-ms cadence and O(1) retained
+  state; a stable interval still needs about 3,001 samples, while a displaced
+  anchor continues only to the existing phase wall. It adds no mutation,
+  request, store query, content read, hash, child, publication, schema or cache
+  work. Focused tests cover a reversible 12,288-byte excursion, a persistent
+  displacement, an out-of-envelope excursion, cancellation at the accepting
+  endpoint and allocation drift. Exact-tree gates, independent review and a
+  later host-clean signed readiness rehearsal remain mandatory before merge.
+
+- **2026-09-19 — T42.2n `64f2f455` failed-custody disposition.** Ben
+  authorized cleanup after the pressure-80 failure was independently reviewed
+  and its anchored-stabilization correction became immutable commit
+  `61aaf54b75336457d3fe4ec5df7cbcaa3944b4d8`. Byte-identical readiness,
+  failure, server, unsealed-plan, handoff and public signing records now remain
+  privately at `/private/tmp/t422-retained-failure-64f2f455.e8RZlS`; its
+  `SHA256SUMS` verifies all retained evidence, and no ephemeral private key or
+  private bootstrap copy remains.
+
+  Fresh checks found no rehearsal, server, database, test or listener and only
+  the expected image helper. Both custody locks were acquired nonblocking. The
+  first ordinary detach refused without mutation because the audit still held
+  the source-lock descriptor; after that descriptor was released, the second
+  ordinary `/dev/disk4` detach succeeded without force. Only the three exact
+  verified bootstrap-copy trees had `uchg` cleared. The operational, signer and
+  wrapper roots and clean detached worktree registration were then removed;
+  similarly named and prior evidence roots were untouched. The mount, image
+  devices, helper and port-65499 listener are absent. Available host space rose
+  by 68,451,888 KiB (65.28 GiB) to about 197.16 GiB.
+
+  Disposal permanently removes the derived database/image and private key, so
+  they cannot be inspected again. It is neither readiness nor successful signed
+  teardown and authorizes no merge, seal, freeze or ceremony. The later
+  host-clean exact-commit readiness rehearsal remains mandatory.
+
+- **2026-09-19 — T42.2p prospective V4 pressure-continuity amendment.** Ben
+  accepted a separately versioned, freeze-bound allowance for the two sampled
+  interphase pressure endpoints, not another rehearsal or deadline increase.
+  The retained `64f2f455` aggregate proves 10,255 valid samples, 74 adjacent
+  changes over a 12,288-byte observed `Used` range, and equal first and last
+  values; its `Bfree` range was three 4,096-byte blocks. It does not retain a
+  raw sample history, prove only two levels or identify the mover. The joined
+  log records no application request or lifecycle turn after final pressure-80
+  accounting and before shutdown, but that absence does not exonerate every
+  engine, host or filesystem background path. In retained `e8d2cd35`, the
+  80-to-90 endpoint was exact, the 90-to-75 `Used` endpoint moved +8,192 bytes
+  while `Available` moved -8,192 bytes, and the later 75-to-removal endpoint
+  moved in the opposite direction; the linked-data allocation endpoint stayed
+  exact. All four ballast/data allocation deltas were exact, while final removal
+  left the already-admitted 4,096-byte volume residual. The separately retained
+  `d4318be7` 61,472,768-byte persistent release remains a different must-refuse
+  magnitude; none of these observations establishes a causal owner.
+
+  Prospective V4 adds one signed
+  `InterphaseDriftToleranceBytes=65,536` scalar and applies it independently,
+  in either direction and without carry-forward or cumulative credit, to both
+  `VolumeAvailableBytesBefore` and `DataAllocatedBytesBefore` at the existing
+  80-to-90 and 90-to-75 receipt boundaries. Applying the same bound to the
+  allocation term is a conservative policy choice, not an observed allocation
+  failure. The value is a selected 16-block margin informed by the retained
+  runs: 5.33 times the observed sampled range, eight times the observed boundary
+  movement and exactly 938 times smaller than the persistent release. It is not
+  a measured physical upper bound. The frozen 80/90/75 targets and one-shot
+  add/shrink checks retain their 4,096-byte tolerance; exact ballast/data
+  allocation equality, the V3 anchor/envelope/cancellation rules, authority,
+  ordering and deadlines remain unchanged. V4 alone applies the same signed
+  65,536-byte bound to the recovery removal volume-delta check, whose retained
+  run passed with no margin at 4,096 bytes; historical V1/V2/V3 keep 4,096.
+  Carry-forward is forbidden because it would erase the sampled discontinuity.
+
+  The amendment is versioned as plan V4, execution-freeze V4, convergence-
+  receipt V4 and pressure transition V2. Historical V1, V2 and V3 canonical
+  bytes and validation remain exact; adding the optional freeze field must not
+  serialize a zero field into those versions. Because the executor contains
+  explicit V3 gates in addition to its schema registry, implementation requires
+  a complete plan/freeze/profile/author/launcher/composer/validator routing
+  audit and retained-version replay, not only two local comparison edits. The
+  selected receipt path adds fixed scalar subtraction/comparison and one frozen
+  scalar; it adds no sample, syscall, request, store query, lock, timer, child,
+  mutation or ordinary production work. T42.2p is a newly discovered
+  prerequisite despite its suffix: implement and independently review V4,
+  rerun T42.2n exact-tree acceptance on those bytes, and only then allow T42.2o
+  to author and seal V4. The earlier V3 target of T42.2o is superseded, while
+  all of its acceptance, integration, exact-main, signature and custody gates
+  remain. No code pass, rehearsal, merge, seal, freeze or ceremony is claimed
+  by this decision record.
+
+- **2026-09-20 — T42.2q source-free failure-calibration shadow.** Ben
+  authorized a separate, non-gating System One/Jev experiment to test whether
+  recurring closed ceremony failure signatures can be triaged without hiding
+  product or harness defects. It is stacked after the T42.2p checkpoint and is
+  not imported by the product, executor, launcher, verifier, evidence plane or
+  freeze path. Only packages named in a separately reviewed digest allowlist
+  are accepted through the existing authenticated returned-bundle extractor.
+  Projection removes package/source/progress digests, paths, timestamps, host
+  and tool identity, raw errors, response bodies, credentials, final decisions
+  and labels from the model request. Local episode facts and later resolution
+  remain available only for blinded human adjudication and evaluation.
+
+  The initial question contract pins exact model `jev-1.13.0` and asks two
+  independent Nouls: whether the observation itself establishes a terminal
+  condition, and whether the unchanged harness requires repair before safe
+  progress. This preserves the V31 extraction-progress shape as a possible
+  nonterminal observation plus real harness gap rather than collapsing it into
+  “benign.” Scores are advisory: both at or below 0.10 form a benign candidate,
+  either uncertain score routes to review, and a score at or above 0.90 forms
+  only a terminal or repair candidate. No answer changes a retry, deadline,
+  stop, receipt, teardown, seal, freeze, authorization or ceremony decision.
+
+  The offline tool accepts at most 128 reviewed packages and 4,096 projected
+  episodes, deletes its private extraction root on every return, performs
+  sequential 30-second-bounded API calls without retry or resampling, and
+  creates private outputs without replacement. `JEV_KEY` remains environment-
+  only. Human labels are separate from prompts. Receipt-equal scoring, an
+  untouched temporal test cohort, positive Brier skill over development
+  prevalence, at least five benign-candidate receipt groups and zero
+  false-benign groups are required even for a prospective no-action shadow GO.
+  The retained inventory has 30 package candidates; a live allowlist may use
+  fewer decodable, episode-bearing receipt groups. It can screen usefulness but
+  cannot establish an automation-safe calibration bound; model output remains
+  external metadata under TM-10/TM-15. Ordinary request/query, sync, startup,
+  retry, publication, store/schema, lock, cache, child, memory/disk and ceremony
+  costs are unchanged.
+
+  Exact-commit review of `eff7f78d04618d86c4c415f7d903c8a6b863e2d0`
+  blocked the first candidate with critical/high/medium/low `0/2/6/2`; the
+  separate OCR pass covered 6 selected files, returned two corroborating
+  medium findings and timed out on the two core calibration files. The
+  classifier now accepts
+  the reviewed allowlist itself and re-authenticates every package before any
+  egress; arbitrary episode JSONL is local evaluation input only. The outbound
+  tuple has a closed vocabulary, episode IDs hash canonical local content, and
+  predictions bind the exact question contract. Receipts sort by authenticated
+  `measured_on` then digest, and evaluation refuses a development date that is
+  not strictly earlier than every test date. It scores the two Nouls
+  independently, reports abstentions, and requires zero development or test
+  abstentions plus both classes and positive Brier skill on each axis for
+  `shadow_go`. The 409 aggregate suppresses only its three owning stages.
+  Inputs use no-follow/nonblocking descriptor opens with identity revalidation,
+  and create-only outputs are opened before extraction or paid calls. The Jev
+  phase is bounded by `30s × projected episodes + 1m`; a failed
+  request still stops without retry or favorable resampling. The binomial
+  false-benign bound is explicitly conditional on receipt-group independence,
+  which this inventory does not establish. These corrections add only bounded
+  offline parsing, hashing and evaluation. Projection reads at most one 4-MiB
+  package and one at-most-1-MiB expanded receipt at a time, retains at most
+  128 MiB of expanded temporary custody plus 4,096 projected episodes, and
+  deletes custody before return. JSONL rows are capped at 16 KiB, so a
+  4,096-row decode admits at most 64 MiB of row bytes;
+  classification makes at most 4,096 sequential requests, and evaluation is
+  linear in those rows. There are no locks, stores, schemas, caches or child
+  processes. Ordinary Phebs and ceremony costs remain zero.
+
+  The first frozen live screen authenticated an independently checked
+  29-bundle allowlist and projected 46 episodes from 25 receipt groups. Exact
+  `jev-1.13.0` scores classified as `review` under the frozen local thresholds
+  for all 46: zero benign, terminal, or repair candidates.
+  Observation-terminal scores ranged from 0.12 to 0.31 and
+  repair-required scores from 0.09 to 0.48. All 22 HTTP-409 episodes, including
+  the five closed `409_stale` aggregates, also remained review-only. The
+  artifact join, canonical episode identities, model/question bindings,
+  numeric bounds, classifications, and private-file custody passed independent
+  inspection.
+
+  **Decision: `shadow_no_go` for the frozen no-action policy.** Because the
+  benign rule requires both scores at or below 0.10, this prediction set has
+  zero benign-candidate receipt groups under every possible human label and
+  split; it cannot meet the prospective minimum of five. Stop before spending
+  a human adjudication round. Brier/log-loss, prevalence, ranking skill,
+  false-benign safety, and the conditional confidence bound are therefore not
+  measured, and calibration remains unestablished. Do not tune these thresholds
+  or questions on the consumed corpus. Any later contract must be separately
+  frozen and use a fresh untouched holdout. This result authorizes no retry
+  suppression, ceremony influence, integration, freeze, execution, release,
+  accuracy, or scale claim.
+
+  Independent review of exact source commit
+  `7a00e24f759136dbb664eccd6de899bc986beb00` reported
+  critical/high/medium/low `0/0/1/1`; both findings were documentation gaps:
+  the original 20/10 split exceeded the realized 25-group corpus, and the
+  create-only output's hard-kill sentinel was unstated. The corrected operator
+  contract records a diagnostic-only 15/10 temporal split and treats a
+  zero-byte sentinel as an ambiguous consumed attempt that must not be
+  overwritten or automatically retried. Documentation re-review reports all
+  severity counts zero. A separate OCR run reviewed six selected files but was
+  partial because one core file timed out and four filtering requests failed;
+  its remaining bounded performance, diagnostic-prefix, and style comments do
+  not change the trust boundary or decision. No code-review finding remains.
+
+- **2026-09-20 — T42.2r offline polled-error-site census.** The per-run
+  population across the whole ceremony program remains only dozens,
+  establishing the selection rule: there are too few independent outcomes to
+  calibrate a per-run decision. Any later learned classification must therefore
+  operate only in a cheap pre-flight or sub-run loop whose candidate population
+  is first measured deterministically.
+  The first T42.2r deliverable is an offline typed call-graph census of
+  Phebs-owned 400–599 constructors reachable from the repository-status,
+  observation-progress, extraction-progress and caller-progress polling roots.
+  It spans package files rather than relying on a filename grep and emits a
+  stable, source-attributed review worklist.
+
+  The initial census finds 50 statically resolved sites plus 37 explicit
+  unresolved boundaries. That result catches the missed-sibling-file audit
+  shape, but the unresolved gaps block completeness and calibration, and the
+  resolved set is not a high-volume corpus. `unnameable_inline` is a static
+  source fact, and statuses that existing policy requires to remain terminal
+  are `real_fault`; neither decision spends a model call. Only a separately
+  reviewed, materially larger population of remaining nameable candidates may
+  justify a later three-way Jev shadow over `retry_shaped_benign`,
+  `real_fault`, and `unnameable_inline`. Until then T42.2r performs no paid
+  classification and makes no calibration claim.
+
+  Every output is advisory. A human may use it to propose a separate reviewed
+  extension to the hand-written exhaustive `progressRetryConflictDetail`
+  fence, but the census and any later classifier have no write path to that
+  fence or to product, ceremony, evidence, custody, retry, stop, seal, freeze
+  or authorization state. Measure utility as confirmed defects caught before
+  identifier consumption and, longitudinally, ceremony identifiers consumed
+  per confirmed defect—not as a direct ceremony-success claim. The census is
+  offline source analysis only and adds no ordinary product or ceremony cost.
+  One invocation runs nine bounded local Git commands, four complete tracked
+  Go/module-input blob-verification passes, one additional compiled-package
+  blob pass, two at-most-100,000-entry worktree walks, one network-disabled
+  `go/packages` load/type-check and four root traversals. It retains at most
+  4,096 worklist records; each Git command retains at most 1 MiB of stdout and
+  8 KiB of stderr. Repeated invocations repeat that offline work and may use the
+  ordinary Go build cache; they add no product request, store/shard read,
+  publication, lock, retry, ordinary-runtime child or persistent state.
+
+- **2026-09-20 — T42.2s source-hunk hazard-routing shadow.** The next
+  candidate population is executable-source diff hunks, not ceremony runs or
+  the nine T42.2r named 409 candidates. T42.2s tests only whether six
+  independent Jev probabilities add useful pre-flight hazard routes beyond a
+  deterministic path/symbol baseline: schedule-epoch state, job projection,
+  transition accounting, endpoint status surface, checkout custody, and oracle
+  classification. Hazards are multi-label, so this is six Nouls rather than a
+  forced single choice. Jev never chooses or executes a command. A human-owned
+  local mapping may union suggested routes with mandatory gates; it may not
+  suppress, waive, reorder, or declare any gate passed.
+
+  Offline projection starts from one exact clean base/HEAD pair and retains a
+  private source-attributed JSONL census. Binary, generated, mode-only,
+  oversized, and uncertain hunks stay local as explicit review rows. The live
+  classifier, if separately authorized, does not accept that projected file:
+  it recomputes the exact pair and accepts only a reviewed allowlist binding
+  both commits plus each hunk/content digest. Its complete prospective outbound
+  value is `phebs-t422s-hazard-state-v1`: language, coarse artifact role,
+  change kind, and bounded exact before/after excerpts. Those excerpts are
+  source, not redacted metadata. Repository, path, filename, commit, span,
+  author, time, ticket, incident, outcome, label, route, command, credential,
+  and local identity fields are forbidden. Each reviewed hunk gets one
+  30-second exact-model request containing all six frozen questions; there is
+  no retry or favorable resampling. Strict bounded decoding and private
+  create-only output preserve failures and partial-attempt sentinels.
+
+  Implementation and offline tests do not authorize source egress. A live call
+  requires independent review of the exact code, schema, question digest,
+  allowlist, and volume plus Ben's explicit TM-10/TM-15 acceptance. Scores are
+  advisory external metadata with no import edge into product, execution,
+  evidence, retry fences, receipts, identifiers, freeze, seal, or ceremony.
+  Evaluation counts independent change groups, never raw hunks: keep one
+  ticket/stack/incident lineage in one chronological split, blind human
+  multi-labels to scores, union hunk routes at group level, and compare against
+  the frozen deterministic baseline. A defect catch requires an existing
+  reproducer to fail before the fix and pass after it. Measure incremental
+  catches before identifier consumption and deduplicated rehearsal minutes;
+  ceremony pass rate remains too sparse for a direct success claim.
+
+  One projection performs bounded local Git identity, status, tree/blob and
+  diff reads over at most 4,096 changed source files and 4,096 hunks; each
+  eligible before/after pair is at most 16 KiB and 400 diff lines. Repeating it
+  repeats that offline work. The retained excerpt payload is at most 64 MiB
+  plus fixed record/string overhead; one Git stdout is at most 16 MiB, one
+  per-file diff or blob at most 4 MiB, and stderr is at most 8 KiB. Each
+  accepted file adds at most two blob reads and one diff child beyond the
+  bounded identity/tree commands. Exact-clean shell verification hashes every
+  tracked `.sh` or current executable on both identity passes; a changed
+  extensionless executable downgraded to regular adds one worktree hash to
+  each pass. The final post-classification fence repeats the bounded clean
+  identity/tree check and changed-source enumeration, including language blob
+  reads and downgraded-executable hashes. A separately authorized
+  classification is serial, one at-most-64-KiB request and one at-most-8-KiB
+  response per reviewed hunk. It adds no product request, store/shard read,
+  publication, runtime lock, cache invalidation, production child, or ordinary
+  startup/retry/no-op cost.
+  T42.2p review, renewed T42.2n acceptance, and T42.2o V4 seal/freeze sequencing
+  remain unchanged.
+
+- **2026-09-21 — T42.2n cancellation preserves the pre-admission abort allowance.**
+  The exact `95ac8995` cancel-wait rehearsal returned the intended ordinary
+  status one with no package and joined launcher sessions, but retained an
+  unmounted image and operational root. Retained test timestamps and a bounded
+  host unified-log observation show that the outer launcher's five-second stop
+  grace killed the inner while its sole non-forced `hdiutil detach` was still
+  waiting; that separately sessioned command completed about seven seconds
+  after the inner died, so no owner remained to remove the image and root. This
+  is an inherited cleanup-deadline mismatch, not admission, signer or
+  post-detach authority drift. Every outer stop boundary now gives the inner a
+  cooperative wait until the earlier of the original outer deadline or eighty
+  seconds: the existing one-minute abort allowance, five-second command unwind,
+  six-second forced-session unwind and scheduling margin. Ordinary terminal
+  session inspection remains five seconds. A cooperative timeout still enters
+  the existing failed forced-cleanup classification, with its separate
+  six-second allowance; no detach retry or force is added.
+
+  A cooperative stop can therefore hold the outer launcher for up to seventy-five
+  seconds longer before that unchanged forced-classification path, while using
+  only the existing abort, native-detach and forced-session cleanup paths.
+  During a pre-admission abort, the existing preparation/volume mutexes,
+  operation lock and
+  tool/image/pipe/session custody may consequently remain held for up to
+  seventy-five seconds longer; their counts and peak allocations do not change.
+  Successful execution, ordinary completion, requests, sync, startup/restart,
+  retry/no-op, publication, caches, schemas, memory, disk allocation and child
+  count are unchanged. The focused regression delays the existing cancellation
+  fixture for six seconds and adds no production seam. A reviewed disposition
+  preserved the failed status/log, source-free identity record and signer
+  evidence, then removed only the exact already-detached image/root and clean
+  detached worktree under the held operation lock; it attempted no detach and
+  used no force. That disposition is not a pass;
+  exact corrected-source review, gates and all seven native outcomes remain
+  required before integration, V4 author/seal, freeze or ceremony execution.

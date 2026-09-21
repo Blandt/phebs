@@ -204,7 +204,7 @@ func VerifyExecutionReferenceTool(ctx context.Context, request ReferenceToolRequ
 	if modulePath != "" {
 		identity.Version, identity.Provenance, identity.BuildVCSRevision = moduleVersion, "go-module-build-v1", ""
 		identity.ModulePath, identity.ModuleVersion, identity.ModuleSum, identity.BuildRecipeSHA256 = modulePath, moduleVersion, moduleSum, recipe
-		if request.Role == "zoekt-git-index" && request.PlanSchema == PlanV3Schema {
+		if request.Role == "zoekt-git-index" && processAccountingPlanSemantics(request.PlanSchema) {
 			identity.Provenance = zoektOfferProvenance
 		}
 	}
@@ -217,7 +217,7 @@ func referenceToolRoleForSchema(role, schema, sourceCommit string) (packagePath,
 		return
 	}
 	packagePath, modulePath, version, sum, recipe, err = referenceToolRole(role)
-	if err == nil && role == "zoekt-git-index" && schema == PlanV3Schema {
+	if err == nil && role == "zoekt-git-index" && processAccountingPlanSemantics(schema) {
 		if !validCommit(sourceCommit) {
 			err = errors.New("reference overlay requires exact source commit")
 			return
@@ -255,7 +255,7 @@ func referenceToolRole(role string) (packagePath, modulePath, version, sum, reci
 // Actual Go1.26 local replacement metadata is checked before the existing
 // module verifier. No caller supplies the replacement identity or a fake sum.
 func validateReferenceBuildInfoForSchema(info *debug.BuildInfo, role, schema, packagePath, commit, modulePath, version, sum string, modules map[string]string) error {
-	if role != "zoekt-git-index" || schema != PlanV3Schema {
+	if role != "zoekt-git-index" || !processAccountingPlanSemantics(schema) {
 		return validateReferenceBuildInfo(info, packagePath, commit, modulePath, version, sum, modules)
 	}
 	policy := frozenToolPolicy()

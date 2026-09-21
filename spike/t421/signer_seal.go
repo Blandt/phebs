@@ -55,7 +55,7 @@ func sealExecutionFreezeCandidate(
 	}
 	key.mu.Lock()
 	defer key.mu.Unlock()
-	if ctx == nil || key.closed || key.sealUsed || plan.Schema != PlanV3Schema ||
+	if ctx == nil || key.closed || key.sealUsed || !processAccountingPlanSemantics(plan.Schema) ||
 		len(prepared.raw) == 0 || len(prepared.raw) > MaxExecutionFreezeBytes {
 		return nil, ErrExecutionEpochOne
 	}
@@ -78,7 +78,7 @@ func (seal *executionSignerSealCustody) verifyAndIssueAdmission(ctx context.Cont
 	}
 	seal.mu.Lock()
 	defer seal.mu.Unlock()
-	if seal.closed || seal.admissionUsed || plan.Schema != PlanV3Schema || seal.freeze.Schema == "" || seal.signature == nil {
+	if seal.closed || seal.admissionUsed || !processAccountingPlanSemantics(plan.Schema) || seal.freeze.Schema == "" || seal.signature == nil {
 		return ExecutionFreezeAdmissionBinding{}, ErrExecutionEpochOne
 	}
 	seal.admissionUsed = true
@@ -93,7 +93,7 @@ func issueExecutionFreezeAdmission(
 	freeze ExecutionFreeze,
 	key *executionSignerKeyCustody,
 ) (ExecutionFreezeAdmissionBinding, error) {
-	if plan.Schema != PlanV3Schema || key == nil || freeze.SignerFingerprint != key.fingerprint ||
+	if !processAccountingPlanSemantics(plan.Schema) || key == nil || freeze.SignerFingerprint != key.fingerprint ||
 		freeze.SignerNamespaceSHA256 != key.namespace.digest {
 		return ExecutionFreezeAdmissionBinding{}, errors.New("T42.2 signer cannot issue freeze admission")
 	}

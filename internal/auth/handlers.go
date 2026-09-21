@@ -292,6 +292,7 @@ func (s *Service) handleCreateKey(w http.ResponseWriter, r *http.Request) {
 	var input struct {
 		Name         string              `json:"name"`
 		Capabilities capabilitySelection `json:"capabilities,omitempty"`
+		ExpiresAt    *time.Time          `json:"expires_at,omitempty"`
 	}
 	if err := decodeJSON(w, r, &input); err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
@@ -318,6 +319,14 @@ func (s *Service) handleCreateKey(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
+	// Expiry is optional; an explicitly null or omitted expires_at creates a
+	// non-expiring key, preserving existing behavior. A present value must be
+	// a future RFC3339 timestamp: malformed input fails at JSON decode, and a
+	// past timestamp would authenticate nobody, so it is rejected outright.
+	if input.ExpiresAt != nil && !input.ExpiresAt.After(s.now()) {
+		writeError(w, http.StatusBadRequest, "expires_at must be a future RFC3339 timestamp")
+		return
+	}
 	for range 3 {
 		id, idErr := randomToken(12)
 		secret, secretErr := randomToken(32)
@@ -329,7 +338,7 @@ func (s *Service) handleCreateKey(w http.ResponseWriter, r *http.Request) {
 		key, createErr := s.store.CreateAPIKey(r.Context(), store.APIKey{
 			ID: id, UserID: user.ID, Name: name, Prefix: "phebs_" + id[:8],
 			Hash: bearerHash(token), Capabilities: capabilities,
-			CreatedAt: s.now(),
+			CreatedAt: s.now(), ExpiresAt: input.ExpiresAt,
 		})
 		if createErr == nil {
 			s.audit(r, user, "auth.key.create", key.ID, http.StatusCreated)
@@ -362,7 +371,19 @@ func (s *Service) handleDeleteKey(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "API key not found")
 		return
 	}
-	if err := s.store.RevokeAPIKey(r.Context(), id, user.ID, s.now()); err != nil {
+	revokeUserID := user.ID
+	if id == legacyKeyID {
+		// The legacy config-file key carries the reserved store identity
+		// rather than a user, so only administrators may revoke it. A
+		// non-administrator sees the same not-found response as for any
+		// out-of-scope key id.
+		if !user.IsAdmin {
+			writeError(w, http.StatusNotFound, "API key not found")
+			return
+		}
+		revokeUserID = store.LegacyAPIKeyUserID
+	}
+	if err := s.store.RevokeAPIKey(r.Context(), id, revokeUserID, s.now()); err != nil {
 		if errors.Is(err, store.ErrNotFound) {
 			writeError(w, http.StatusNotFound, "API key not found")
 			return

@@ -40,7 +40,7 @@ func readServeSemanticLaunch(flags *serveFlags, exactReads, exactReports bool) (
 // loadServeConfig loads the server config for the admitted launch and binds
 // the synthetic demo fixtures selected by environment.
 func loadServeConfig(semanticLaunch *t422SemanticLaunch, flags *serveFlags) (*config.Config, []byte, error) {
-	cfg, rawConfig, err := semanticLaunch.loadConfig(flags.configPath)
+	cfg, rawConfig, err := semanticLaunch.loadConfig(flags.configPath, flags.allowInsecurePerms)
 	if err != nil {
 		return nil, nil, err
 	}
