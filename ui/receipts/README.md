@@ -20,8 +20,8 @@ machine — otherwise macOS and Ubuntu CI can never share one baseline set.
 
   ```bash
   required_surreal="$(tr -d '[:space:]' < .surrealdb-version)"
-  command -v surreal >/dev/null
-  test "$(surreal version | awk '{print $1}')" = "$required_surreal"
+  command -v surreal >/dev/null || exit 1
+  test "$(surreal version | awk '{print $1}')" = "$required_surreal" || exit 1
 
   export PHEBS_RECEIPT_EMAIL=receipts@localhost.test
   export PHEBS_RECEIPT_PASSWORD="$(openssl rand -hex 16)"
@@ -40,7 +40,20 @@ machine — otherwise macOS and Ubuntu CI can never share one baseline set.
   EOF
   receipt_env="$(sh scripts/stage-receipt-fixtures.sh --env)" || exit 1
   eval "$receipt_env"
-  make dev ARGS="-config $receipt_config"
+  set -m
+  make dev ARGS="-config $receipt_config" >"$receipt_run/phebs-dev.log" 2>&1 &
+  receipt_server_pid=$!
+  cleanup_receipt_server() {
+    kill -TERM -- "-$receipt_server_pid" 2>/dev/null || true
+    wait "$receipt_server_pid" 2>/dev/null || true
+  }
+  trap cleanup_receipt_server EXIT
+  ready_deadline=$((SECONDS + 600))
+  until curl -fsS --connect-timeout 2 --max-time 5 http://127.0.0.1:3073/api/version >/dev/null; do
+    kill -0 "$receipt_server_pid" 2>/dev/null || { wait "$receipt_server_pid"; exit 1; }
+    (( SECONDS < ready_deadline )) || exit 1
+    sleep 5
+  done
   ```
 
   Capture the staging output and check it **before** `eval`: a failed
@@ -49,9 +62,10 @@ machine — otherwise macOS and Ubuntu CI can never share one baseline set.
   succeeds silently). Invoking via `sh` keeps the boot independent of the
   script's executable bit.
 
-  Keep the two exported receipt credentials in the shell that runs
-  `make ui-receipts`; they are the fresh instance's operator login. The
-  `surreal` binary on `PATH` must match `.surrealdb-version`.
+  Run `make ui-receipts` (or the explicit owner-only update command below)
+  in this same shell; it retains the fresh instance's two exported operator
+  credentials. Exiting the shell stops the server. The `surreal` binary on
+  `PATH` must match `.surrealdb-version`.
 
   The staging script copies the neutral-demo bundles into the fixed root;
   `make dev` / `make dev-api` honor the pre-set
