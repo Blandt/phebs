@@ -978,6 +978,8 @@ func restoreReplayOwnedEvent(line string) bool {
 	switch line {
 	case "DEFINE EVENT api_key_capabilities_immutable ON api_key WHEN $event = 'UPDATE' AND $before.capabilities != NONE AND $before.capabilities != $after.capabilities THEN { THROW 'phebs-permanent: API key capabilities are immutable' };":
 		return true
+	case "DEFINE EVENT api_key_legacy_identity_v1 ON api_key WHEN $event != 'DELETE' AND record::id($after.id) = 'legacy-config' AND $after.user_id != 'legacy-config' THEN { THROW 'phebs-permanent: retired legacy API key writer generation' };":
+		return true
 	case "DEFINE EVENT caller_generation_admission_writer_v1 ON caller_generation_admission WHEN $event != 'DELETE' AND ($after.writer_schema ?? '') != 'phebs-caller-leaf-store-v1' THEN { THROW 'phebs-permanent: retired caller-leaf writer generation' };":
 		return true
 	case "DEFINE EVENT caller_generation_publication_writer_v1 ON caller_generation_publication WHEN $event != 'DELETE' AND ($after.writer_schema ?? '') != 'phebs-caller-generation-publication-store-v1' THEN { THROW 'phebs-permanent: retired caller-generation publication writer generation' };":

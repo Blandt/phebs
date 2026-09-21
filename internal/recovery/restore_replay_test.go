@@ -322,7 +322,7 @@ func TestRestoreReplayOwnedExportCoverage(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer func() { _ = prepared.close() }()
-	if prepared.census.Definitions != 716 || prepared.census.Records == 0 {
+	if prepared.census.Definitions != 717 || prepared.census.Records == 0 {
 		t.Fatalf("actual owned export census changed: %+v", prepared.census)
 	}
 	for {
