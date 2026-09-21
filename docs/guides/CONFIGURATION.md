@@ -635,6 +635,12 @@ receives the same not-found response as for any out-of-scope key id. The
 revocation survives restarts: re-syncing an unchanged `auth.api_key` does not
 resurrect a revoked key. Rotating the configured key clears the revocation,
 and removing `auth.api_key` deletes the legacy row at the next startup.
+Once this version has opened the store, a generation-named database event also
+keeps that boundary fail-closed across an older binary reopen. The previous
+legacy writer cannot replace the reserved row identity or recreate a deleted
+legacy row, so its configured legacy bearer remains unavailable; current
+binaries can still rotate, remove, and explicitly recreate the credential as
+described above.
 Existing named keys likewise migrate with an
 empty set; their tokens, hashes, identity, expiry, revocation, and existing
 read behavior do not change.

@@ -34,6 +34,7 @@ func TestAPIKeyCapabilityMigrationIsAdditiveIdempotentAndImmutable(t *testing.T)
 
 	results, err := surrealdb.Query[any](ctx, s.db, `
 REMOVE EVENT IF EXISTS api_key_capabilities_immutable ON TABLE api_key;
+REMOVE EVENT IF EXISTS api_key_legacy_identity_v1 ON TABLE api_key;
 REMOVE FIELD capabilities ON api_key;
 DELETE $marker;
 CREATE $named SET user_id = 'migration-user', name = 'Existing key',
@@ -91,8 +92,15 @@ CREATE $legacy SET user_id = '', name = 'Legacy config key',
 		t.Fatalf("migrated existing key = %+v", named)
 	}
 	if legacy.Hash != "legacy-hash-bytes" || legacy.Capabilities == nil ||
-		len(legacy.Capabilities) != 0 {
+		len(legacy.Capabilities) != 0 || legacy.UserID != "" {
 		t.Fatalf("migrated legacy key = %+v", legacy)
+	}
+	if err := s.SetLegacyAPIKey(ctx, legacy.Hash, createdAt.Add(3*time.Hour)); err != nil {
+		t.Fatalf("heal migrated legacy identity: %v", err)
+	}
+	legacy, err = s.GetAPIKey(ctx, legacyAPIKeyID)
+	if err != nil || legacy.UserID != LegacyAPIKeyUserID {
+		t.Fatalf("healed legacy key = %+v, %v", legacy, err)
 	}
 	if revoked.Hash != "revoked-hash-bytes" || revoked.Capabilities == nil ||
 		len(revoked.Capabilities) != 0 || revoked.RevokedAt == nil ||
@@ -152,6 +160,102 @@ CREATE $legacy SET user_id = '', name = 'Legacy config key',
 	}
 }
 
+func TestLegacyAPIKeyWriterFenceSurvivesPreviousSchemaAndRowDeletion(t *testing.T) {
+	if _, err := exec.LookPath("surreal"); err != nil {
+		t.Skip("surreal binary not installed")
+	}
+	ctx := context.Background()
+	s, err := OpenLocal(ctx, t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = s.Close(context.Background()) })
+
+	now := time.Date(2026, 9, 21, 12, 0, 0, 0, time.UTC)
+	const hash = "legacy-digest"
+	if err := s.SetLegacyAPIKey(ctx, hash, now); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.RevokeAPIKey(ctx, legacyAPIKeyID, LegacyAPIKeyUserID, now.Add(time.Minute)); err != nil {
+		t.Fatal(err)
+	}
+
+	// Reapply the exact schema known by the previous writer generation. Its
+	// IF NOT EXISTS definition must not remove the unknown identity fence.
+	const previousSchema = `
+DEFINE FIELD OVERWRITE capabilities ON api_key TYPE array<string> DEFAULT []
+	ASSERT $value = [] OR $value = ['investigation:write'];
+DEFINE EVENT IF NOT EXISTS api_key_capabilities_immutable ON TABLE api_key
+	WHEN $event = 'UPDATE'
+	  AND $before.capabilities != NONE
+	  AND $before.capabilities != $after.capabilities
+	THEN {
+		THROW 'phebs-permanent: API key capabilities are immutable'
+	};`
+	results, err := surrealdb.Query[any](ctx, s.db, "BEGIN;\n"+previousSchema+"\nCOMMIT;", nil)
+	if err != nil {
+		t.Fatalf("reapply previous schema: %v", err)
+	}
+	for index, result := range *results {
+		if result.Error != nil {
+			t.Fatalf("reapply previous schema statement %d: %s", index, result.Error.Message)
+		}
+	}
+
+	previousSet := func(label string) {
+		t.Helper()
+		results, queryErr := surrealdb.Query[any](ctx, s.db,
+			`UPSERT $rid SET user_id = '', name = 'Legacy config key', prefix = 'legacy',
+            hash = $hash, capabilities = [],
+            created_at = IF created_at = NONE THEN $at ELSE created_at END,
+            revoked_at = NONE`, map[string]any{
+				"rid": apiKeyID(legacyAPIKeyID), "hash": hash, "at": now,
+			})
+		failure := ""
+		if queryErr != nil {
+			failure = queryErr.Error()
+		}
+		if results != nil {
+			for _, result := range *results {
+				if result.Error != nil {
+					failure += " " + result.Error.Message
+				}
+			}
+		}
+		if !strings.Contains(failure, "retired legacy API key writer generation") {
+			t.Fatalf("%s previous writer result = %q, want identity-fence refusal", label, failure)
+		}
+	}
+
+	previousSet("same-hash revoked update")
+	key, err := s.GetAPIKey(ctx, legacyAPIKeyID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if key.UserID != LegacyAPIKeyUserID || key.Hash != hash || key.RevokedAt == nil {
+		t.Fatalf("previous writer changed revoked legacy key: %+v", key)
+	}
+
+	if err := s.SetLegacyAPIKey(ctx, "", now.Add(2*time.Minute)); err != nil {
+		t.Fatal(err)
+	}
+	previousSet("recreate after delete")
+	if _, err := s.GetAPIKey(ctx, legacyAPIKeyID); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("previous writer recreated deleted legacy key: %v", err)
+	}
+
+	if err := s.SetLegacyAPIKey(ctx, hash, now.Add(3*time.Minute)); err != nil {
+		t.Fatalf("current writer recreate: %v", err)
+	}
+	key, err = s.GetAPIKey(ctx, legacyAPIKeyID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if key.UserID != LegacyAPIKeyUserID || key.Hash != hash || key.RevokedAt != nil {
+		t.Fatalf("current writer recreated legacy key incorrectly: %+v", key)
+	}
+}
+
 func TestAPIKeyCapabilityMigrationMarkerSkipsAndRefusesFutureVersion(
 	t *testing.T,
 ) {
@@ -171,6 +275,7 @@ func TestAPIKeyCapabilityMigrationMarkerSkipsAndRefusesFutureVersion(
 	}
 	results, err := surrealdb.Query[any](ctx, s.db, `
 REMOVE EVENT IF EXISTS api_key_capabilities_immutable ON TABLE api_key;
+REMOVE EVENT IF EXISTS api_key_legacy_identity_v1 ON TABLE api_key;
 REMOVE FIELD capabilities ON api_key;
 CREATE $probe SET user_id = 'migration-user', name = 'Scan probe',
 	prefix = 'phebs_probe', hash = 'probe-hash',
