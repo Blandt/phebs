@@ -632,6 +632,13 @@ DEFINE EVENT IF NOT EXISTS api_key_capabilities_immutable ON TABLE api_key
 	  AND $before.capabilities != $after.capabilities
 	THEN {
 		THROW 'phebs-permanent: API key capabilities are immutable'
+	};
+DEFINE EVENT IF NOT EXISTS api_key_legacy_identity_v1 ON TABLE api_key
+	WHEN $event != 'DELETE'
+	  AND record::id($after.id) = 'legacy-config'
+	  AND $after.user_id != 'legacy-config'
+	THEN {
+		THROW 'phebs-permanent: retired legacy API key writer generation'
 	};`
 
 // migrateAPIKeyCapabilities gives every pre-T21.12 row the explicit empty

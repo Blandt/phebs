@@ -104,14 +104,14 @@ func TestRestoreReplayNativeOwnedExport(t *testing.T) {
 	}
 	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Minute)
 	defer cancel()
-	artifact := Artifact{Path: DatabaseName, Size: 96931,
-		SHA256: "sha256:93b6a3af8d37360ddc12b5df5f23d3530107c455591f203651d02e84da7de33c"}
+	artifact := Artifact{Path: DatabaseName, Size: 97164,
+		SHA256: "sha256:769bca297dfc7caa803955323f052dc694cd67f6af85538e1baca666938b7ab5"}
 	prepared, err := prepareRestoreReplay(ctx, path, artifact)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer func() { _ = prepared.close() }()
-	if prepared.census != (restoreReplayCensus{Units: 718, Definitions: 716, Records: 15}) {
+	if prepared.census != (restoreReplayCensus{Units: 719, Definitions: 717, Records: 15}) {
 		t.Fatalf("retained owned export census: %+v", prepared.census)
 	}
 	target := t.TempDir()
@@ -165,7 +165,7 @@ func TestRestoreReplayNativeOwnedExport(t *testing.T) {
 	if err := state.Close(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	t.Log("actual protected replay completed718 units/716 definitions/15 submitted literal records; native82 tables before repair and original neutral repo after reopen; no complete Restore or durable attempt-prefix claim")
+	t.Log("actual protected replay completed719 units/717 definitions/15 submitted literal records; native82 tables before repair and original neutral repo after reopen; no complete Restore or durable attempt-prefix claim")
 }
 
 // This opt-in probe establishes the native endpoint/transaction semantics only.

@@ -23,7 +23,7 @@ func TestSchemaBatchTrustedRecipes(t *testing.T) {
 	}{
 		{"base", schema, 488},
 		{"API pre-migration", apiKeyCapabilityPreMigrationSchema, 1},
-		{"API capability", apiKeyCapabilitySchema, 2},
+		{"API capability", apiKeyCapabilitySchema, 3},
 		{"evidence pre-migration", evidencePreMigrationSchema, 2},
 		{"evidence index", evidenceIndexes, 4},
 		{"catalog v3 preflight", serviceCatalogV3PreflightSchema, 4},
