@@ -94,7 +94,7 @@ func (reader *executionEpochInspection) acceptedLogicalChanges(row ExecutionPhas
 		return out, nil
 	}
 	run := reader.run
-	if reader.plan.Schema != PlanV3Schema || run == nil || run.flow == nil || run.flow.epochs == nil ||
+	if !processAccountingPlanSemantics(reader.plan.Schema) || run == nil || run.flow == nil || run.flow.epochs == nil ||
 		run.flow.epochs.logicalChanges == nil || row.ServerEpoch != uint64(index+1) || run.epoch.Epoch != row.ServerEpoch ||
 		!reader.finalUsed || !reader.progressReady || reader.tail.Status != "ready" || row.Final == nil || row.Final.Ordinal == 0 || row.Final.Projection.Phase != row.Phase || !row.Final.Authority.Current {
 		return out, errEpochInspection

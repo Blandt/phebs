@@ -1269,7 +1269,7 @@ func TestHTTPHandlerAuthenticationBoundaries(t *testing.T) {
 	})
 	metricsHandler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { _, _ = io.WriteString(w, "metrics") })
 	uiHandler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { _, _ = io.WriteString(w, "ui") })
-	server := httptest.NewServer(newHTTPHandler(authService, apiHandler, mcpHandler, metricsHandler, uiHandler))
+	server := httptest.NewServer(newHTTPHandler(authService, apiHandler, mcpHandler, metricsHandler, uiHandler, config.Server{}))
 	defer server.Close()
 
 	jar, err := cookiejar.New(nil)
@@ -1279,7 +1279,9 @@ func TestHTTPHandlerAuthenticationBoundaries(t *testing.T) {
 	client := &http.Client{Jar: jar}
 	assertStatus(t, client, http.MethodGet, server.URL+"/api/health", "", nil, http.StatusOK, `"status":"ok"`)
 	assertStatus(t, client, http.MethodGet, server.URL+"/api/openapi.json", "", nil, http.StatusOK, `"openapi"`)
-	assertStatus(t, client, http.MethodGet, server.URL+"/metrics", "", nil, http.StatusOK, "metrics")
+	assertStatus(t, client, http.MethodGet, server.URL+"/metrics", "", nil, http.StatusUnauthorized, "authentication required")
+	bearer := http.Header{"Authorization": {"Bearer legacy-integration-token"}}
+	assertStatus(t, client, http.MethodGet, server.URL+"/metrics", "", bearer, http.StatusOK, "metrics")
 	assertStatus(t, client, http.MethodGet, server.URL+"/", "", nil, http.StatusOK, "ui")
 	assertStatus(t, client, http.MethodGet, server.URL+"/api/repos", "", nil, http.StatusUnauthorized, "authentication required")
 	assertRetentionStatusWithWarningHeader(
@@ -1675,7 +1677,7 @@ func TestVersionCapabilitiesRequireAuthenticatedPrincipal(t *testing.T) {
 		},
 	})
 	notFound := http.NotFoundHandler()
-	server := httptest.NewServer(newHTTPHandler(authService, apiHandler, notFound, notFound, notFound))
+	server := httptest.NewServer(newHTTPHandler(authService, apiHandler, notFound, notFound, notFound, config.Server{}))
 	defer server.Close()
 
 	jar, err := cookiejar.New(nil)
@@ -2123,6 +2125,7 @@ func TestEvidenceViewUsesAuthenticatedPrincipal(t *testing.T) {
 		http.NotFoundHandler(),
 		http.NotFoundHandler(),
 		http.NotFoundHandler(),
+		config.Server{},
 	))
 	defer server.Close()
 

@@ -111,6 +111,9 @@ func TestMain(m *testing.M) {
 			}
 			select {
 			case <-innerCtx.Done():
+				// The outer must preserve the abort owner's existing one-minute
+				// allowance rather than killing it at the ordinary five-second join.
+				time.Sleep(6 * time.Second)
 				if closeErr := parent.Close(); !errors.Is(closeErr, ErrExecutionLauncher) {
 					os.Exit(56)
 				}
@@ -173,10 +176,30 @@ func TestMain(m *testing.M) {
 		if selected.CeremonyID == "t422-waitdelay-test" {
 			data, readErr := os.ReadFile(selected.RepositoryRoot)
 			pid, parseErr := strconv.Atoi(string(data))
-			if errors.Is(err, ErrExecutionLauncher) && readErr == nil && parseErr == nil && unix.Kill(pid, 0) == unix.ESRCH {
+			if !errors.Is(err, ErrExecutionLauncher) {
+				os.Exit(72)
+			}
+			if readErr != nil {
+				os.Exit(80)
+			}
+			if parseErr != nil {
+				os.Exit(81)
+			}
+			session, sessionErr := unix.Getsid(pid)
+			if errors.Is(sessionErr, unix.ESRCH) {
 				os.Exit(71)
 			}
-			os.Exit(72)
+			if sessionErr != nil {
+				os.Exit(82)
+			}
+			members, membersErr := t4013.PrivateProcessSessionMembers(session)
+			if membersErr != nil {
+				os.Exit(83)
+			}
+			if members != 0 {
+				os.Exit(84)
+			}
+			os.Exit(71)
 		}
 		if selected.CeremonyID == "t422-cancel-test" {
 			rows, observeErr := t4013.ObserveProcessTreeRecords(context.Background(), os.Getpid())
@@ -231,6 +254,17 @@ func TestExecutionOuterCancellationCleansPrivateSession(t *testing.T) {
 	}
 	if info, err := os.Lstat(selection.RepositoryRoot + ".post-eof"); err != nil || !info.Mode().IsRegular() {
 		t.Fatalf("inner did not prove post-EOF watcher join: %v", err)
+	}
+}
+
+func TestExecutionAbortDeadlinePreservesCleanupAllowance(t *testing.T) {
+	started := time.Now()
+	if got := executionAbortDeadline(started.Add(time.Hour)); got.Before(started.Add(79*time.Second)) || got.After(time.Now().Add(80*time.Second)) {
+		t.Fatal("abort deadline lost the cleanup allowance", got)
+	}
+	outer := started.Add(time.Second)
+	if got := executionAbortDeadline(outer); !got.Equal(outer) {
+		t.Fatal("abort deadline renewed the outer lifetime", got)
 	}
 }
 

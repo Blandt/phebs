@@ -252,10 +252,20 @@ func (m *memoryAuthStore) SetLegacyAPIKey(_ context.Context, hash string, at tim
 		delete(m.keys, legacyKeyID)
 		return nil
 	}
-	m.keys[legacyKeyID] = store.APIKey{
-		ID: legacyKeyID, Name: "Legacy config key", Prefix: "legacy",
+	key := store.APIKey{
+		ID: legacyKeyID, UserID: store.LegacyAPIKeyUserID,
+		Name: "Legacy config key", Prefix: "legacy",
 		Hash: hash, Capabilities: []store.APIKeyCapability{}, CreatedAt: at,
 	}
+	if existing, ok := m.keys[legacyKeyID]; ok {
+		key.CreatedAt = existing.CreatedAt
+		// Mirror the store: an unchanged config hash preserves an API
+		// revocation across restarts; a rotated hash starts unrevoked.
+		if existing.Hash == hash {
+			key.RevokedAt = existing.RevokedAt
+		}
+	}
+	m.keys[legacyKeyID] = key
 	return nil
 }
 

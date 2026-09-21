@@ -579,6 +579,7 @@ func TestT421ExactReadHandlerUsesNetworkTrailerAndIgnoresAnonymousPublicHeaders(
 	}), capture.report, capture.fail)
 	server := httptest.NewServer(newHTTPHandler(
 		authService, apiHandler, http.NotFoundHandler(), http.NotFoundHandler(), http.NotFoundHandler(),
+		config.Server{},
 	))
 	t.Cleanup(server.Close)
 

@@ -26,7 +26,7 @@ func (flow *ExecutionEpochOne) prepareProfileSigner(ctx context.Context, signer 
 	defer author.mu.Unlock()
 	epochs.mu.Lock()
 	defer epochs.mu.Unlock()
-	if flow.plan.Schema != PlanV3Schema || flow.closed || flow.used || flow.authored || !flow.authorStarted.IsZero() ||
+	if !processAccountingPlanSemantics(flow.plan.Schema) || flow.closed || flow.used || flow.authored || !flow.authorStarted.IsZero() ||
 		flow.profileSystemUsed || flow.workspace != nil || author.closed || author.err != nil || author.active || author.borrowedBy != nil ||
 		author.next != 0 || epochs.closed || epochs.err != nil || epochs.active || epochs.released != 0 {
 		return ErrExecutionEpochOne

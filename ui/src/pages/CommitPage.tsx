@@ -64,7 +64,7 @@ export default function CommitPage({ params }: { params: URLSearchParams }) {
           {commit.commit.message && commit.commit.message !== commit.commit.subject && (
             <pre className={css({ margin: '0 0 24px', whiteSpace: 'pre-wrap', fontFamily: 'inherit', fontSize: '14px', lineHeight: '22px', color: tok.textSecondary })}>{commit.commit.message}</pre>
           )}
-          <ChangeList repo={repo} ref={commit.revision} changes={commit.changes} />
+          <ChangeList repo={repo} ref={commit.revision} changes={commit.changes ?? []} />
           {diff?.truncated && <div className={css({ display: 'flex', alignItems: 'center', gap: '6px', color: tok.status.stale.text, marginTop: '16px' })}><WarningIcon /> Diff truncated</div>}
           {diff && <PatchView diff={diff} />}
         </>
@@ -116,7 +116,7 @@ const PATCH_SECTION_STYLE: CSSProperties = {
 function PatchView({ diff }: { diff: DiffResult }) {
   const [css] = useStyletron()
   const tok = usePhebsTokens()
-  const groups = useMemo(() => groupPatch(diff.patch, diff.files), [diff.patch, diff.files])
+  const groups = useMemo(() => groupPatch(diff.patch, diff.files ?? []), [diff.patch, diff.files])
   const lineBase = {
     minHeight: '20px',
     paddingLeft: '10px',

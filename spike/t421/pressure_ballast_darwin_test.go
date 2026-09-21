@@ -73,7 +73,26 @@ func TestExecutionPressureBallastSize(t *testing.T) {
 	}
 }
 
+func TestExecutionPressureBallastContinuation(t *testing.T) {
+	prior := executionPressureBallastSample{Used: 90 << 30, Available: 6 << 30, Allocated: 40 << 30}
+	drifted := executionPressureBallastSample{Used: prior.Used + 4096, Available: prior.Available - 4096, Allocated: prior.Allocated}
+	if !pressureBallastAllocationUnchanged(prior, drifted) {
+		t.Fatal("owned capacity drift was treated as ballast drift")
+	}
+	shrunk := executionPressureBallastSample{Used: prior.Used, Available: prior.Available, Allocated: prior.Allocated - 4096}
+	if pressureBallastAllocationUnchanged(prior, shrunk) {
+		t.Fatal("ballast allocation drift was treated as owned capacity drift")
+	}
+	grown := executionPressureBallastSample{Used: prior.Used, Available: prior.Available, Allocated: prior.Allocated + 4096}
+	if pressureBallastAllocationUnchanged(prior, grown) {
+		t.Fatal("ballast allocation growth was treated as owned capacity drift")
+	}
+}
+
 func TestExecutionPressureBallastSettlement(t *testing.T) {
+	if pressureBallastSettleCadence != 50*time.Millisecond || pressureBallastSettleLimit != 30*time.Second {
+		t.Fatal("unexpected pressure ballast settlement bounds")
+	}
 	type observation struct {
 		value   executionPressureBallastSample
 		logical uint64
@@ -88,6 +107,8 @@ func TestExecutionPressureBallastSettlement(t *testing.T) {
 	staleCapacity.value.Available -= 4096
 	invalidAllocation := exact
 	invalidAllocation.value.Allocated -= 4096
+	diagnosticOnly := exact
+	diagnosticOnly.value.FreeBlocks = ^uint64(0)
 	for _, test := range []struct {
 		name             string
 		observations     []observation
@@ -96,18 +117,20 @@ func TestExecutionPressureBallastSettlement(t *testing.T) {
 		wantError        bool
 	}{
 		{name: "immediate", observations: []observation{exact}, wantCalls: 1},
+		{name: "bfree_is_diagnostic_only", observations: []observation{diagnosticOnly}, wantCalls: 1},
 		{name: "allocation_settles", observations: []observation{staleAllocation, exact}, wantCalls: 2},
 		{name: "capacity_settles", observations: []observation{staleCapacity, exact}, wantCalls: 2},
 		{name: "logical_size_drift", observations: []observation{{value: exact.value, logical: exact.logical + 4096}}, wantCalls: 1, wantError: true},
 		{name: "allocation_below_size", observations: []observation{invalidAllocation}, wantCalls: 1, wantError: true},
 		{name: "custody_error", observations: []observation{{value: exact.value, logical: exact.logical, err: errors.New("custody")}}, wantCalls: 1, wantError: true},
+		{name: "custody_error_after_valid_prefix", observations: []observation{staleCapacity, {err: errors.New("custody")}}, wantCalls: 2, wantError: true},
 		{name: "canceled", observations: []observation{staleCapacity}, cancelAfterFirst: true, wantCalls: 1, wantError: true},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			ctx, cancel := context.WithTimeout(t.Context(), time.Second)
 			defer cancel()
 			calls := 0
-			got, err := settleExecutionPressureBallast(ctx, exact.logical, priorAllocated, func(context.Context) (executionPressureBallastSample, uint64, error) {
+			got, observations, err := settleExecutionPressureBallast(ctx, exact.logical, priorAllocated, func(context.Context) (executionPressureBallastSample, uint64, error) {
 				index := min(calls, len(test.observations)-1)
 				calls++
 				if test.cancelAfterFirst && calls == 1 {
@@ -116,13 +139,146 @@ func TestExecutionPressureBallastSettlement(t *testing.T) {
 				value := test.observations[index]
 				return value.value, value.logical, value.err
 			}, func(value executionPressureBallastSample) bool {
-				return value == exact.value
+				return value.Used == exact.value.Used && value.Available == exact.value.Available && value.Allocated == exact.value.Allocated
 			})
 			if errors.Is(err, errPressureVolume) != test.wantError || calls != test.wantCalls {
 				t.Fatalf("settlement calls=%d error=%v, want calls=%d error=%t", calls, err, test.wantCalls, test.wantError)
 			}
-			if !test.wantError && got != exact.value {
-				t.Fatalf("settled sample=%+v, want %+v", got, exact.value)
+			if !test.wantError && got != test.observations[len(test.observations)-1].value {
+				t.Fatalf("settled sample lost observed fields: %+v", got)
+			}
+			wantSamples := uint64(test.wantCalls)
+			if test.wantError && !test.cancelAfterFirst {
+				wantSamples-- // Invalid final observations must not pollute extrema.
+			}
+			if observations.Samples != wantSamples || wantSamples > 0 &&
+				(observations.First != test.observations[0].value || observations.Last != test.observations[wantSamples-1].value) {
+				t.Fatalf("lost or invented settlement observations: %+v", observations)
+			}
+		})
+	}
+}
+
+func TestExecutionPressureBallastAnchoredStability(t *testing.T) {
+	ctx, cancel := context.WithTimeout(t.Context(), time.Second)
+	defer cancel()
+	started := time.Now()
+	var calls uint64
+	result, err := waitExecutionPressureBallastQuiet(ctx, 120*time.Millisecond, 4096, 8<<30, 68<<30,
+		func(context.Context) (executionPressureBallastSample, uint64, error) {
+			calls++
+			used := uint64(20 << 30)
+			if calls == 2 || calls == 3 {
+				used -= 12 << 10
+			}
+			value := executionPressureBallastSample{Used: used, Available: 96<<30 - used, Allocated: 4 << 30}
+			return value, value.Allocated, nil
+		})
+	if err != nil || calls < 4 || result.Samples != calls || result.UsedChanges != 2 || result.MaxUsedStep != 12<<10 || time.Since(started) < 120*time.Millisecond {
+		t.Fatalf("anchored stability rejected a reversible excursion: calls=%d result=%+v elapsed=%s error=%v", calls, result, time.Since(started), err)
+	}
+}
+
+func TestExecutionPressureBallastAnchoredStabilityRefusesPersistentShift(t *testing.T) {
+	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
+	defer cancel()
+	var calls uint64
+	result, err := waitExecutionPressureBallastQuiet(ctx, 120*time.Millisecond, 4096, 8<<30, 68<<30,
+		func(context.Context) (executionPressureBallastSample, uint64, error) {
+			calls++
+			if calls == 5 {
+				cancel()
+			}
+			used := uint64(20 << 30)
+			if calls > 1 {
+				used -= 8 << 10
+			}
+			value := executionPressureBallastSample{Used: used, Available: 96<<30 - used, Allocated: 4 << 30}
+			return value, value.Allocated, nil
+		})
+	if err == nil || calls != 5 || result.Samples != calls-1 {
+		t.Fatalf("persistent anchor shift passed: calls=%d result=%+v error=%v", calls, result, err)
+	}
+}
+
+func TestExecutionPressureBallastAnchoredStabilityRefusesCanceledEndpoint(t *testing.T) {
+	ctx, cancel := context.WithTimeout(t.Context(), time.Second)
+	defer cancel()
+	var calls uint64
+	result, err := waitExecutionPressureBallastQuiet(ctx, 120*time.Millisecond, 4096, 8<<30, 68<<30,
+		func(context.Context) (executionPressureBallastSample, uint64, error) {
+			calls++
+			if calls == 2 {
+				time.Sleep(130 * time.Millisecond)
+				cancel()
+			}
+			value := executionPressureBallastSample{Used: 20 << 30, Available: 76 << 30, Allocated: 4 << 30}
+			return value, value.Allocated, nil
+		})
+	if err == nil || calls != 2 || result.Samples != 1 {
+		t.Fatalf("canceled endpoint passed: calls=%d result=%+v error=%v", calls, result, err)
+	}
+}
+
+func TestExecutionPressureBallastAnchoredStabilityRefusesAllocationDrift(t *testing.T) {
+	var calls uint64
+	_, err := waitExecutionPressureBallastQuiet(t.Context(), time.Second, 4096, 8<<30, 68<<30,
+		func(context.Context) (executionPressureBallastSample, uint64, error) {
+			calls++
+			allocated := uint64(4 << 30)
+			if calls > 1 {
+				allocated += 4096
+			}
+			return executionPressureBallastSample{Used: 20 << 30, Available: 76 << 30, Allocated: allocated}, allocated, nil
+		})
+	if err == nil || calls != 2 {
+		t.Fatalf("allocation drift was not refused: calls=%d error=%v", calls, err)
+	}
+}
+
+func TestExecutionPressureBallastAnchoredStabilityRefusesEnvelopeExcursion(t *testing.T) {
+	var calls uint64
+	_, err := waitExecutionPressureBallastQuiet(t.Context(), time.Second, 4096, 8<<30, 68<<30,
+		func(context.Context) (executionPressureBallastSample, uint64, error) {
+			calls++
+			used := uint64(20 << 30)
+			if calls == 2 {
+				used = 80 << 30
+			}
+			value := executionPressureBallastSample{Used: used, Available: 96<<30 - used, Allocated: 4 << 30}
+			return value, value.Allocated, nil
+		})
+	if err == nil || calls != 2 {
+		t.Fatalf("out-of-envelope excursion was not refused: calls=%d error=%v", calls, err)
+	}
+}
+
+func TestExecutionPressureBallastSettlementSummary(t *testing.T) {
+	for _, test := range []struct {
+		name             string
+		used, free       []uint64
+		changes, maxStep uint64
+		minFree, maxFree uint64
+	}{
+		{"observed_jump", []uint64{12288, 12288, 4096}, []uint64{10, 10, 12}, 1, 8192, 10, 12},
+		{"observed_steps", []uint64{12288, 8192, 4096}, []uint64{10, 11, 12}, 2, 4096, 10, 12},
+		{"bavail_moves_bfree_stays", []uint64{12288, 8192, 4096}, []uint64{10, 10, 10}, 2, 4096, 10, 10},
+		{"nonmonotonic", []uint64{4096, 12288, 4096}, []uint64{12, 10, 12}, 2, 8192, 10, 12},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			var got executionPressureBallastSettlement
+			var first, last executionPressureBallastSample
+			for i, used := range test.used {
+				last = executionPressureBallastSample{Used: used, Available: 96<<30 - used, Allocated: 4096, FreeBlocks: test.free[i]}
+				if i == 0 {
+					first = last
+				}
+				got.observe(last)
+			}
+			if got.Samples != uint64(len(test.used)) || got.UsedChanges != test.changes || got.MaxUsedStep != test.maxStep ||
+				got.MinUsed != 4096 || got.MaxUsed != 12288 || got.MinFreeBlocks != test.minFree || got.MaxFreeBlocks != test.maxFree ||
+				got.First != first || got.Last != last {
+				t.Fatalf("wrong sampled summary: %+v", got)
 			}
 		})
 	}
@@ -219,7 +375,7 @@ func TestExecutionPressureBallastOptionalNative(t *testing.T) {
 		}
 		var capacityAfter executionPressureBallastSample
 		if action == "remove" {
-			capacityAfter, err = settleExecutionPressureBallast(ctx, size, before, func(context.Context) (executionPressureBallastSample, uint64, error) {
+			capacityAfter, _, err = settleExecutionPressureBallast(ctx, size, before, func(context.Context) (executionPressureBallastSample, uint64, error) {
 				return ballast.observe()
 			}, func(value executionPressureBallastSample) bool {
 				return value.Allocated == size && pressureBallastDeltaMatches(action, capacityBefore, value)

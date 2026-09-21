@@ -1602,7 +1602,7 @@ func TestBackupRefusesConfigThatDidNotStartServer(t *testing.T) {
 	dataDir := t.TempDir()
 	runtime := store.LocalRuntime{
 		Schema: "phebs-surreal-runtime-v1", Token: strings.Repeat("a", 32), PID: os.Getpid(),
-		Endpoint: "ws://127.0.0.1:32123", ConfigSHA256: recovery.ConfigDigest([]byte("server config")),
+		Endpoint: "ws://127.0.0.1:32123", Pass: strings.Repeat("d", 64), ConfigSHA256: recovery.ConfigDigest([]byte("server config")),
 		Surreal: store.SurrealIdentity{
 			Path: "/not/reached", Version: "3.2.0", SHA256: "sha256:" + strings.Repeat("b", 64),
 		},

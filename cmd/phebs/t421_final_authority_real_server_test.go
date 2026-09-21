@@ -419,7 +419,7 @@ func TestT421FinalAuthorityRealServerRegression(t *testing.T) {
 		t.Fatalf("invalid F authority: %+v, %v", authority.Authority, err)
 	}
 
-	state, err := store.Open(ctx, runtime.Endpoint, "root", "root", "phebs", "phebs")
+	state, err := store.Open(ctx, runtime.Endpoint, "root", runtime.Pass, "phebs", "phebs")
 	if err != nil {
 		t.Fatal(err)
 	}

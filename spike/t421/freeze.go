@@ -97,21 +97,22 @@ type ExecutionHost struct {
 // ExecutionPressureGeometry is redundant by design: every derived scalar is
 // retained so independent review can recompute the admission decision exactly.
 type ExecutionPressureGeometry struct {
-	Model                       string                   `json:"model"`
-	LivePrePressurePolicy       string                   `json:"live_pre_pressure_policy"`
-	MinimumPrePressureUsedBytes uint64                   `json:"minimum_pre_pressure_used_bytes"`
-	MaximumPrePressureUsedBytes uint64                   `json:"maximum_pre_pressure_used_bytes"`
-	MinimumPrePressureBytes     uint64                   `json:"minimum_pre_pressure_bytes"`
-	MaximumPrePressureBytes     uint64                   `json:"maximum_pre_pressure_bytes"`
-	PressureVolumeBytes         uint64                   `json:"pressure_volume_bytes"`
-	BallastCeilingBytes         uint64                   `json:"ballast_ceiling_bytes"`
-	CustodyMarginBytes          uint64                   `json:"custody_margin_bytes"`
-	Targets                     []PressureTargetGeometry `json:"targets"`
-	Recovery                    PressureRecoveryGeometry `json:"recovery"`
-	BackingVolumeIdentity       string                   `json:"backing_volume_identity"`
-	DataVolumeIdentity          string                   `json:"data_volume_identity"`
-	BallastVolumeIdentity       string                   `json:"ballast_volume_identity"`
-	SameVolume                  bool                     `json:"same_volume"`
+	Model                         string                   `json:"model"`
+	LivePrePressurePolicy         string                   `json:"live_pre_pressure_policy"`
+	InterphaseDriftToleranceBytes uint64                   `json:"interphase_drift_tolerance_bytes,omitempty"`
+	MinimumPrePressureUsedBytes   uint64                   `json:"minimum_pre_pressure_used_bytes"`
+	MaximumPrePressureUsedBytes   uint64                   `json:"maximum_pre_pressure_used_bytes"`
+	MinimumPrePressureBytes       uint64                   `json:"minimum_pre_pressure_bytes"`
+	MaximumPrePressureBytes       uint64                   `json:"maximum_pre_pressure_bytes"`
+	PressureVolumeBytes           uint64                   `json:"pressure_volume_bytes"`
+	BallastCeilingBytes           uint64                   `json:"ballast_ceiling_bytes"`
+	CustodyMarginBytes            uint64                   `json:"custody_margin_bytes"`
+	Targets                       []PressureTargetGeometry `json:"targets"`
+	Recovery                      PressureRecoveryGeometry `json:"recovery"`
+	BackingVolumeIdentity         string                   `json:"backing_volume_identity"`
+	DataVolumeIdentity            string                   `json:"data_volume_identity"`
+	BallastVolumeIdentity         string                   `json:"ballast_volume_identity"`
+	SameVolume                    bool                     `json:"same_volume"`
 }
 
 type PressureTargetGeometry struct {
@@ -161,7 +162,7 @@ func BuildExecutionFreeze(
 	return freeze, nil
 }
 
-// assembleExecutionFreezeCandidate is the checkout-free V3 preparation seam.
+// assembleExecutionFreezeCandidate is the checkout-free V3/V4 preparation seam.
 // Its profile must be the actual detached output of the private profile issuer;
 // expected shape is used only to validate it, never to replace it. The returned
 // canonical bytes carry no binding, signature, ordinal, or operational authority.
@@ -175,9 +176,13 @@ func assembleExecutionFreezeCandidate(
 	profile ExecutionProfile,
 	profileAdmission ExecutionProfileAdmissionBinding,
 ) ([]byte, error) {
-	if plan.Schema != PlanV3Schema || plan.ToolPolicy.ExecutionFreezeSchema != ExecutionFreezeV3Schema ||
+	wantFreezeSchema := ExecutionFreezeV3Schema
+	if plan.Schema == PlanV4Schema {
+		wantFreezeSchema = ExecutionFreezeV4Schema
+	}
+	if !processAccountingPlanSemantics(plan.Schema) || plan.ToolPolicy.ExecutionFreezeSchema != wantFreezeSchema ||
 		plan.ToolPolicy.ExecutionProfileSchema != ExecutionProfileV3Schema {
-		return nil, errors.New("T42.2 candidate freeze requires the prospective V3 contract")
+		return nil, errors.New("T42.2 candidate freeze requires a controlled-dispatch contract")
 	}
 	if err := ValidateFrozenPlan(plan); err != nil {
 		return nil, fmt.Errorf("validate exact T42.1 plan: %w", err)
@@ -303,9 +308,9 @@ func validateExecutionFreezeFields(
 		freeze.DigestAlgorithm != plan.ToolPolicy.DigestAlgorithm {
 		return errors.New("T42.2 execution freeze authority differs from the exact plan")
 	}
-	if plan.Schema == PlanV3Schema && (!validExecutionHexSHA256(profileAdmission.signerNamespaceSHA256) ||
+	if processAccountingPlanSemantics(plan.Schema) && (!validExecutionHexSHA256(profileAdmission.signerNamespaceSHA256) ||
 		freeze.Profile.SignerNamespaceSHA256 != profileAdmission.signerNamespaceSHA256) ||
-		plan.Schema != PlanV3Schema && (profileAdmission.signerNamespaceSHA256 != "" || freeze.Profile.SignerNamespaceSHA256 != "") {
+		!processAccountingPlanSemantics(plan.Schema) && (profileAdmission.signerNamespaceSHA256 != "" || freeze.Profile.SignerNamespaceSHA256 != "") {
 		return errors.New("T42.2 signer namespace differs from the exact admission")
 	}
 	if err := validateExecutionTools(freeze.Tools, plan.ToolPolicy, expectedCommits.T422SourceCommit); err != nil {
@@ -402,8 +407,12 @@ func validateExecutionFreezeCandidate(
 	profile ExecutionProfile,
 	profileAdmission ExecutionProfileAdmissionBinding,
 ) (ExecutionFreeze, error) {
-	if plan.Schema != PlanV3Schema || plan.ToolPolicy.ExecutionFreezeSchema != ExecutionFreezeV3Schema {
-		return ExecutionFreeze{}, errors.New("T42.2 candidate freeze requires the prospective V3 contract")
+	wantFreezeSchema := ExecutionFreezeV3Schema
+	if plan.Schema == PlanV4Schema {
+		wantFreezeSchema = ExecutionFreezeV4Schema
+	}
+	if !processAccountingPlanSemantics(plan.Schema) || plan.ToolPolicy.ExecutionFreezeSchema != wantFreezeSchema {
+		return ExecutionFreeze{}, errors.New("T42.2 candidate freeze requires a controlled-dispatch contract")
 	}
 	if err := ValidateFrozenPlan(plan); err != nil {
 		return ExecutionFreeze{}, fmt.Errorf("validate exact T42.1 plan: %w", err)
@@ -592,13 +601,23 @@ func expectedExecutionPressureGeometry(
 		plan.SafetyEnvelope.MaximumDataAllocatedBytes-maximumTarget < plan.SafetyEnvelope.MinimumPressureMarginBytes {
 		return ExecutionPressureGeometry{}, errors.New("T42.2 pressure geometry is below its minimum ballast margin")
 	}
+	policy := "collect_noncurrent_no_padding_then_measure_capacity_and_allocated_bytes_before_each_target-v1"
+	if processAccountingPlanSemantics(plan.Schema) {
+		policy = "collect_noncurrent_no_padding_then_require_150_second_sampled_nonballast_anchor_stability_before_first_target-v3"
+	}
+	driftTolerance := uint64(0)
+	if plan.Schema == PlanV4Schema {
+		policy += ";" + pressureContinuityPolicyV4
+		driftTolerance = InterphaseDriftToleranceBytes
+	}
 	return ExecutionPressureGeometry{
-		Model: pressureGeometryModel, LivePrePressurePolicy: "collect_noncurrent_no_padding_then_measure_capacity_and_allocated_bytes_before_each_target-v1",
-		MinimumPrePressureUsedBytes: plan.SafetyEnvelope.MinimumPrePressureUsedBytes,
-		MaximumPrePressureUsedBytes: plan.SafetyEnvelope.MaximumPrePressureUsedBytes,
-		MinimumPrePressureBytes:     plan.SafetyEnvelope.MinimumPrePressureBytes,
-		MaximumPrePressureBytes:     plan.SafetyEnvelope.MaximumPrePressureBytes,
-		PressureVolumeBytes:         total, BallastCeilingBytes: ceiling,
+		Model: pressureGeometryModel, LivePrePressurePolicy: policy,
+		InterphaseDriftToleranceBytes: driftTolerance,
+		MinimumPrePressureUsedBytes:   plan.SafetyEnvelope.MinimumPrePressureUsedBytes,
+		MaximumPrePressureUsedBytes:   plan.SafetyEnvelope.MaximumPrePressureUsedBytes,
+		MinimumPrePressureBytes:       plan.SafetyEnvelope.MinimumPrePressureBytes,
+		MaximumPrePressureBytes:       plan.SafetyEnvelope.MaximumPrePressureBytes,
+		PressureVolumeBytes:           total, BallastCeilingBytes: ceiling,
 		CustodyMarginBytes: plan.SafetyEnvelope.MaximumDataAllocatedBytes - maximumTarget,
 		Targets:            targets,
 		Recovery: PressureRecoveryGeometry{

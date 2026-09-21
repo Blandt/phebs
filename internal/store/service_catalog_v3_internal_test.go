@@ -404,7 +404,7 @@ func TestServiceCatalogV3LifecyclePinsRestartAndMalformedIsolation(t *testing.T)
 		if err != nil {
 			t.Fatal(err)
 		}
-		reopened, err := Open(ctx, runtime.Endpoint, "root", "root", "phebs", "phebs")
+		reopened, err := Open(ctx, runtime.Endpoint, "root", runtime.Pass, "phebs", "phebs")
 		if err != nil {
 			t.Fatal(err)
 		}

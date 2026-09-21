@@ -10,7 +10,7 @@ import (
 // actual timed AuthorA boundaries and final teardown before custody removal.
 // Server/offline samples remain independently joined by the primary composer.
 func composeExecutionBoundaryWorkspaceMetrics(plan Plan, parent custodybytes.Snapshot, out *executionReceiptMetrics) bool {
-	if out == nil || plan.Schema != PlanV3Schema || parent.Unavailable || !parent.Phases[0].Completed || !parent.Phases[14].Completed {
+	if out == nil || !processAccountingPlanSemantics(plan.Schema) || parent.Unavailable || !parent.Phases[0].Completed || !parent.Phases[14].Completed {
 		return false
 	}
 	for index, row := range parent.Phases {
@@ -32,7 +32,7 @@ func composeExecutionBoundaryWorkspaceMetrics(plan Plan, parent custodybytes.Sna
 // contract. Its disk fields are the actual native freeze snapshot, not a later
 // pressure target or whole-phase minimum. Authentication remains caller-owned.
 func composeExecutionPreflightGeometry(plan Plan, freeze ExecutionFreeze, out *ReceiptMetrics) bool {
-	if out == nil || plan.Schema != PlanV3Schema || freeze.Schema != plan.ToolPolicy.ExecutionFreezeSchema {
+	if out == nil || !processAccountingPlanSemantics(plan.Schema) || freeze.Schema != plan.ToolPolicy.ExecutionFreezeSchema {
 		return false
 	}
 	geometry, err := expectedExecutionPressureGeometry(plan, freeze.Host)

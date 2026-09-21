@@ -16,8 +16,10 @@ import type {
   CodeLocation,
   DefinitionResult,
   HoverResult,
+  PositionEncoding,
   ReferencesResult,
   RepoStatus,
+  Schemas,
 } from '../api'
 import { languageFor, langColor, langName } from '../lang'
 import { highlightStyle } from '../highlight'
@@ -39,10 +41,24 @@ interface SourcePosition {
 
 interface CodeNavigationState {
   loading: boolean
-  definition?: DefinitionResult
-  references?: ReferencesResult
+  definition?: Omit<DefinitionResult, 'location'> & { location?: CodeLocation }
+  references?: Omit<ReferencesResult, 'locations'> & { locations: CodeLocation[] }
   hover?: HoverResult
   error?: string
+}
+
+type WireLocation = Schemas['Location']
+
+const POSITION_ENCODINGS: readonly string[] = ['utf8', 'utf16', 'utf32']
+
+// The wire schema leaves location encoding an open string; the UI requests
+// utf16 (see fetchDefinition/fetchReferences) and only models the three
+// encodings it can convert. Unknown values fall back to the requested utf16.
+function toCodeLocation(location: WireLocation): CodeLocation {
+  const encoding: PositionEncoding = POSITION_ENCODINGS.includes(location.encoding)
+    ? location.encoding as PositionEncoding
+    : 'utf16'
+  return { ...location, encoding }
 }
 
 type SourceState =
@@ -140,7 +156,21 @@ export default function FilePage({ params }: { params: URLSearchParams }) {
     ])
       .then(([definition, references, hover]) => {
         if (generation === navGeneration.current) {
-          setNavigation({ loading: false, definition, references, hover })
+          // Normalize the wire locations once: the schema marks the list
+          // nullable and leaves encoding open, while the panel below works
+          // with non-null CodeLocation rows.
+          setNavigation({
+            loading: false,
+            definition: definition && {
+              ...definition,
+              location: definition.location ? toCodeLocation(definition.location) : undefined,
+            },
+            references: references && {
+              ...references,
+              locations: (references.locations ?? []).map(toCodeLocation),
+            },
+            hover,
+          })
         }
       })
       .catch((error) => {

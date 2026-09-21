@@ -45,7 +45,11 @@ export default function AnalyticsPage({ isAdmin }: { isAdmin: boolean }) {
     return <div className={css({ color: tok.textTertiary, padding: '32px 0' })}>Analytics requires administrator access.</div>
   }
 
-  const today = summary?.daily.at(-1)?.count ?? 0
+  // The wire schema marks these arrays nullable (Go slices); a null page
+  // renders as empty, matching the previous non-null assumption.
+  const daily = summary?.daily ?? []
+  const topRepos = summary?.top_repos ?? []
+  const today = daily.at(-1)?.count ?? 0
 
   return (
     <div className={css({ maxWidth: '880px', margin: '0 auto' })}>
@@ -73,13 +77,13 @@ export default function AnalyticsPage({ isAdmin }: { isAdmin: boolean }) {
           </div>
 
           <SectionTitle text="Searches per day" />
-          <DailyBars daily={summary.daily} />
+          <DailyBars daily={daily} />
 
           <SectionTitle text="Top repositories in results" />
-          {summary.top_repos.length === 0 ? (
+          {topRepos.length === 0 ? (
             <div className={css({ color: tok.textTertiary, padding: '12px 0' })}>No searches with matches yet.</div>
           ) : (
-            <TopRepos repos={summary.top_repos} />
+            <TopRepos repos={topRepos} />
           )}
         </>
       )}

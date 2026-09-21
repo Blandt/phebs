@@ -26,14 +26,17 @@ export default function AuditPage({ isAdmin }: { isAdmin: boolean }) {
     fetchAudit(offset, PAGE, controller.signal)
       .then((page) => {
         if (gen !== generation.current) return
+        // The wire schema marks events nullable (Go slice); null renders as
+        // an empty page.
+        const events = page.events ?? []
         // New events arriving between pages shift offset paging; dedupe by id
         // so a shifted page never renders duplicate rows.
         // ponytail: rows pruned mid-scroll can still be skipped; move to a
         // created_at cursor if that ever matters.
         setEvents((prev) => {
-          if (offset === 0) return page.events
+          if (offset === 0) return events
           const seen = new Set(prev.map((e) => e.id))
-          return [...prev, ...page.events.filter((e) => !seen.has(e.id))]
+          return [...prev, ...events.filter((e) => !seen.has(e.id))]
         })
         setHasMore(page.has_more)
         setError('')

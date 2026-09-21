@@ -33,7 +33,7 @@ type authorOptions struct {
 }
 
 // Schema selection is closed before invoking either genuine author. The
-// historical invocation remains V2; V3 must be selected explicitly.
+// historical invocation remains V2; later contracts must be selected explicitly.
 func parseAuthorOptions(args []string, output io.Writer) (authorOptions, error) {
 	var options authorOptions
 	var schema string
@@ -42,7 +42,7 @@ func parseAuthorOptions(args []string, output io.Writer) (authorOptions, error) 
 	flags.StringVar(&options.destination, "out", "", "new source-free plan path (must not exist)")
 	flags.StringVar(&options.repositoryRoot, "repository-root", ".", "exact clean Phebs checkout")
 	flags.StringVar(&options.sourceCommit, "source-commit", "", "exact clean implementation commit")
-	flags.StringVar(&schema, "schema", "v2", "plan schema: v2 (historical default) or v3 (corrected prospective contract)")
+	flags.StringVar(&schema, "schema", "v2", "plan schema: v2 (historical default), v3, or v4")
 	if err := flags.Parse(args); err != nil {
 		return authorOptions{}, err
 	}
@@ -54,8 +54,10 @@ func parseAuthorOptions(args []string, output io.Writer) (authorOptions, error) 
 		options.author = t421.Author
 	case "v3":
 		options.author = t421.AuthorV3
+	case "v4":
+		options.author = t421.AuthorV4
 	default:
-		return authorOptions{}, errors.New("-schema must be v2 or v3")
+		return authorOptions{}, errors.New("-schema must be v2, v3, or v4")
 	}
 	root, err := filepath.Abs(options.repositoryRoot)
 	if err != nil {

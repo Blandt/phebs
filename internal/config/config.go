@@ -272,6 +272,19 @@ type Server struct {
 	// <DataDir>/repos/<host>/<path>.git, the embedded DB at <DataDir>/db.
 	// Default "~/.phebs".
 	DataDir string `yaml:"data_dir"`
+	// SecurityHeaders enables the hardening response headers on every HTTP
+	// response: X-Content-Type-Options: nosniff, X-Frame-Options: DENY,
+	// Referrer-Policy: no-referrer, and a conservative Content-Security-Policy
+	// (the embedded UI serves from 'self'; no HSTS, since docs tell operators
+	// to terminate TLS at a reverse proxy). Default true; set to false when a
+	// reverse proxy or other operator tooling manages these headers instead.
+	SecurityHeaders *bool `yaml:"security_headers"`
+}
+
+// SecurityHeadersEnabled reports whether the hardening response headers are
+// emitted. It defaults to true; explicit false opts out.
+func (s Server) SecurityHeadersEnabled() bool {
+	return s.SecurityHeaders == nil || *s.SecurityHeaders
 }
 
 type Auth struct {

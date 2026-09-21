@@ -31,7 +31,7 @@ type executionReceiptEvidence struct {
 // is not an authenticated receipt: the guarded package builder must sign and
 // independently authenticate it before it can cross the return firewall.
 func assembleExecutionReceipt(plan Plan, binding ExecutionFreezeBinding, evidence executionReceiptEvidence) (Receipt, error) {
-	if plan.Schema != PlanV3Schema || validatePlan(plan, &plan.Revisions) != nil {
+	if !processAccountingPlanSemantics(plan.Schema) || validatePlan(plan, &plan.Revisions) != nil {
 		return Receipt{}, errExecutionReceiptAssembly
 	}
 	outcomes, stopped, err := validateReceiptPhases(evidence.Phases, plan)

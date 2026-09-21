@@ -150,7 +150,7 @@ func (flow *ExecutionEpochOne) prepareProfileEnvironment(ctx context.Context) er
 	defer author.mu.Unlock()
 	epochs.mu.Lock()
 	defer epochs.mu.Unlock()
-	if flow.plan.Schema != PlanV3Schema || flow.closed || flow.used || flow.authored || !flow.authorStarted.IsZero() ||
+	if !processAccountingPlanSemantics(flow.plan.Schema) || flow.closed || flow.used || flow.authored || !flow.authorStarted.IsZero() ||
 		flow.profileEnvironmentUsed || author.active || author.borrowedBy != nil || author.next != 0 ||
 		epochs.active || epochs.released != 0 || epochs.parsedConfigs[0] == nil ||
 		flow.phebs == nil || flow.zoekt == nil || flow.surreal == nil {
@@ -218,7 +218,7 @@ func (flow *ExecutionEpochOne) authorALockedAt(ctx context.Context, started time
 	}
 	flow.authorStarted = started
 	if flow.workspace != nil {
-		if flow.plan.Schema != PlanV3Schema || len(flow.plan.PhaseDeadlines) != 15 ||
+		if !processAccountingPlanSemantics(flow.plan.Schema) || len(flow.plan.PhaseDeadlines) != 15 ||
 			flow.plan.PhaseDeadlines[1] != frozenPhaseDeadlines()[1] {
 			return ExecutionAuthorResult{}, ErrExecutionEpochOne
 		}

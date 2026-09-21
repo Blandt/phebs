@@ -202,6 +202,72 @@ The following invariants are release-blocking:
 - Confirmed unauthorized disclosure, uncontrolled egress, partial publication,
   provenance failure, or reviewer-custody compromise stops the pilot.
 
+### T42.2q external classification boundary
+
+The T42.2q Jev experiment is offline operator tooling, not a Phebs principal or
+ceremony component. Its only permitted outbound payload is the fixed
+`phebs-ceremony-shadow-state-v1` object projected after a returned package has
+been authenticated against an independently reviewed digest. The classifier
+accepts that allowlist directly, repeats authentication and projection in the
+same process, and rejects values outside the closed outbound vocabulary; a
+projected or operator-edited episode artifact has no egress path. Package, plan,
+source and progress digests; repository/run identities; paths; timestamps;
+host/tool identity; response bodies; raw errors; credentials; final outcomes;
+decisions; episode IDs; receipt groups and human labels are forbidden from the
+request and pinned by a wire test. `JEV_KEY` is environment-only and never
+enters an argument, artifact or diagnostic.
+
+This call is approved external egress under TM-10 and its scores are external
+metadata under TM-15. A typed probability is not evidence truth. The tool has
+no import edge from production or ceremony execution and no write path into a
+receipt, package, retry, stop, teardown, seal, freeze or authorization record.
+Malformed, overloaded, rate-limited or transport-ambiguous responses fail the
+shadow attempt without retry. Predictions and blinded human labels remain
+separate private records until adjudication; disagreement and abstention stay
+visible and cannot be silently replaced by model output.
+
+### T42.2r source-analysis boundary
+
+The initial T42.2r error-site census is offline static analysis of the exact
+local Phebs source commit. It performs no external request and exposes no source
+text, path, symbol, span, guard, detail or worklist row beyond local operator
+custody. Its output is untrusted advisory metadata: it cannot modify the
+hand-written `progressRetryConflictDetail` fence or any product, ceremony,
+evidence, retry, stop, seal, freeze or authorization record.
+
+The initial census finds 50 statically resolved sites plus 37 explicit
+unresolved boundaries. Those gaps block completeness and calibration and
+authorize no paid classification. A later Jev pass would be a new TM-10/TM-15
+egress decision requiring a separately reviewed closed outbound schema, volume
+gate and untouched holdout; T42.2q approval does not authorize source-site
+egress.
+
+### T42.2s source-hunk shadow boundary
+
+T42.2s implements offline advisory source classification but authorizes no
+live request. Whitespace normalization, separated before/after excerpts, and
+omitted paths do not make source source-free. A live call requires Ben's
+explicit TM-10/TM-15 acceptance after independent review of the exact code,
+volume, question digest, and allowlist.
+
+The only prospective payload is `phebs-t422s-hazard-state-v1`, rederived in
+the classifier process from an exact clean base/HEAD pair and an independently
+reviewed allowlist binding those commits plus every selected hunk/content
+digest. It contains one closed language, artifact-role and change-kind value
+plus bounded exact before/after source excerpts. Repository, path, filename,
+commit, span, author, timestamp, ticket, incident, outcome, label, route,
+command, credential, and local record identities are forbidden from the
+request. The private projected JSONL has no classifier input path. Source
+comments and literals are inert untrusted data, never instructions.
+
+Each reviewed hunk permits one 30-second request containing six frozen Noul
+questions, with no retry or resampling. Malformed, overloaded, rate-limited,
+timed-out, extra-field, non-finite, or wrong-model responses stop the attempt.
+Predictions are create-only private TM-15 external metadata. They have no path
+to command execution, product or ceremony code, evidence, receipts, retry
+fences, identifiers, freeze, seal, or authorization. A human-owned route table
+may only add reviewed gates to the mandatory deterministic baseline.
+
 ## 7. Open decisions before review
 
 The named owner and Security reviewer must close or explicitly block each item:

@@ -14,7 +14,7 @@ var errExecutionStoreFlow = errors.New("T42.2 fixed operational store flow is in
 // server and two archive-command lifetimes. It creates no controller, socket,
 // child or admission binding; the SA01 transport derives its own wire ceiling.
 func executionStoreConfig(plan Plan, bindings [executionProducerCount][32]byte) (storeaccounting.Config, storeaccounting.WireConfig, error) {
-	if plan.Schema != PlanV3Schema || len(plan.PhaseOrder) != executionPhaseCount ||
+	if !processAccountingPlanSemantics(plan.Schema) || len(plan.PhaseOrder) != executionPhaseCount ||
 		len(plan.WorkEnvelope.Phases) != executionPhaseCount || validatePlan(plan, &plan.Revisions) != nil {
 		return storeaccounting.Config{}, storeaccounting.WireConfig{}, errExecutionStoreFlow
 	}

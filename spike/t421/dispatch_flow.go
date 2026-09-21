@@ -101,7 +101,7 @@ func executionDispatchRole(name string) uint32 {
 // child or private admission binding and selects no PC01/preparation/signing
 // budget. Actual bootstrap, fixed start recipes and cleanup remain mandatory.
 func executionDispatchConfig(plan Plan, bindings [executionProducerCount][32]byte) (dispatchadmission.Config, error) {
-	if plan.Schema != PlanV3Schema || plan.ProcessAccounting == nil ||
+	if !processAccountingPlanSemantics(plan.Schema) || plan.ProcessAccounting == nil ||
 		len(plan.PhaseOrder) != executionPhaseCount || validatePlan(plan, &plan.Revisions) != nil ||
 		len(plan.ProcessAccounting.DispatchBudgets) != executionPhaseCount {
 		return dispatchadmission.Config{}, errExecutionDispatchFlow

@@ -28,14 +28,17 @@ export function AuthorityChipButton({ receipt, onOpen }: {
   const [css] = useStyletron()
   const tok = usePhebsTokens()
   const service = receipt.kind === 'service'
+  // The wire schema marks revisions nullable (Go slice); the SSE validator
+  // rejects a null here, so this is belt-and-braces for other producers.
+  const revisions = receipt.revisions ?? []
   const tone = service
     ? statusToneFor(receipt.service_status ?? '', tok) ?? tok.status.removed
     : tok.status.removed
   const label = service
-    ? receipt.revisions.length > 0
-      ? `${receipt.service_status} · as of ${receipt.revisions[0].commit.slice(0, 7)}`
+    ? revisions.length > 0
+      ? `${receipt.service_status} · as of ${revisions[0].commit.slice(0, 7)}`
       : `${receipt.service_status} · no cited results`
-    : `${receipt.revisions.length} revision pin${receipt.revisions.length === 1 ? '' : 's'}`
+    : `${revisions.length} revision pin${revisions.length === 1 ? '' : 's'}`
   return (
     <button
       type="button"
@@ -78,6 +81,9 @@ export function AuthorityDrawer({ receipt, citations = [], open, onClose }: {
   const tok = usePhebsTokens()
   const service = receipt.kind === 'service'
   const authority = receipt.service_authority
+  // Wire schema marks revisions nullable (Go slice); the SSE validator
+  // rejects null here, so this is belt-and-braces for other producers.
+  const revisions = receipt.revisions ?? []
   const shown = citations.slice(0, CITATION_DISPLAY_CAP)
   return (
     <Drawer
@@ -147,12 +153,12 @@ export function AuthorityDrawer({ receipt, citations = [], open, onClose }: {
           {receipt.service_key && <Row label="Service key"><IdentityText>{receipt.service_key}</IdentityText></Row>}
         </Section>
 
-        <Section title={`Revision pins (${receipt.revisions.length})`}>
-          {receipt.revisions.length === 0 ? (
+        <Section title={`Revision pins (${revisions.length})`}>
+          {revisions.length === 0 ? (
             <p className={css(body(tok))}>No revisions were pinned: the result set is empty.</p>
           ) : (
             <ul className={css({ margin: 0, padding: 0, listStyle: 'none', display: 'grid', gap: '7px' })}>
-              {receipt.revisions.map((revision) => (
+              {revisions.map((revision) => (
                 <li key={`${revision.repository}@${revision.commit}`} className={css({ display: 'flex', alignItems: 'baseline', gap: '8px', minWidth: 0 })}>
                   <span className={css({ minWidth: 0, flex: 1 })}>
                     <IdentityText>{revision.repository}</IdentityText>
@@ -249,8 +255,9 @@ function VerifyAgainstResults({ receipt, citations }: {
   const [css] = useStyletron()
   const tok = usePhebsTokens()
   const [verdict, setVerdict] = useState<{ ok: boolean; detail: string } | null>(null)
+  const revisions = receipt.revisions ?? []
   const check = () => {
-    const pinned = new Set(receipt.revisions.map((revision) => revision.repository))
+    const pinned = new Set(revisions.map((revision) => revision.repository))
     const unpinned = citations.filter((citation) => !pinned.has(citation.repository))
     const countOK = citations.length === receipt.result_files
     if (countOK && unpinned.length === 0) {

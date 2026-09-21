@@ -164,6 +164,12 @@ const repoStatus = (name: string, commit?: string): RepoStatus => ({
   indexed_commit_hash: commit,
   orphaned: false,
   last_index_job_state: 'unavailable',
+  last_extraction_job_state: 'unavailable',
+  last_caller_job_state: 'unavailable',
+  last_resolver_job_state: 'unavailable',
+  is_fork: false,
+  is_archived: false,
+  is_public: true,
 })
 
 test('cold Search browses only visible repositories and opens a pinned file without searching', async () => {
@@ -377,7 +383,7 @@ test('an indexing transition does not relabel earlier results with the newer uni
   await act(async () => stream.onBatch!(batch([aMain])))
 
   expect(screen.getByText('search_revision_scope_not_projectable')).toBeTruthy()
-  expect(screen.getByText(new RegExp(aMain.ref))).toBeTruthy()
+  expect(screen.getByText(new RegExp(aMain.ref ?? ''))).toBeTruthy()
   expect(screen.getByText(new RegExp(newerIndexedRef))).toBeTruthy()
   expect(screen.queryByText('service unit service-two')).toBeNull()
 })

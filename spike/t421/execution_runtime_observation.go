@@ -94,7 +94,7 @@ func decodeExecutionRuntimeFacts(raw []byte) (executionConfiguredRuntimeFacts, e
 
 func validateExecutionRuntimeFacts(facts executionConfiguredRuntimeFacts, plan Plan, profile ExecutionProfile) error {
 	if profile.Schema != ExecutionProfileV3Schema || profile.Runtime.Schema != "t422-production-runtime-constants-v2" ||
-		plan.Schema != PlanV3Schema || profile.Runtime.GenerationMaxAttempts != 0 || profile.Runtime.MaximumAggregatePartitions != 0 {
+		!processAccountingPlanSemantics(plan.Schema) || profile.Runtime.GenerationMaxAttempts != 0 || profile.Runtime.MaximumAggregatePartitions != 0 {
 		return ErrExecutionEpochOne
 	}
 	want := executionConfiguredRuntimeFacts{
@@ -261,7 +261,7 @@ func (flow *ExecutionEpochOne) prepareProfileRuntime(ctx context.Context) error 
 	defer author.mu.Unlock()
 	epochs.mu.Lock()
 	defer epochs.mu.Unlock()
-	if flow.plan.Schema != PlanV3Schema || flow.closed || flow.used || flow.authored || !flow.authorStarted.IsZero() ||
+	if !processAccountingPlanSemantics(flow.plan.Schema) || flow.closed || flow.used || flow.authored || !flow.authorStarted.IsZero() ||
 		flow.profileRuntime != nil || flow.profileEnvironment == nil || !flow.profileEnvironmentUsed ||
 		author.closed || author.err != nil || author.active || author.borrowedBy != nil || author.next != 0 ||
 		epochs.closed || epochs.err != nil || epochs.active || epochs.released != 0 || flow.phebs == nil ||

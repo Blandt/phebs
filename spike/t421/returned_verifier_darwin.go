@@ -54,7 +54,7 @@ func verifyExecutionReturnedPackage(ctx context.Context, raw []byte, selection e
 	// DecodePlan independently regenerates and compares the complete frozen
 	// plan; cancellation is checked around that existing contextless operation.
 	plan, err := DecodePlan(files["plan.json"])
-	if err != nil || ctx.Err() != nil || plan.Schema != PlanV3Schema || plan.SourceCommit != selection.PlanSourceCommit ||
+	if err != nil || ctx.Err() != nil || !processAccountingPlanSemantics(plan.Schema) || plan.SourceCommit != selection.PlanSourceCommit ||
 		!reflect.DeepEqual(plan.SealPolicy, policy) || freeze.PlanSHA256 != SHA256(files["plan.json"]) ||
 		freeze.Schema != plan.ToolPolicy.ExecutionFreezeSchema {
 		return nil, ErrExecutionLauncher

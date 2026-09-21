@@ -20,6 +20,11 @@ server:
   # Default "~/.phebs". `~` is expanded and the result must be an absolute,
   # literal path without glob metacharacters (*, ?, [, or backslash).
   data_dir: "~/.phebs"
+  # Hardening response headers (X-Content-Type-Options, X-Frame-Options,
+  # Referrer-Policy, and a conservative Content-Security-Policy) on every HTTP
+  # response. Default true. Set false only when a reverse proxy or other
+  # operator tooling manages these headers instead.
+  security_headers: true
 
 auth:
   # Migration only: imports this legacy bearer as a SHA-256 hash into the

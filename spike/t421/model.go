@@ -18,6 +18,7 @@ const (
 	PlanSchema      = "t421-combined-gate-plan-v1"
 	PlanV2Schema    = "t421-combined-gate-plan-v2"
 	PlanV3Schema    = "t421-combined-gate-plan-v3"
+	PlanV4Schema    = "t421-combined-gate-plan-v4"
 	OracleSchema    = "t421-independent-combined-oracle-v1"
 	ReceiptSchema   = "t422-combined-convergence-receipt-v1"
 	MaxPlanBytes    = 256 << 10
@@ -708,17 +709,17 @@ func MarshalCanonical(value any) ([]byte, error) {
 	compact := false
 	switch typed := value.(type) {
 	case Plan:
-		compact = typed.Schema == PlanV3Schema
+		compact = processAccountingPlanSemantics(typed.Schema)
 	case *Plan:
-		compact = typed != nil && typed.Schema == PlanV3Schema
+		compact = typed != nil && processAccountingPlanSemantics(typed.Schema)
 	case ExecutionFreeze:
-		compact = typed.Schema == ExecutionFreezeV3Schema
+		compact = typed.Schema == ExecutionFreezeV3Schema || typed.Schema == ExecutionFreezeV4Schema
 	case *ExecutionFreeze:
-		compact = typed != nil && typed.Schema == ExecutionFreezeV3Schema
+		compact = typed != nil && (typed.Schema == ExecutionFreezeV3Schema || typed.Schema == ExecutionFreezeV4Schema)
 	case Receipt:
-		compact = typed.Schema == ReceiptV3Schema
+		compact = typed.Schema == ReceiptV3Schema || typed.Schema == ReceiptV4Schema
 	case *Receipt:
-		compact = typed != nil && typed.Schema == ReceiptV3Schema
+		compact = typed != nil && (typed.Schema == ReceiptV3Schema || typed.Schema == ReceiptV4Schema)
 	}
 	if compact {
 		raw, err := json.Marshal(value)

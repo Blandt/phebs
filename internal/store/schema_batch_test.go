@@ -23,7 +23,7 @@ func TestSchemaBatchTrustedRecipes(t *testing.T) {
 	}{
 		{"base", schema, 488},
 		{"API pre-migration", apiKeyCapabilityPreMigrationSchema, 1},
-		{"API capability", apiKeyCapabilitySchema, 2},
+		{"API capability", apiKeyCapabilitySchema, 3},
 		{"evidence pre-migration", evidencePreMigrationSchema, 2},
 		{"evidence index", evidenceIndexes, 4},
 		{"catalog v3 preflight", serviceCatalogV3PreflightSchema, 4},
@@ -147,7 +147,7 @@ func TestSchemaBatchNativeAtomicityAndSelfHealing(t *testing.T) {
 	ctx, cancel := context.WithTimeout(t.Context(), 4*time.Minute)
 	defer cancel()
 	directory := t.TempDir()
-	s, endpoint, closeStore := schemaBatchNativeStore(ctx, t, directory)
+	s, endpoint, pass, closeStore := schemaBatchNativeStore(ctx, t, directory)
 	t.Cleanup(func() { closeStore() })
 	// The direct SDK check establishes the pinned server's complete result
 	// shape; the pure transport test binds applySchemaBatch to these exact bytes.
@@ -205,7 +205,7 @@ DELETE $marker;`, map[string]any{"marker": candidateControlRevisionMigrationID()
 		t.Fatal("late duplicate-data index build unexpectedly succeeded")
 	}
 	assertUnchanged(s)
-	fresh := schemaBatchNativeConnection(ctx, t, endpoint)
+	fresh := schemaBatchNativeConnection(ctx, t, endpoint, pass)
 	assertUnchanged(fresh)
 	if err := fresh.Close(context.Background()); err != nil {
 		t.Fatal(err)
@@ -220,13 +220,13 @@ DELETE $marker;`, map[string]any{"marker": candidateControlRevisionMigrationID()
 		t.Fatalf("deterministic server rollback = %v", err)
 	}
 	assertUnchanged(s)
-	fresh = schemaBatchNativeConnection(ctx, t, endpoint)
+	fresh = schemaBatchNativeConnection(ctx, t, endpoint, pass)
 	assertUnchanged(fresh)
 	if err := fresh.Close(context.Background()); err != nil {
 		t.Fatal(err)
 	}
 	closeStore()
-	s, _, closeStore = schemaBatchNativeStore(ctx, t, directory)
+	s, _, _, closeStore = schemaBatchNativeStore(ctx, t, directory)
 	assertUnchanged(s)
 	if err := s.applySchema(ctx); err != nil {
 		t.Fatalf("self-heal populated store after rollback/reopen: %v", err)
@@ -243,7 +243,7 @@ DELETE $marker;`, map[string]any{"marker": candidateControlRevisionMigrationID()
 	}
 }
 
-func schemaBatchNativeStore(ctx context.Context, t *testing.T, directory string) (*Surreal, string, func()) {
+func schemaBatchNativeStore(ctx context.Context, t *testing.T, directory string) (*Surreal, string, string, func()) {
 	t.Helper()
 	runtime, stop, err := startLocal(ctx, directory)
 	if err != nil {
@@ -264,18 +264,18 @@ func schemaBatchNativeStore(ctx context.Context, t *testing.T, directory string)
 		stop()
 	}
 	t.Cleanup(closeStore)
-	s = schemaBatchNativeConnection(ctx, t, runtime.Endpoint)
-	return s, runtime.Endpoint, closeStore
+	s = schemaBatchNativeConnection(ctx, t, runtime.Endpoint, runtime.Pass)
+	return s, runtime.Endpoint, runtime.Pass, closeStore
 }
 
-func schemaBatchNativeConnection(ctx context.Context, t *testing.T, endpoint string) *Surreal {
+func schemaBatchNativeConnection(ctx context.Context, t *testing.T, endpoint, pass string) *Surreal {
 	t.Helper()
 	db, err := surrealdb.FromEndpointURLString(ctx, endpoint)
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = db.Close(context.Background()) })
-	if _, err := db.SignIn(ctx, surrealdb.Auth{Username: "root", Password: "root"}); err != nil {
+	if _, err := db.SignIn(ctx, surrealdb.Auth{Username: "root", Password: pass}); err != nil {
 		t.Fatal(err)
 	}
 	if err := db.Use(ctx, "phebs", "phebs"); err != nil {
